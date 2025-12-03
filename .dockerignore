@@ -1,0 +1,9 @@
+# Ignore unnecessary files in Docker build context
+.git
+.gitignore
+README.md
+LICENSE
+examples/
+*.md
+.DS_Store
+

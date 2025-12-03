@@ -1,0 +1,35 @@
+# HarborBuddy Configuration Example
+# This file shows all available configuration options with their defaults
+
+# Docker connection settings
+docker:
+  host: "unix:///var/run/docker.sock"   # Docker socket or tcp://host:2376 for remote
+  tls: false                            # Enable TLS for remote connections (future)
+
+# Container update settings
+updates:
+  enabled: true                         # Enable automatic updates
+  update_all: true                      # Update all containers by default (always true)
+  check_interval: "30m"                 # How often to check for updates (Go duration format: 30m, 1h, 6h)
+  dry_run: false                        # If true, only log what would be updated without making changes
+  
+  # Image filtering patterns (simple wildcards supported)
+  allow_images:                         # Only update images matching these patterns
+    - "*"                               # "*" means allow all images
+  
+  deny_images:                          # Never update images matching these patterns
+    - "postgres:*"                      # Example: never update any postgres image
+    - "mysql:*"                         # Example: never update any mysql image
+
+# Image cleanup settings
+cleanup:
+  enabled: true                         # Enable automatic cleanup of unused images
+  min_age_hours: 24                     # Only clean up images older than this many hours
+  dangling_only: true                   # If true, only remove dangling (untagged) images
+                                        # If false, remove all unused images
+
+# Logging settings
+log:
+  level: "info"                         # Logging level: debug, info, warn, error
+  json: false                           # If true, output logs in JSON format
+

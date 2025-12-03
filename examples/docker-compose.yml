@@ -1,0 +1,49 @@
+version: '3.8'
+
+services:
+  harborbuddy:
+    image: ghcr.io/mikeo/harborbuddy:latest
+    container_name: harborbuddy
+    restart: unless-stopped
+    
+    # Mount Docker socket to allow container management
+    volumes:
+      - /var/run/docker.sock:/var/run/docker.sock:ro
+      - ./harborbuddy.yml:/config/harborbuddy.yml:ro
+    
+    # Environment variables override config file settings
+    environment:
+      HARBORBUDDY_INTERVAL: "30m"       # Check for updates every 30 minutes
+      HARBORBUDDY_DRY_RUN: "false"      # Set to "true" to preview changes without applying
+      HARBORBUDDY_LOG_LEVEL: "info"     # debug, info, warn, or error
+      HARBORBUDDY_LOG_JSON: "false"     # Set to "true" for JSON log output
+    
+    # IMPORTANT: Prevent HarborBuddy from updating itself
+    labels:
+      com.harborbuddy.autoupdate: "false"
+
+  # Example: A container that WILL be auto-updated (no label needed)
+  nginx:
+    image: nginx:latest
+    container_name: nginx
+    restart: unless-stopped
+    ports:
+      - "80:80"
+    # No com.harborbuddy.autoupdate label = managed by default
+
+  # Example: A container that will NOT be auto-updated (opt-out)
+  postgres:
+    image: postgres:15
+    container_name: postgres
+    restart: unless-stopped
+    environment:
+      POSTGRES_PASSWORD: example
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+    # Opt out of auto-updates for database
+    labels:
+      com.harborbuddy.autoupdate: "false"
+
+volumes:
+  postgres_data:
+

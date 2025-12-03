@@ -1,0 +1,231 @@
+package docker
+
+import (
+	"context"
+	"fmt"
+	"sync"
+)
+
+// MockDockerClient is a mock implementation of the Client interface for testing
+type MockDockerClient struct {
+	mu sync.Mutex
+
+	// Containers to return from ListContainers
+	Containers []ContainerInfo
+
+	// Images to return from ListImages
+	Images []ImageInfo
+
+	// Record of operations for verification
+	PulledImages      []string
+	RemovedImages     []string
+	StoppedContainers []string
+	StartedContainers []string
+	RemovedContainers []string
+	CreatedContainers []CreateRequest
+	ReplacedContainers []ReplaceRequest
+
+	// Control behavior
+	ListContainersError     error
+	InspectContainerError   error
+	PullImageError          error
+	ListImagesError         error
+	RemoveImageError        error
+	StopContainerError      error
+	CreateContainerError    error
+	StartContainerError     error
+	RemoveContainerError    error
+	ReplaceContainerError   error
+
+	// Image pull simulation
+	PullImageReturns map[string]ImageInfo
+}
+
+// CreateRequest records container creation attempts
+type CreateRequest struct {
+	OldContainer ContainerInfo
+	NewImage     string
+}
+
+// ReplaceRequest records container replacement attempts
+type ReplaceRequest struct {
+	OldID string
+	NewID string
+	Name  string
+}
+
+// NewMockDockerClient creates a new mock Docker client
+func NewMockDockerClient() *MockDockerClient {
+	return &MockDockerClient{
+		Containers:       []ContainerInfo{},
+		Images:           []ImageInfo{},
+		PullImageReturns: make(map[string]ImageInfo),
+	}
+}
+
+// ListContainers returns the configured containers
+func (m *MockDockerClient) ListContainers(ctx context.Context) ([]ContainerInfo, error) {
+	m.mu.Lock()
+	defer m.mu.Unlock()
+
+	if m.ListContainersError != nil {
+		return nil, m.ListContainersError
+	}
+	return m.Containers, nil
+}
+
+// InspectContainer returns a container by ID
+func (m *MockDockerClient) InspectContainer(ctx context.Context, id string) (ContainerInfo, error) {
+	m.mu.Lock()
+	defer m.mu.Unlock()
+
+	if m.InspectContainerError != nil {
+		return ContainerInfo{}, m.InspectContainerError
+	}
+
+	for _, c := range m.Containers {
+		if c.ID == id {
+			return c, nil
+		}
+	}
+
+	return ContainerInfo{}, fmt.Errorf("container not found: %s", id)
+}
+
+// PullImage simulates pulling an image
+func (m *MockDockerClient) PullImage(ctx context.Context, image string) (ImageInfo, error) {
+	m.mu.Lock()
+	defer m.mu.Unlock()
+
+	m.PulledImages = append(m.PulledImages, image)
+
+	if m.PullImageError != nil {
+		return ImageInfo{}, m.PullImageError
+	}
+
+	if img, ok := m.PullImageReturns[image]; ok {
+		return img, nil
+	}
+
+	return ImageInfo{
+		ID:       "sha256:new-" + image,
+		RepoTags: []string{image},
+	}, nil
+}
+
+// ListImages returns the configured images
+func (m *MockDockerClient) ListImages(ctx context.Context) ([]ImageInfo, error) {
+	m.mu.Lock()
+	defer m.mu.Unlock()
+
+	if m.ListImagesError != nil {
+		return nil, m.ListImagesError
+	}
+	return m.Images, nil
+}
+
+// RemoveImage records the removal
+func (m *MockDockerClient) RemoveImage(ctx context.Context, id string) error {
+	m.mu.Lock()
+	defer m.mu.Unlock()
+
+	m.RemovedImages = append(m.RemovedImages, id)
+
+	if m.RemoveImageError != nil {
+		return m.RemoveImageError
+	}
+	return nil
+}
+
+// StopContainer records the stop
+func (m *MockDockerClient) StopContainer(ctx context.Context, id string, timeout int) error {
+	m.mu.Lock()
+	defer m.mu.Unlock()
+
+	m.StoppedContainers = append(m.StoppedContainers, id)
+
+	if m.StopContainerError != nil {
+		return m.StopContainerError
+	}
+	return nil
+}
+
+// CreateContainerLike records the creation
+func (m *MockDockerClient) CreateContainerLike(ctx context.Context, old ContainerInfo, newImage string) (string, error) {
+	m.mu.Lock()
+	defer m.mu.Unlock()
+
+	m.CreatedContainers = append(m.CreatedContainers, CreateRequest{
+		OldContainer: old,
+		NewImage:     newImage,
+	})
+
+	if m.CreateContainerError != nil {
+		return "", m.CreateContainerError
+	}
+
+	return "new-container-id-" + old.Name, nil
+}
+
+// StartContainer records the start
+func (m *MockDockerClient) StartContainer(ctx context.Context, id string) error {
+	m.mu.Lock()
+	defer m.mu.Unlock()
+
+	m.StartedContainers = append(m.StartedContainers, id)
+
+	if m.StartContainerError != nil {
+		return m.StartContainerError
+	}
+	return nil
+}
+
+// RemoveContainer records the removal
+func (m *MockDockerClient) RemoveContainer(ctx context.Context, id string) error {
+	m.mu.Lock()
+	defer m.mu.Unlock()
+
+	m.RemovedContainers = append(m.RemovedContainers, id)
+
+	if m.RemoveContainerError != nil {
+		return m.RemoveContainerError
+	}
+	return nil
+}
+
+// ReplaceContainer records the replacement
+func (m *MockDockerClient) ReplaceContainer(ctx context.Context, oldID, newID, name string) error {
+	m.mu.Lock()
+	defer m.mu.Unlock()
+
+	m.ReplacedContainers = append(m.ReplacedContainers, ReplaceRequest{
+		OldID: oldID,
+		NewID: newID,
+		Name:  name,
+	})
+
+	if m.ReplaceContainerError != nil {
+		return m.ReplaceContainerError
+	}
+	return nil
+}
+
+// Close does nothing for the mock
+func (m *MockDockerClient) Close() error {
+	return nil
+}
+
+// Reset clears all recorded operations
+func (m *MockDockerClient) Reset() {
+	m.mu.Lock()
+	defer m.mu.Unlock()
+
+	m.PulledImages = []string{}
+	m.RemovedImages = []string{}
+	m.StoppedContainers = []string{}
+	m.StartedContainers = []string{}
+	m.RemovedContainers = []string{}
+	m.CreatedContainers = []CreateRequest{}
+	m.ReplacedContainers = []ReplaceRequest{}
+}
+

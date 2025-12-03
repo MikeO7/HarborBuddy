@@ -1,0 +1,68 @@
+name: Verify Multi-Arch Build
+
+on:
+  workflow_dispatch:
+  schedule:
+    # Run weekly to verify images are still buildable
+    - cron: '0 0 * * 0'
+
+jobs:
+  verify:
+    name: Verify Multi-Architecture Support
+    runs-on: ubuntu-latest
+    
+    steps:
+    - name: Check out code
+      uses: actions/checkout@v4
+
+    - name: Set up QEMU
+      uses: docker/setup-qemu-action@v3
+      with:
+        platforms: all
+
+    - name: Set up Docker Buildx
+      uses: docker/setup-buildx-action@v3
+
+    - name: Test build for linux/amd64
+      uses: docker/build-push-action@v5
+      with:
+        context: .
+        platforms: linux/amd64
+        push: false
+        tags: harborbuddy:test-amd64
+
+    - name: Test build for linux/arm64
+      uses: docker/build-push-action@v5
+      with:
+        context: .
+        platforms: linux/arm64
+        push: false
+        tags: harborbuddy:test-arm64
+
+    - name: Test build for linux/arm/v7
+      uses: docker/build-push-action@v5
+      with:
+        context: .
+        platforms: linux/arm/v7
+        push: false
+        tags: harborbuddy:test-armv7
+
+    - name: Test multi-arch build
+      uses: docker/build-push-action@v5
+      with:
+        context: .
+        platforms: linux/amd64,linux/arm64,linux/arm/v7
+        push: false
+        tags: harborbuddy:test-multiarch
+
+    - name: Summary
+      run: |
+        echo "## ✅ Multi-Architecture Build Verification" >> $GITHUB_STEP_SUMMARY
+        echo "" >> $GITHUB_STEP_SUMMARY
+        echo "All architectures built successfully:" >> $GITHUB_STEP_SUMMARY
+        echo "- ✅ linux/amd64 (Intel/AMD 64-bit)" >> $GITHUB_STEP_SUMMARY
+        echo "- ✅ linux/arm64 (ARM 64-bit - Apple Silicon, Raspberry Pi 4+)" >> $GITHUB_STEP_SUMMARY
+        echo "- ✅ linux/arm/v7 (ARM 32-bit - Raspberry Pi 3)" >> $GITHUB_STEP_SUMMARY
+        echo "" >> $GITHUB_STEP_SUMMARY
+        echo "Combined multi-arch image can be built and will work on all platforms!" >> $GITHUB_STEP_SUMMARY
+
