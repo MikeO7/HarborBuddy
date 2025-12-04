@@ -20,19 +20,19 @@ func TestRunUpdateCycle(t *testing.T) {
 	t.Log("Testing update cycle execution")
 
 	tests := []struct {
-		name               string
-		containers         []docker.ContainerInfo
-		images             map[string]docker.ImageInfo
-		config             config.Config
-		expectedPulls      int
+		name                 string
+		containers           []docker.ContainerInfo
+		images               map[string]docker.ImageInfo
+		config               config.Config
+		expectedPulls        int
 		expectedReplacements int
-		wantError          bool
-		description        string
+		wantError            bool
+		description          string
 	}{
 		{
-			name: "no containers",
+			name:       "no containers",
 			containers: []docker.ContainerInfo{},
-			images: map[string]docker.ImageInfo{},
+			images:     map[string]docker.ImageInfo{},
 			config: config.Config{
 				Updates: config.UpdatesConfig{
 					Enabled:       true,
@@ -342,4 +342,3 @@ func TestUpdateCycleErrorHandling(t *testing.T) {
 		}
 	})
 }
-

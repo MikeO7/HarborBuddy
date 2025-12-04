@@ -13,10 +13,10 @@ func TestDefault(t *testing.T) {
 	cfg := Default()
 
 	tests := []struct {
-		name     string
-		got      interface{}
-		want     interface{}
-		field    string
+		name  string
+		got   interface{}
+		want  interface{}
+		field string
 	}{
 		{"docker host", cfg.Docker.Host, "unix:///var/run/docker.sock", "Docker.Host"},
 		{"docker tls", cfg.Docker.TLS, false, "Docker.TLS"},
@@ -362,4 +362,3 @@ func TestValidate(t *testing.T) {
 		})
 	}
 }
-

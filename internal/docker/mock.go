@@ -17,25 +17,25 @@ type MockDockerClient struct {
 	Images []ImageInfo
 
 	// Record of operations for verification
-	PulledImages      []string
-	RemovedImages     []string
-	StoppedContainers []string
-	StartedContainers []string
-	RemovedContainers []string
-	CreatedContainers []CreateRequest
+	PulledImages       []string
+	RemovedImages      []string
+	StoppedContainers  []string
+	StartedContainers  []string
+	RemovedContainers  []string
+	CreatedContainers  []CreateRequest
 	ReplacedContainers []ReplaceRequest
 
 	// Control behavior
-	ListContainersError     error
-	InspectContainerError   error
-	PullImageError          error
-	ListImagesError         error
-	RemoveImageError        error
-	StopContainerError      error
-	CreateContainerError    error
-	StartContainerError     error
-	RemoveContainerError    error
-	ReplaceContainerError   error
+	ListContainersError   error
+	InspectContainerError error
+	PullImageError        error
+	ListImagesError       error
+	RemoveImageError      error
+	StopContainerError    error
+	CreateContainerError  error
+	StartContainerError   error
+	RemoveContainerError  error
+	ReplaceContainerError error
 
 	// Image pull simulation
 	PullImageReturns map[string]ImageInfo
@@ -228,4 +228,3 @@ func (m *MockDockerClient) Reset() {
 	m.CreatedContainers = []CreateRequest{}
 	m.ReplacedContainers = []ReplaceRequest{}
 }
-
