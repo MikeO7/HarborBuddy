@@ -29,7 +29,7 @@ jobs:
     - name: Set up QEMU
       uses: docker/setup-qemu-action@v3
       with:
-        platforms: linux/amd64,linux/arm64,linux/arm/v7
+        platforms: linux/amd64,linux/arm64
 
     - name: Set up Docker Buildx
       uses: docker/setup-buildx-action@v3
@@ -72,7 +72,7 @@ jobs:
       with:
         context: .
         # Build for multiple architectures
-        platforms: linux/amd64,linux/arm64,linux/arm/v7
+        platforms: linux/amd64,linux/arm64
         # Push to registry (except for PRs)
         push: ${{ github.event_name != 'pull_request' }}
         tags: ${{ steps.meta.outputs.tags }}
@@ -80,17 +80,15 @@ jobs:
         # Use cache for faster builds
         cache-from: type=gha
         cache-to: type=gha,mode=max
-        # Add build args for version info
-        build-args: |
-          VERSION=${{ steps.meta.outputs.version }}
-          COMMIT=${{ github.sha }}
-          BUILD_DATE=${{ github.event.head_commit.timestamp }}
+        # Optimize build
+        provenance: false
+        sbom: false
 
     - name: Output image information
       run: |
         echo "## 🐳 Docker Image Built Successfully!" >> $GITHUB_STEP_SUMMARY
         echo "" >> $GITHUB_STEP_SUMMARY
-        echo "**Architectures**: linux/amd64, linux/arm64, linux/arm/v7" >> $GITHUB_STEP_SUMMARY
+        echo "**Architectures**: linux/amd64, linux/arm64" >> $GITHUB_STEP_SUMMARY
         echo "" >> $GITHUB_STEP_SUMMARY
         echo "**Tags**:" >> $GITHUB_STEP_SUMMARY
         echo '```' >> $GITHUB_STEP_SUMMARY
