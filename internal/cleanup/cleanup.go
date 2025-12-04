@@ -16,16 +16,18 @@ func RunCleanup(ctx context.Context, cfg config.Config, dockerClient docker.Clie
 		return nil
 	}
 
+	startTime := time.Now()
 	log.Info("Starting image cleanup")
 
 	// List all images
+	listStart := time.Now()
 	images, err := dockerClient.ListImages(ctx)
 	if err != nil {
 		log.ErrorErr("Failed to list images", err)
 		return err
 	}
 
-	log.Infof("Found %d images", len(images))
+	log.Infof("Found %d images (in %v)", len(images), time.Since(listStart))
 
 	minAge := time.Duration(cfg.Cleanup.MinAgeHours) * time.Hour
 	removedCount := 0
@@ -59,7 +61,8 @@ func RunCleanup(ctx context.Context, cfg config.Config, dockerClient docker.Clie
 		removedCount++
 	}
 
-	log.Infof("Cleanup complete: %d images removed, %d skipped", removedCount, skippedCount)
+	log.Infof("Cleanup complete: %d removed, %d skipped, %d total (in %v)",
+		removedCount, skippedCount, len(images), time.Since(startTime))
 	return nil
 }
 

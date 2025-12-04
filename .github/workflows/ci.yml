@@ -25,6 +25,14 @@ jobs:
     - name: Run tests
       run: go test -v ./...
 
+    - name: Run tests with race detector
+      run: go test -race ./...
+
+    - name: Generate coverage report
+      run: |
+        go test -coverprofile=coverage.out ./...
+        go tool cover -func=coverage.out
+
     - name: Run go vet
       run: go vet ./...
 

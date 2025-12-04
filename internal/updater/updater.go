@@ -3,6 +3,7 @@ package updater
 import (
 	"context"
 	"fmt"
+	"time"
 
 	"github.com/mikeo/harborbuddy/internal/config"
 	"github.com/mikeo/harborbuddy/internal/docker"
@@ -19,16 +20,18 @@ func shortID(id string) string {
 
 // RunUpdateCycle performs one complete update cycle
 func RunUpdateCycle(ctx context.Context, cfg config.Config, dockerClient docker.Client) error {
+	startTime := time.Now()
 	log.Info("Starting update cycle")
 
 	// Discovery phase: list all containers
+	listStart := time.Now()
 	containers, err := dockerClient.ListContainers(ctx)
 	if err != nil {
 		log.ErrorErr("Failed to list containers", err)
 		return err
 	}
 
-	log.Infof("Found %d running containers", len(containers))
+	log.Infof("Found %d running containers (in %v)", len(containers), time.Since(listStart))
 
 	updatedCount := 0
 	skippedCount := 0
@@ -78,7 +81,8 @@ func RunUpdateCycle(ctx context.Context, cfg config.Config, dockerClient docker.
 		}
 	}
 
-	log.Infof("Update cycle complete: %d updated, %d skipped", updatedCount, skippedCount)
+	log.Infof("Update cycle complete: %d updated, %d skipped, %d total (in %v)",
+		updatedCount, skippedCount, len(containers), time.Since(startTime))
 	return nil
 }
 
