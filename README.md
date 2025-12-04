@@ -2,8 +2,8 @@
 
 [![CI](https://github.com/MikeO7/HarborBuddy/actions/workflows/ci.yml/badge.svg)](https://github.com/MikeO7/HarborBuddy/actions/workflows/ci.yml)
 [![Docker Build](https://github.com/MikeO7/HarborBuddy/actions/workflows/docker-build.yml/badge.svg)](https://github.com/MikeO7/HarborBuddy/actions/workflows/docker-build.yml)
-[![License](https://img.shields.io/github/license/MikeO7/HarborBuddy)](LICENSE)
-[![Go Version](https://img.shields.io/github/go-mod/go-version/MikeO7/HarborBuddy)](go.mod)
+[![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
+[![Go Version](https://img.shields.io/badge/Go-1.25-00ADD8?logo=go&logoColor=white)](https://go.dev/)
 
 **HarborBuddy** is a Docker-native daemon that automatically keeps your containers up to date by checking for newer images, recreating containers with updated images, and cleaning up unused images.
 
