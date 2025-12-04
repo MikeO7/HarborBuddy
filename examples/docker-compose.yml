@@ -14,18 +14,17 @@ services:
     # Environment variables override config file settings
     environment:
       # Standard Docker timezone variable (affects scheduled times)
-      - TZ=Etc/UTC                      # Timezone (IANA format: America/Los_Angeles, Europe/London, etc.)
+      - TZ=America/Los_Angeles          # Timezone (IANA format: America/Los_Angeles, Europe/London, etc.)
       
       # Optional: User/Group ID for file permissions (HarborBuddy runs as non-root)
       # - PUID=1000
       # - PGID=1000
       
-      # Scheduling options - choose one:
-      # Option 1: Interval-based (runs every X minutes/hours)
-      - HARBORBUDDY_INTERVAL=30m        # Check for updates every 30 minutes
+      # Scheduling - Run daily at 3:00 AM (your local timezone)
+      - HARBORBUDDY_SCHEDULE_TIME=03:00 # Daily update at 3:00 AM (24-hour format)
       
-      # Option 2: Scheduled time (runs daily at specific time) - uncomment to use
-      # - HARBORBUDDY_SCHEDULE_TIME=03:00 # Run daily at 3:00 AM (24-hour format)
+      # Alternative: Use interval-based updates instead of scheduled time
+      # - HARBORBUDDY_INTERVAL=30m      # Check for updates every 30 minutes
       
       - HARBORBUDDY_DRY_RUN=false       # Set to "true" to preview changes without applying
       - HARBORBUDDY_LOG_LEVEL=info      # debug, info, warn, or error

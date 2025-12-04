@@ -11,16 +11,15 @@ updates:
   enabled: true                         # Enable automatic updates
   update_all: true                      # Update all containers by default (always true)
   
-  # Scheduling options - choose one:
-  # Option 1: Interval-based (runs every X minutes/hours)
-  check_interval: "30m"                 # How often to check for updates (Go duration format: 30m, 1h, 6h)
-  
-  # Option 2: Scheduled time (runs daily at specific time) - uncomment to use
-  # schedule_time: "03:00"              # Run daily at 3:00 AM (24-hour format HH:MM)
-  # timezone: "America/Los_Angeles"     # Timezone for schedule (IANA timezone name)
+  # Scheduling - Run daily at a specific time (recommended)
+  schedule_time: "03:00"                # Run daily at 3:00 AM (24-hour format HH:MM)
+  timezone: "America/Los_Angeles"       # Timezone for schedule (IANA timezone name)
                                         # Examples: UTC, America/New_York, Europe/London, Asia/Tokyo
-                                        # If schedule_time is set, it takes priority over check_interval
                                         # Note: TZ environment variable can also be used (Docker standard)
+  
+  # Alternative: Use interval-based updates instead of scheduled time
+  # check_interval: "30m"               # How often to check for updates (Go duration format: 30m, 1h, 6h)
+                                        # If schedule_time is set, it takes priority over check_interval
   
   dry_run: false                        # If true, only log what would be updated without making changes
   
