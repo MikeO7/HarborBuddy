@@ -1,11 +1,10 @@
 module github.com/mikeo/harborbuddy
 
-go 1.24
+go 1.24.0
 
 require (
-	github.com/docker/docker v27.4.1+incompatible
+	github.com/docker/docker v28.0.0+incompatible
 	github.com/rs/zerolog v1.33.0
-	github.com/spf13/pflag v1.0.5
 	gopkg.in/yaml.v3 v3.0.1
 )
 
