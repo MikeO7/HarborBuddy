@@ -1,5 +1,5 @@
-# Binaries
-harborbuddy
+# Binaries (but not cmd/harborbuddy source directory)
+/harborbuddy
 *.exe
 *.exe~
 *.dll

@@ -8,6 +8,9 @@ RUN go mod download
 
 COPY . .
 
+# Ensure go.mod and go.sum are properly synced
+RUN go mod tidy
+
 ENV CGO_ENABLED=0 GOOS=linux GOARCH=amd64
 RUN go build -ldflags="-s -w" -o /harborbuddy ./cmd/harborbuddy
 
