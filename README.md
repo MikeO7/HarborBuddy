@@ -2,6 +2,15 @@
 
 **HarborBuddy** is a Docker-native daemon that automatically keeps your containers up to date by checking for newer images, recreating containers with updated images, and cleaning up unused images.
 
+## 📚 Documentation
+
+- **[Quick Start Guide](docs/QUICK_START.md)** - Get started in 5 minutes
+- **[CI/CD Guide](docs/CICD_GUIDE.md)** - Multi-arch builds and deployment  
+- **[Improvements Roadmap](docs/IMPROVEMENTS.md)** - Future enhancements (70+ suggestions)
+- **[Validation Report](docs/VALIDATION_REPORT.md)** - Production readiness assessment
+
+For complete documentation, see the **[docs/](docs/)** directory.
+
 ## Features
 
 - **Auto-update by default**: Updates all containers automatically unless explicitly excluded

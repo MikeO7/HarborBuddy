@@ -32,3 +32,4 @@ Thumbs.db
 
 # Local config for testing
 config/harborbuddy.yml
+harborbuddy
