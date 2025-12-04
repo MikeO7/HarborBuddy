@@ -3,8 +3,8 @@ package updater
 import (
 	"testing"
 
-	"github.com/mikeo/harborbuddy/internal/config"
-	"github.com/mikeo/harborbuddy/internal/docker"
+	"github.com/MikeO7/HarborBuddy/internal/config"
+	"github.com/MikeO7/HarborBuddy/internal/docker"
 )
 
 func TestMatchesPattern(t *testing.T) {

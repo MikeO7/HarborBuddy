@@ -15,8 +15,8 @@ Thank you for your interest in contributing to HarborBuddy! This document provid
 1. Fork and clone the repository:
 
 ```bash
-git clone https://github.com/mikeo/harborbuddy.git
-cd harborbuddy
+git clone https://github.com/MikeO7/HarborBuddy.git
+cd HarborBuddy
 ```
 
 2. Install dependencies:

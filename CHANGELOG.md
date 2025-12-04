@@ -94,5 +94,5 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ---
 
-[0.1.0]: https://github.com/mikeo/harborbuddy/releases/tag/v0.1.0
+[0.1.0]: https://github.com/MikeO7/HarborBuddy/releases/tag/v0.1.0
 

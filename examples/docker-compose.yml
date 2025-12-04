@@ -2,7 +2,7 @@ version: '3.8'
 
 services:
   harborbuddy:
-    image: ghcr.io/mikeo/harborbuddy:latest
+    image: ghcr.io/mikeo7/harborbuddy:latest
     container_name: harborbuddy
     restart: unless-stopped
     

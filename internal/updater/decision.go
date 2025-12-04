@@ -3,8 +3,8 @@ package updater
 import (
 	"strings"
 
-	"github.com/mikeo/harborbuddy/internal/config"
-	"github.com/mikeo/harborbuddy/internal/docker"
+	"github.com/MikeO7/HarborBuddy/internal/config"
+	"github.com/MikeO7/HarborBuddy/internal/docker"
 )
 
 // UpdateDecision represents whether and why a container should be updated

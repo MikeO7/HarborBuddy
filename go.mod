@@ -1,4 +1,4 @@
-module github.com/mikeo/harborbuddy
+module github.com/MikeO7/HarborBuddy
 
 go 1.24.0
 

@@ -5,9 +5,9 @@ import (
 	"fmt"
 	"time"
 
-	"github.com/mikeo/harborbuddy/internal/config"
-	"github.com/mikeo/harborbuddy/internal/docker"
-	"github.com/mikeo/harborbuddy/pkg/log"
+	"github.com/MikeO7/HarborBuddy/internal/config"
+	"github.com/MikeO7/HarborBuddy/internal/docker"
+	"github.com/MikeO7/HarborBuddy/pkg/log"
 )
 
 // shortID returns a shortened version of a Docker ID, safe for any length

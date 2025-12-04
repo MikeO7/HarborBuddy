@@ -7,11 +7,11 @@ import (
 	"syscall"
 	"time"
 
-	"github.com/mikeo/harborbuddy/internal/cleanup"
-	"github.com/mikeo/harborbuddy/internal/config"
-	"github.com/mikeo/harborbuddy/internal/docker"
-	"github.com/mikeo/harborbuddy/internal/updater"
-	"github.com/mikeo/harborbuddy/pkg/log"
+	"github.com/MikeO7/HarborBuddy/internal/cleanup"
+	"github.com/MikeO7/HarborBuddy/internal/config"
+	"github.com/MikeO7/HarborBuddy/internal/docker"
+	"github.com/MikeO7/HarborBuddy/internal/updater"
+	"github.com/MikeO7/HarborBuddy/pkg/log"
 )
 
 // Run starts the scheduler main loop

@@ -4,10 +4,10 @@ import (
 	"fmt"
 	"os"
 
-	"github.com/mikeo/harborbuddy/internal/config"
-	"github.com/mikeo/harborbuddy/internal/docker"
-	"github.com/mikeo/harborbuddy/internal/scheduler"
-	"github.com/mikeo/harborbuddy/pkg/log"
+	"github.com/MikeO7/HarborBuddy/internal/config"
+	"github.com/MikeO7/HarborBuddy/internal/docker"
+	"github.com/MikeO7/HarborBuddy/internal/scheduler"
+	"github.com/MikeO7/HarborBuddy/pkg/log"
 	flag "github.com/spf13/pflag"
 )
 

@@ -1,6 +1,13 @@
 # HarborBuddy
 
+[![CI](https://github.com/MikeO7/HarborBuddy/actions/workflows/ci.yml/badge.svg)](https://github.com/MikeO7/HarborBuddy/actions/workflows/ci.yml)
+[![Docker Build](https://github.com/MikeO7/HarborBuddy/actions/workflows/docker-build.yml/badge.svg)](https://github.com/MikeO7/HarborBuddy/actions/workflows/docker-build.yml)
+[![License](https://img.shields.io/github/license/MikeO7/HarborBuddy)](LICENSE)
+[![Go Version](https://img.shields.io/github/go-mod/go-version/MikeO7/HarborBuddy)](go.mod)
+
 **HarborBuddy** is a Docker-native daemon that automatically keeps your containers up to date by checking for newer images, recreating containers with updated images, and cleaning up unused images.
+
+> ⚠️ **Important**: Always test in dry-run mode first and exclude critical services (databases, etc.) using labels.
 
 
 ## Features
@@ -24,7 +31,7 @@ version: '3.8'
 
 services:
   harborbuddy:
-    image: ghcr.io/mikeo/harborbuddy:latest
+    image: ghcr.io/mikeo7/harborbuddy:latest
     container_name: harborbuddy
     restart: unless-stopped
     volumes:
@@ -56,7 +63,7 @@ docker run -d \
   -v /var/run/docker.sock:/var/run/docker.sock:ro \
   -e HARBORBUDDY_INTERVAL=30m \
   -l com.harborbuddy.autoupdate=false \
-  ghcr.io/mikeo/harborbuddy:latest
+  ghcr.io/mikeo7/harborbuddy:latest
 ```
 
 ## Configuration
@@ -118,7 +125,7 @@ Override configuration using environment variables:
 Run with custom flags:
 
 ```bash
-docker run ghcr.io/mikeo/harborbuddy:latest \
+docker run ghcr.io/mikeo7/harborbuddy:latest \
   --interval 1h \
   --dry-run \
   --log-level debug
@@ -225,7 +232,7 @@ Preview what HarborBuddy would do without making any changes:
 docker run -d \
   -v /var/run/docker.sock:/var/run/docker.sock:ro \
   -e HARBORBUDDY_DRY_RUN=true \
-  ghcr.io/mikeo/harborbuddy:latest --once
+  ghcr.io/mikeo7/harborbuddy:latest --once
 ```
 
 Dry-run mode will:
@@ -297,7 +304,7 @@ updates:
 ```bash
 docker run --rm \
   -v /var/run/docker.sock:/var/run/docker.sock:ro \
-  ghcr.io/mikeo/harborbuddy:latest --once
+  ghcr.io/mikeo7/harborbuddy:latest --once
 ```
 
 ### 6. Cleanup Only
@@ -305,7 +312,7 @@ docker run --rm \
 ```bash
 docker run --rm \
   -v /var/run/docker.sock:/var/run/docker.sock:ro \
-  ghcr.io/mikeo/harborbuddy:latest --cleanup-only
+  ghcr.io/mikeo7/harborbuddy:latest --cleanup-only
 ```
 
 ## Building from Source
@@ -426,7 +433,13 @@ See [LICENSE](LICENSE) file.
 
 ## Contributing
 
-Contributions are welcome! Please open an issue or pull request.
+Contributions are welcome! Please see [CONTRIBUTING.md](CONTRIBUTING.md) for guidelines.
+
+## Support
+
+- 🐛 [Report a bug](https://github.com/MikeO7/HarborBuddy/issues/new?template=bug_report.md)
+- 💡 [Request a feature](https://github.com/MikeO7/HarborBuddy/issues/new?template=feature_request.md)
+- 💬 [Discussions](https://github.com/MikeO7/HarborBuddy/discussions)
 
 ## Version
 
