@@ -33,3 +33,10 @@ Thumbs.db
 # Local config for testing
 config/harborbuddy.yml
 harborbuddy
+harborbuddy-test
+test-local.sh
+
+# Local testing
+test-local.sh
+harborbuddy-test
+/test-results/

@@ -1,6 +1,6 @@
 module github.com/MikeO7/HarborBuddy
 
-go 1.24.0
+go 1.24
 
 require (
 	github.com/docker/docker v28.5.2+incompatible
