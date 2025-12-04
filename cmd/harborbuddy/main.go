@@ -73,13 +73,13 @@ func main() {
 
 	log.Infof("HarborBuddy version %s starting", version)
 	log.Infof("Docker host: %s", cfg.Docker.Host)
-	
+
 	if cfg.Updates.ScheduleTime != "" {
 		log.Infof("Schedule: Daily at %s (%s)", cfg.Updates.ScheduleTime, cfg.Updates.Timezone)
 	} else {
 		log.Infof("Update interval: %v", cfg.Updates.CheckInterval)
 	}
-	
+
 	log.Infof("Dry-run mode: %v", cfg.Updates.DryRun)
 
 	// Create Docker client

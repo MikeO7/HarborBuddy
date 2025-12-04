@@ -111,22 +111,22 @@ func runScheduledMode(ctx context.Context, cfg config.Config, dockerClient docke
 // calculateNextRun calculates the next scheduled run time
 func calculateNextRun(scheduleTime string, location *time.Location) time.Time {
 	now := time.Now().In(location)
-	
+
 	// Parse the schedule time (HH:MM format)
 	scheduledTime, _ := time.Parse("15:04", scheduleTime)
-	
+
 	// Create a time for today at the scheduled time
 	nextRun := time.Date(
 		now.Year(), now.Month(), now.Day(),
 		scheduledTime.Hour(), scheduledTime.Minute(), 0, 0,
 		location,
 	)
-	
+
 	// If the scheduled time has already passed today, schedule for tomorrow
 	if nextRun.Before(now) || nextRun.Equal(now) {
 		nextRun = nextRun.Add(24 * time.Hour)
 	}
-	
+
 	return nextRun
 }
 
