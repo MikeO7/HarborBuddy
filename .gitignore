@@ -32,11 +32,7 @@ Thumbs.db
 
 # Local config for testing
 config/harborbuddy.yml
-harborbuddy
-harborbuddy-test
-test-local.sh
 
-# Local testing
-test-local.sh
+# Test binaries (but keep test/ directory and scripts)
 harborbuddy-test
 /test-results/

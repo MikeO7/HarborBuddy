@@ -13,10 +13,23 @@ services:
     
     # Environment variables override config file settings
     environment:
-      HARBORBUDDY_INTERVAL: "30m"       # Check for updates every 30 minutes
-      HARBORBUDDY_DRY_RUN: "false"      # Set to "true" to preview changes without applying
-      HARBORBUDDY_LOG_LEVEL: "info"     # debug, info, warn, or error
-      HARBORBUDDY_LOG_JSON: "false"     # Set to "true" for JSON log output
+      # Standard Docker timezone variable (affects scheduled times)
+      - TZ=Etc/UTC                      # Timezone (IANA format: America/Los_Angeles, Europe/London, etc.)
+      
+      # Optional: User/Group ID for file permissions (HarborBuddy runs as non-root)
+      # - PUID=1000
+      # - PGID=1000
+      
+      # Scheduling options - choose one:
+      # Option 1: Interval-based (runs every X minutes/hours)
+      - HARBORBUDDY_INTERVAL=30m        # Check for updates every 30 minutes
+      
+      # Option 2: Scheduled time (runs daily at specific time) - uncomment to use
+      # - HARBORBUDDY_SCHEDULE_TIME=03:00 # Run daily at 3:00 AM (24-hour format)
+      
+      - HARBORBUDDY_DRY_RUN=false       # Set to "true" to preview changes without applying
+      - HARBORBUDDY_LOG_LEVEL=info      # debug, info, warn, or error
+      - HARBORBUDDY_LOG_JSON=false      # Set to "true" for JSON log output
     
     # IMPORTANT: Prevent HarborBuddy from updating itself
     labels:
@@ -46,4 +59,34 @@ services:
 
 volumes:
   postgres_data:
+
+# ============================================================================
+# ALTERNATIVE EXAMPLE: HarborBuddy with Scheduled Daily Updates at 3am
+# ============================================================================
+# Uncomment this service to run updates at a specific time instead of intervals
+
+#  harborbuddy-scheduled:
+#    image: ghcr.io/mikeo7/harborbuddy:latest
+#    container_name: harborbuddy
+#    restart: unless-stopped
+#    
+#    volumes:
+#      - /var/run/docker.sock:/var/run/docker.sock:ro
+#      - ./harborbuddy.yml:/config/harborbuddy.yml:ro
+#    
+#    environment:
+#      # Set your timezone (IANA format)
+#      - TZ=America/Los_Angeles          # Pacific Time
+#      # - TZ=America/New_York           # Eastern Time
+#      # - TZ=Europe/London              # UK Time
+#      # - TZ=Asia/Tokyo                 # Japan Time
+#      
+#      # Schedule daily updates at 3:00 AM
+#      - HARBORBUDDY_SCHEDULE_TIME=03:00
+#      
+#      - HARBORBUDDY_DRY_RUN=false
+#      - HARBORBUDDY_LOG_LEVEL=info
+#    
+#    labels:
+#      com.harborbuddy.autoupdate: "false"
 

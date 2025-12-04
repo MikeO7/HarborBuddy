@@ -32,6 +32,8 @@ type UpdatesConfig struct {
 	Enabled       bool          `yaml:"enabled"`
 	UpdateAll     bool          `yaml:"update_all"`
 	CheckInterval time.Duration `yaml:"check_interval"`
+	ScheduleTime  string        `yaml:"schedule_time"` // Time to run daily (e.g., "03:00", "15:30")
+	Timezone      string        `yaml:"timezone"`      // Timezone for schedule (e.g., "America/Los_Angeles", "UTC")
 	DryRun        bool          `yaml:"dry_run"`
 	AllowImages   []string      `yaml:"allow_images"`
 	DenyImages    []string      `yaml:"deny_images"`
@@ -61,6 +63,8 @@ func Default() Config {
 			Enabled:       true,
 			UpdateAll:     true,
 			CheckInterval: 30 * time.Minute,
+			ScheduleTime:  "", // Empty means use CheckInterval
+			Timezone:      "UTC",
 			DryRun:        false,
 			AllowImages:   []string{"*"},
 			DenyImages:    []string{},
@@ -112,6 +116,18 @@ func (c *Config) ApplyEnvironmentOverrides() {
 		}
 	}
 
+	if val := os.Getenv("HARBORBUDDY_SCHEDULE_TIME"); val != "" {
+		c.Updates.ScheduleTime = val
+	}
+
+	// Support both HARBORBUDDY_TIMEZONE and standard TZ environment variable
+	// HARBORBUDDY_TIMEZONE takes priority over TZ
+	if val := os.Getenv("HARBORBUDDY_TIMEZONE"); val != "" {
+		c.Updates.Timezone = val
+	} else if val := os.Getenv("TZ"); val != "" {
+		c.Updates.Timezone = val
+	}
+
 	if val := os.Getenv("HARBORBUDDY_DRY_RUN"); val != "" {
 		if dryRun, err := strconv.ParseBool(val); err == nil {
 			c.Updates.DryRun = dryRun
@@ -135,8 +151,21 @@ func (c *Config) Validate() error {
 		return fmt.Errorf("docker.host cannot be empty")
 	}
 
-	if c.Updates.CheckInterval <= 0 {
-		return fmt.Errorf("updates.check_interval must be positive")
+	// If schedule_time is not set, check_interval must be positive
+	if c.Updates.ScheduleTime == "" && c.Updates.CheckInterval <= 0 {
+		return fmt.Errorf("updates.check_interval must be positive when schedule_time is not set")
+	}
+
+	// If schedule_time is set, validate the format
+	if c.Updates.ScheduleTime != "" {
+		if _, err := time.Parse("15:04", c.Updates.ScheduleTime); err != nil {
+			return fmt.Errorf("invalid schedule_time format: %s (must be HH:MM, e.g., '03:00')", c.Updates.ScheduleTime)
+		}
+
+		// Validate timezone
+		if _, err := time.LoadLocation(c.Updates.Timezone); err != nil {
+			return fmt.Errorf("invalid timezone: %s (use IANA timezone names like 'America/Los_Angeles' or 'UTC')", c.Updates.Timezone)
+		}
 	}
 
 	if c.Cleanup.MinAgeHours < 0 {

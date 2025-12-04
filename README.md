@@ -337,8 +337,18 @@ docker build -t harborbuddy:latest .
 ### Run Tests
 
 ```bash
+# Run unit tests
 go test ./...
+
+# Run integration tests
+cd test/
+./test-docker-compose.sh
+
+# Run local tests
+./test-local.sh
 ```
+
+See [test/README.md](test/README.md) for comprehensive testing documentation.
 
 ## Architecture
 

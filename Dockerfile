@@ -1,6 +1,9 @@
 # --- Build stage --------------------------------------------------
 FROM golang:1.25-alpine AS builder
 
+# Install timezone data for timezone support
+RUN apk add --no-cache ca-certificates tzdata
+
 WORKDIR /app
 
 COPY go.mod go.sum ./
@@ -16,6 +19,12 @@ RUN go build -ldflags="-s -w" -o /harborbuddy ./cmd/harborbuddy
 
 # --- Final image --------------------------------------------------
 FROM scratch
+
+# Copy CA certificates for HTTPS connections
+COPY --from=builder /etc/ssl/certs/ca-certificates.crt /etc/ssl/certs/
+
+# Copy timezone data for timezone support
+COPY --from=builder /usr/share/zoneinfo /usr/share/zoneinfo
 
 COPY --from=builder /harborbuddy /harborbuddy
 

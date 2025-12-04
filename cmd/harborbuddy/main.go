@@ -17,6 +17,8 @@ func main() {
 	// Define CLI flags
 	configPath := flag.String("config", "/config/harborbuddy.yml", "Path to config file")
 	interval := flag.Duration("interval", 0, "Override update check interval (e.g., 15m, 1h)")
+	scheduleTime := flag.String("schedule-time", "", "Run at specific time daily (e.g., '03:00')")
+	timezone := flag.String("timezone", "", "Timezone for schedule (e.g., 'America/Los_Angeles', 'UTC')")
 	once := flag.Bool("once", false, "Run a single update cycle and exit")
 	dryRun := flag.Bool("dry-run", false, "Enable dry-run mode (no actual updates)")
 	logLevel := flag.String("log-level", "", "Logging level (debug, info, warn, error)")
@@ -40,6 +42,12 @@ func main() {
 	// Apply CLI flag overrides
 	if *interval > 0 {
 		cfg.Updates.CheckInterval = *interval
+	}
+	if *scheduleTime != "" {
+		cfg.Updates.ScheduleTime = *scheduleTime
+	}
+	if *timezone != "" {
+		cfg.Updates.Timezone = *timezone
 	}
 	if *once {
 		cfg.RunOnce = true
@@ -65,7 +73,13 @@ func main() {
 
 	log.Infof("HarborBuddy version %s starting", version)
 	log.Infof("Docker host: %s", cfg.Docker.Host)
-	log.Infof("Update interval: %v", cfg.Updates.CheckInterval)
+	
+	if cfg.Updates.ScheduleTime != "" {
+		log.Infof("Schedule: Daily at %s (%s)", cfg.Updates.ScheduleTime, cfg.Updates.Timezone)
+	} else {
+		log.Infof("Update interval: %v", cfg.Updates.CheckInterval)
+	}
+	
 	log.Infof("Dry-run mode: %v", cfg.Updates.DryRun)
 
 	// Create Docker client

@@ -41,7 +41,16 @@ func Run(cfg config.Config, dockerClient docker.Client) error {
 		return cleanup.RunCleanup(ctx, cfg, dockerClient)
 	}
 
-	// Normal loop mode
+	// Normal loop mode - check if using scheduled time or interval
+	if cfg.Updates.ScheduleTime != "" {
+		return runScheduledMode(ctx, cfg, dockerClient)
+	}
+
+	return runIntervalMode(ctx, cfg, dockerClient)
+}
+
+// runIntervalMode runs cycles at regular intervals
+func runIntervalMode(ctx context.Context, cfg config.Config, dockerClient docker.Client) error {
 	log.Infof("Starting scheduler with interval: %v", cfg.Updates.CheckInterval)
 
 	// Run initial cycle immediately
@@ -64,6 +73,61 @@ func Run(cfg config.Config, dockerClient docker.Client) error {
 			}
 		}
 	}
+}
+
+// runScheduledMode runs cycles at a specific time each day
+func runScheduledMode(ctx context.Context, cfg config.Config, dockerClient docker.Client) error {
+	location, err := time.LoadLocation(cfg.Updates.Timezone)
+	if err != nil {
+		return err
+	}
+
+	log.Infof("Starting scheduler with daily schedule: %s (%s)", cfg.Updates.ScheduleTime, cfg.Updates.Timezone)
+
+	for {
+		// Calculate next run time
+		nextRun := calculateNextRun(cfg.Updates.ScheduleTime, location)
+		now := time.Now().In(location)
+		waitDuration := nextRun.Sub(now)
+
+		log.Infof("Next scheduled run: %s (in %v)", nextRun.Format("2006-01-02 15:04:05 MST"), waitDuration.Round(time.Second))
+
+		// Wait until scheduled time or cancellation
+		timer := time.NewTimer(waitDuration)
+		select {
+		case <-ctx.Done():
+			timer.Stop()
+			log.Info("Scheduler stopped")
+			return nil
+		case <-timer.C:
+			// Run the cycle at scheduled time
+			if err := runCycle(ctx, cfg, dockerClient); err != nil {
+				log.ErrorErr("Error in scheduled cycle", err)
+			}
+		}
+	}
+}
+
+// calculateNextRun calculates the next scheduled run time
+func calculateNextRun(scheduleTime string, location *time.Location) time.Time {
+	now := time.Now().In(location)
+	
+	// Parse the schedule time (HH:MM format)
+	scheduledTime, _ := time.Parse("15:04", scheduleTime)
+	
+	// Create a time for today at the scheduled time
+	nextRun := time.Date(
+		now.Year(), now.Month(), now.Day(),
+		scheduledTime.Hour(), scheduledTime.Minute(), 0, 0,
+		location,
+	)
+	
+	// If the scheduled time has already passed today, schedule for tomorrow
+	if nextRun.Before(now) || nextRun.Equal(now) {
+		nextRun = nextRun.Add(24 * time.Hour)
+	}
+	
+	return nextRun
 }
 
 // runCycle runs a single update and cleanup cycle
