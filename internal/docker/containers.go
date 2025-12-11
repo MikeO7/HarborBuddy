@@ -139,28 +139,48 @@ func (d *DockerClient) CreateContainerLike(ctx context.Context, old ContainerInf
 	return resp.ID, nil
 }
 
-// ReplaceContainer replaces an old container with a new one atomically
-func (d *DockerClient) ReplaceContainer(ctx context.Context, oldID, newID, name string) error {
-	// Stop the old container
-	if err := d.StopContainer(ctx, oldID, 10); err != nil {
+// ReplaceContainer replaces an old container with a new one using a blue-green approach
+func (d *DockerClient) ReplaceContainer(ctx context.Context, oldID, newID, name string, stopTimeout time.Duration) error {
+	backupName := fmt.Sprintf("%s-old-%d", name, time.Now().Unix())
+	timeoutSec := int(stopTimeout.Seconds())
+
+	// 1. Stop the old container
+	if err := d.StopContainer(ctx, oldID, timeoutSec); err != nil {
 		return fmt.Errorf("failed to stop old container: %w", err)
 	}
 
-	// Remove the old container
-	if err := d.RemoveContainer(ctx, oldID); err != nil {
-		return fmt.Errorf("failed to remove old container: %w", err)
+	// 2. Rename the old container to a backup name
+	if err := d.cli.ContainerRename(ctx, oldID, backupName); err != nil {
+		// If rename fails, try to restart the old container to prevent downtime
+		_ = d.StartContainer(ctx, oldID)
+		return fmt.Errorf("failed to rename old container to backup name: %w", err)
 	}
 
-	// Rename the new container to the original name
+	// 3. Rename the new container to the original name
 	if err := d.cli.ContainerRename(ctx, newID, name); err != nil {
-		// Try to clean up the new container
+		// Rollback: try to rename old container back
+		_ = d.cli.ContainerRename(ctx, oldID, name)
+		_ = d.StartContainer(ctx, oldID)
+		// Cleanup the new container
 		_ = d.RemoveContainer(ctx, newID)
 		return fmt.Errorf("failed to rename new container: %w", err)
 	}
 
-	// Start the new container
+	// 4. Start the new container
 	if err := d.StartContainer(ctx, newID); err != nil {
+		// Rollback: Stop new container, rename old one back, and restart it
+		_ = d.StopContainer(ctx, newID, timeoutSec)
+		_ = d.RemoveContainer(ctx, newID)
+		_ = d.cli.ContainerRename(ctx, oldID, name)
+		_ = d.StartContainer(ctx, oldID)
 		return fmt.Errorf("failed to start new container: %w", err)
+	}
+
+	// 5. Success: Remove the old container
+	if err := d.RemoveContainer(ctx, oldID); err != nil {
+		// This is not a critical error, but should be logged
+		// At this point, the service is up on the new container
+		return fmt.Errorf("warning: failed to remove old backup container %s: %w", backupName, err)
 	}
 
 	return nil

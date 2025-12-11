@@ -15,11 +15,14 @@ type Client interface {
 	ListImages(ctx context.Context) ([]ImageInfo, error)
 	RemoveImage(ctx context.Context, id string) error
 	StopContainer(ctx context.Context, id string, timeout int) error
-	CreateContainerLike(ctx context.Context, old ContainerInfo, newImage string) (string, error)
 	StartContainer(ctx context.Context, id string) error
 	RemoveContainer(ctx context.Context, id string) error
-	ReplaceContainer(ctx context.Context, oldID, newID, name string) error
-	Close() error
+	CreateContainerLike(ctx context.Context, old ContainerInfo, newImage string) (string, error)
+	ReplaceContainer(ctx context.Context, oldID, newID, name string, stopTimeout time.Duration) error
+	GetContainersUsingImage(ctx context.Context, imageID string) ([]string, error)
+
+	// Image functions
+	ListDanglingImages(ctx context.Context) ([]ImageInfo, error)
 }
 
 // DockerClient implements the Client interface using Docker SDK

@@ -72,7 +72,7 @@ func RunUpdateCycle(ctx context.Context, cfg config.Config, dockerClient docker.
 			updatedCount++
 		} else {
 			log.Infof("Updating container %s with image %s", container.Name, container.Image)
-			if err := updateContainer(ctx, dockerClient, container); err != nil {
+			if err := updateContainer(ctx, cfg, dockerClient, container); err != nil {
 				log.Errorf("Failed to update container %s: %v", container.Name, err)
 				continue
 			}
@@ -116,7 +116,7 @@ func checkForUpdate(ctx context.Context, dockerClient docker.Client, container d
 }
 
 // updateContainer updates a container with a new image
-func updateContainer(ctx context.Context, dockerClient docker.Client, container docker.ContainerInfo) error {
+func updateContainer(ctx context.Context, cfg config.Config, dockerClient docker.Client, container docker.ContainerInfo) error {
 	log.Infof("Stopping container %s", container.Name)
 
 	// Create new container with updated image
@@ -126,9 +126,13 @@ func updateContainer(ctx context.Context, dockerClient docker.Client, container 
 	}
 
 	// Replace the old container with the new one
-	if err := dockerClient.ReplaceContainer(ctx, container.ID, newID, container.Name); err != nil {
-		// Try to clean up the new container on failure
-		_ = dockerClient.RemoveContainer(ctx, newID)
+	if err := dockerClient.ReplaceContainer(ctx, container.ID, newID, container.Name, cfg.Updates.StopTimeout); err != nil {
+		// The new ReplaceContainer handles its own rollback and cleanup.
+		// We just need to check if the error is a warning or a fatal error.
+		if err.Error()[0:7] == "warning" {
+			log.Warn(err.Error())
+			return nil // Not a fatal error
+		}
 		return fmt.Errorf("failed to replace container: %w", err)
 	}
 

@@ -49,9 +49,10 @@ type CreateRequest struct {
 
 // ReplaceRequest records container replacement attempts
 type ReplaceRequest struct {
-	OldID string
-	NewID string
-	Name  string
+	OldID       string
+	NewID       string
+	Name        string
+	StopTimeout time.Duration
 }
 
 // NewMockDockerClient creates a new mock Docker client
@@ -194,14 +195,15 @@ func (m *MockDockerClient) RemoveContainer(ctx context.Context, id string) error
 }
 
 // ReplaceContainer records the replacement
-func (m *MockDockerClient) ReplaceContainer(ctx context.Context, oldID, newID, name string) error {
+func (m *MockDockerClient) ReplaceContainer(ctx context.Context, oldID, newID, name string, stopTimeout time.Duration) error {
 	m.mu.Lock()
 	defer m.mu.Unlock()
 
 	m.ReplacedContainers = append(m.ReplacedContainers, ReplaceRequest{
-		OldID: oldID,
-		NewID: newID,
-		Name:  name,
+		OldID:       oldID,
+		NewID:       newID,
+		Name:        name,
+		StopTimeout: stopTimeout,
 	})
 
 	if m.ReplaceContainerError != nil {

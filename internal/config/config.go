@@ -37,6 +37,7 @@ type UpdatesConfig struct {
 	DryRun        bool          `yaml:"dry_run"`
 	AllowImages   []string      `yaml:"allow_images"`
 	DenyImages    []string      `yaml:"deny_images"`
+	StopTimeout   time.Duration `yaml:"stop_timeout"`
 }
 
 // CleanupConfig holds image cleanup settings
@@ -68,6 +69,7 @@ func Default() Config {
 			DryRun:        false,
 			AllowImages:   []string{"*"},
 			DenyImages:    []string{},
+			StopTimeout:   10 * time.Second,
 		},
 		Cleanup: CleanupConfig{
 			Enabled:      true,
@@ -134,6 +136,12 @@ func (c *Config) ApplyEnvironmentOverrides() {
 		}
 	}
 
+	if val := os.Getenv("HARBORBUDDY_STOP_TIMEOUT"); val != "" {
+		if duration, err := time.ParseDuration(val); err == nil {
+			c.Updates.StopTimeout = duration
+		}
+	}
+
 	if val := os.Getenv("HARBORBUDDY_LOG_LEVEL"); val != "" {
 		c.Log.Level = val
 	}
@@ -154,6 +162,10 @@ func (c *Config) Validate() error {
 	// If schedule_time is not set, check_interval must be positive
 	if c.Updates.ScheduleTime == "" && c.Updates.CheckInterval <= 0 {
 		return fmt.Errorf("updates.check_interval must be positive when schedule_time is not set")
+	}
+
+	if c.Updates.StopTimeout <= 0 {
+		return fmt.Errorf("updates.stop_timeout must be positive")
 	}
 
 	// If schedule_time is set, validate the format
