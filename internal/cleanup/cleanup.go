@@ -2,12 +2,22 @@ package cleanup
 
 import (
 	"context"
+	"strings"
 	"time"
 
 	"github.com/MikeO7/HarborBuddy/internal/config"
 	"github.com/MikeO7/HarborBuddy/internal/docker"
 	"github.com/MikeO7/HarborBuddy/pkg/log"
+	"github.com/rs/zerolog"
 )
+
+// shortID returns a shortened version of a Docker ID, safe for any length
+func shortID(id string) string {
+	if len(id) > 12 {
+		return id[:12]
+	}
+	return id
+}
 
 // RunCleanup performs image cleanup based on configuration
 func RunCleanup(ctx context.Context, cfg config.Config, dockerClient docker.Client) error {
@@ -49,25 +59,27 @@ func RunCleanup(ctx context.Context, cfg config.Config, dockerClient docker.Clie
 			return err
 		}
 
+		// Create contextual logger for this image
+		imageTag := "none"
+		if len(image.RepoTags) > 0 {
+			imageTag = strings.Join(image.RepoTags, ",")
+		}
+		imageLogger := log.WithImage(shortID(image.ID), imageTag)
+
 		// Check if image is eligible for cleanup
-		if !isEligibleForCleanup(image, cfg.Cleanup, minAge) {
+		if !isEligibleForCleanup(image, cfg.Cleanup, minAge, imageLogger) {
 			skippedCount++
 			continue
 		}
 
-		// Try to remove the image
-		shortID := image.ID
-		if len(shortID) > 12 {
-			shortID = shortID[:12]
-		}
-		log.Infof("Removing image %s (tags: %v)", shortID, image.RepoTags)
+		imageLogger.Info().Msgf("Removing image (tags: %v)", image.RepoTags)
 		if err := dockerClient.RemoveImage(ctx, image.ID); err != nil {
-			log.Errorf("Failed to remove image %s: %v", shortID, err)
+			imageLogger.Error().Err(err).Msg("Failed to remove image")
 			skippedCount++
 			continue
 		}
 
-		log.Infof("Successfully removed image %s", shortID)
+		imageLogger.Info().Msg("Successfully removed image")
 		removedCount++
 	}
 
@@ -77,26 +89,18 @@ func RunCleanup(ctx context.Context, cfg config.Config, dockerClient docker.Clie
 }
 
 // isEligibleForCleanup determines if an image is eligible for cleanup
-func isEligibleForCleanup(image docker.ImageInfo, cfg config.CleanupConfig, minAge time.Duration) bool {
+func isEligibleForCleanup(image docker.ImageInfo, cfg config.CleanupConfig, minAge time.Duration, logger *zerolog.Logger) bool {
 	// Check if image is old enough
 	age := time.Since(image.CreatedAt)
 	if age < minAge {
-		shortID := image.ID
-		if len(shortID) > 12 {
-			shortID = shortID[:12]
-		}
-		log.Debugf("Image %s is too new (age: %v, min: %v)", shortID, age, minAge)
+		logger.Debug().Msgf("Image is too new (age: %v, min: %v)", age, minAge)
 		return false
 	}
 
 	// If dangling_only mode, only consider dangling images
 	if cfg.DanglingOnly {
 		if !image.Dangling {
-			shortID := image.ID
-			if len(shortID) > 12 {
-				shortID = shortID[:12]
-			}
-			log.Debugf("Image %s is not dangling", shortID)
+			logger.Debug().Msg("Image is not dangling")
 			return false
 		}
 	}
