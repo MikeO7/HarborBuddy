@@ -8,6 +8,7 @@ import (
 	"github.com/MikeO7/HarborBuddy/internal/config"
 	"github.com/MikeO7/HarborBuddy/internal/docker"
 	"github.com/MikeO7/HarborBuddy/pkg/log"
+	"github.com/rs/zerolog"
 )
 
 // shortID returns a shortened version of a Docker ID, safe for any length
@@ -43,40 +44,43 @@ func RunUpdateCycle(ctx context.Context, cfg config.Config, dockerClient docker.
 			return err
 		}
 
+		// Create contextual logger for this container
+		containerLogger := log.WithContainer(shortID(container.ID), container.Name)
+
 		// Determine eligibility
 		decision := DetermineEligibility(container, cfg.Updates)
 
 		if !decision.Eligible {
-			log.Infof("Skipping container %s (%s): %s", container.Name, shortID(container.ID), decision.Reason)
+			containerLogger.Info().Msgf("Skipping container: %s", decision.Reason)
 			skippedCount++
 			continue
 		}
 
-		log.Infof("Checking container %s (%s) for updates", container.Name, shortID(container.ID))
+		containerLogger.Info().Msgf("Checking container for updates (Image: %s)", container.Image)
 
 		// Check for updates
-		needsUpdate, err := checkForUpdate(ctx, dockerClient, container, cfg.Updates.DryRun)
+		needsUpdate, err := checkForUpdate(ctx, dockerClient, container, cfg.Updates.DryRun, containerLogger)
 		if err != nil {
-			log.Errorf("Failed to check for updates for container %s: %v", container.Name, err)
+			containerLogger.Error().Err(err).Msg("Failed to check for updates")
 			continue
 		}
 
 		if !needsUpdate {
-			log.Infof("Container %s is up to date", container.Name)
+			containerLogger.Info().Msg("Container is up to date")
 			continue
 		}
 
 		// Apply update
 		if cfg.Updates.DryRun {
-			log.Infof("[DRY-RUN] Would update container %s with image %s", container.Name, container.Image)
+			containerLogger.Info().Msgf("[DRY-RUN] Would update container with image %s", container.Image)
 			updatedCount++
 		} else {
-			log.Infof("Updating container %s with image %s", container.Name, container.Image)
-			if err := updateContainer(ctx, cfg, dockerClient, container); err != nil {
-				log.Errorf("Failed to update container %s: %v", container.Name, err)
+			containerLogger.Info().Msgf("Updating container with image %s", container.Image)
+			if err := updateContainer(ctx, cfg, dockerClient, container, containerLogger); err != nil {
+				containerLogger.Error().Err(err).Msg("Failed to update container")
 				continue
 			}
-			log.Infof("Successfully updated container %s", container.Name)
+			containerLogger.Info().Msg("Successfully updated container")
 			updatedCount++
 		}
 	}
@@ -87,17 +91,17 @@ func RunUpdateCycle(ctx context.Context, cfg config.Config, dockerClient docker.
 }
 
 // checkForUpdate checks if a container needs updating
-func checkForUpdate(ctx context.Context, dockerClient docker.Client, container docker.ContainerInfo, dryRun bool) (bool, error) {
+func checkForUpdate(ctx context.Context, dockerClient docker.Client, container docker.ContainerInfo, dryRun bool, logger *zerolog.Logger) (bool, error) {
 	// Get current image ID
 	currentImageID := container.ImageID
 
 	// Pull the latest version of the image
-	log.Debugf("Pulling image %s", container.Image)
+	logger.Debug().Msgf("Pulling image %s", container.Image)
 
 	if dryRun {
 		// In dry-run mode, we can't actually pull to check for updates
 		// We log this limitation to be clear
-		log.Infof("[DRY-RUN] Skipping image pull for %s. Cannot determine if update is available without pulling.", container.Image)
+		logger.Info().Msgf("[DRY-RUN] Skipping image pull for %s. Cannot determine if update is available without pulling.", container.Image)
 		return false, nil
 	}
 
@@ -108,17 +112,17 @@ func checkForUpdate(ctx context.Context, dockerClient docker.Client, container d
 
 	// Compare image IDs
 	if currentImageID == newImage.ID {
-		log.Debugf("Image IDs match: %s", shortID(currentImageID))
+		logger.Debug().Msgf("Image IDs match: %s", shortID(currentImageID))
 		return false, nil
 	}
 
-	log.Infof("New image available for %s: %s -> %s", container.Image, shortID(currentImageID), shortID(newImage.ID))
+	logger.Info().Msgf("New image available for %s: %s -> %s", container.Image, shortID(currentImageID), shortID(newImage.ID))
 	return true, nil
 }
 
 // updateContainer updates a container with a new image
-func updateContainer(ctx context.Context, cfg config.Config, dockerClient docker.Client, container docker.ContainerInfo) error {
-	log.Infof("Stopping container %s", container.Name)
+func updateContainer(ctx context.Context, cfg config.Config, dockerClient docker.Client, container docker.ContainerInfo, logger *zerolog.Logger) error {
+	logger.Info().Msg("Stopping container")
 
 	// Create new container with updated image
 	newID, err := dockerClient.CreateContainerLike(ctx, container, container.Image)
@@ -131,12 +135,12 @@ func updateContainer(ctx context.Context, cfg config.Config, dockerClient docker
 		// The new ReplaceContainer handles its own rollback and cleanup.
 		// We just need to check if the error is a warning or a fatal error.
 		if err.Error()[0:7] == "warning" {
-			log.Warn(err.Error())
+			logger.Warn().Msg(err.Error())
 			return nil // Not a fatal error
 		}
 		return fmt.Errorf("failed to replace container: %w", err)
 	}
 
-	log.Infof("Container %s updated successfully (old: %s, new: %s)", container.Name, shortID(container.ID), shortID(newID))
+	logger.Info().Msgf("Container updated successfully (old: %s, new: %s)", shortID(container.ID), shortID(newID))
 	return nil
 }
