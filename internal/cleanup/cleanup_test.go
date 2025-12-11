@@ -218,6 +218,8 @@ func TestCleanupErrorHandling(t *testing.T) {
 
 		mockClient := docker.NewMockDockerClient()
 		mockClient.ListImagesError = fmt.Errorf("docker daemon error")
+		// Also set ListDanglingImagesError to ensure failure regardless of which method is called
+		mockClient.ListDanglingImagesError = fmt.Errorf("docker daemon error")
 
 		cfg := config.Config{
 			Cleanup: config.CleanupConfig{

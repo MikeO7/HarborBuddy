@@ -19,9 +19,19 @@ func RunCleanup(ctx context.Context, cfg config.Config, dockerClient docker.Clie
 	startTime := time.Now()
 	log.Info("Starting image cleanup")
 
-	// List all images
+	// List images
 	listStart := time.Now()
-	images, err := dockerClient.ListImages(ctx)
+	var images []docker.ImageInfo
+	var err error
+
+	if cfg.Cleanup.DanglingOnly {
+		log.Debug("Listing only dangling images")
+		images, err = dockerClient.ListDanglingImages(ctx)
+	} else {
+		log.Debug("Listing all images")
+		images, err = dockerClient.ListImages(ctx)
+	}
+
 	if err != nil {
 		log.ErrorErr("Failed to list images", err)
 		return err
