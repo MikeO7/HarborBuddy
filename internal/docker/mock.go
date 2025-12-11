@@ -4,6 +4,7 @@ import (
 	"context"
 	"fmt"
 	"sync"
+	"time"
 )
 
 // MockDockerClient is a mock implementation of the Client interface for testing
@@ -26,16 +27,18 @@ type MockDockerClient struct {
 	ReplacedContainers []ReplaceRequest
 
 	// Control behavior
-	ListContainersError   error
-	InspectContainerError error
-	PullImageError        error
-	ListImagesError       error
-	RemoveImageError      error
-	StopContainerError    error
-	CreateContainerError  error
-	StartContainerError   error
-	RemoveContainerError  error
-	ReplaceContainerError error
+	ListContainersError          error
+	InspectContainerError        error
+	PullImageError               error
+	ListImagesError              error
+	RemoveImageError             error
+	StopContainerError           error
+	CreateContainerError         error
+	StartContainerError          error
+	RemoveContainerError         error
+	ReplaceContainerError        error
+	GetContainersUsingImageError error
+	ListDanglingImagesError      error
 
 	// Image pull simulation
 	PullImageReturns map[string]ImageInfo
@@ -210,6 +213,42 @@ func (m *MockDockerClient) ReplaceContainer(ctx context.Context, oldID, newID, n
 		return m.ReplaceContainerError
 	}
 	return nil
+}
+
+// GetContainersUsingImage returns list of containers using image
+func (m *MockDockerClient) GetContainersUsingImage(ctx context.Context, imageID string) ([]string, error) {
+	m.mu.Lock()
+	defer m.mu.Unlock()
+
+	if m.GetContainersUsingImageError != nil {
+		return nil, m.GetContainersUsingImageError
+	}
+
+	var ids []string
+	for _, c := range m.Containers {
+		if c.ImageID == imageID {
+			ids = append(ids, c.ID)
+		}
+	}
+	return ids, nil
+}
+
+// ListDanglingImages returns list of dangling images
+func (m *MockDockerClient) ListDanglingImages(ctx context.Context) ([]ImageInfo, error) {
+	m.mu.Lock()
+	defer m.mu.Unlock()
+
+	if m.ListDanglingImagesError != nil {
+		return nil, m.ListDanglingImagesError
+	}
+
+	var dangling []ImageInfo
+	for _, img := range m.Images {
+		if img.Dangling {
+			dangling = append(dangling, img)
+		}
+	}
+	return dangling, nil
 }
 
 // Close does nothing for the mock

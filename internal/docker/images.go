@@ -6,6 +6,7 @@ import (
 	"io"
 	"time"
 
+	"github.com/docker/docker/api/types/filters"
 	"github.com/docker/docker/api/types/image"
 )
 
@@ -55,6 +56,33 @@ func (d *DockerClient) ListImages(ctx context.Context) ([]ImageInfo, error) {
 			ID:        img.ID,
 			RepoTags:  img.RepoTags,
 			Dangling:  len(img.RepoTags) == 0 || (len(img.RepoTags) == 1 && img.RepoTags[0] == "<none>:<none>"),
+			CreatedAt: time.Unix(img.Created, 0),
+			Size:      img.Size,
+		})
+	}
+
+	return result, nil
+}
+
+// ListDanglingImages returns a list of dangling images
+func (d *DockerClient) ListDanglingImages(ctx context.Context) ([]ImageInfo, error) {
+	filters := filters.NewArgs()
+	filters.Add("dangling", "true")
+
+	images, err := d.cli.ImageList(ctx, image.ListOptions{
+		All:     true,
+		Filters: filters,
+	})
+	if err != nil {
+		return nil, fmt.Errorf("failed to list dangling images: %w", err)
+	}
+
+	var result []ImageInfo
+	for _, img := range images {
+		result = append(result, ImageInfo{
+			ID:        img.ID,
+			RepoTags:  img.RepoTags,
+			Dangling:  true,
 			CreatedAt: time.Unix(img.Created, 0),
 			Size:      img.Size,
 		})

@@ -95,8 +95,9 @@ func checkForUpdate(ctx context.Context, dockerClient docker.Client, container d
 	log.Debugf("Pulling image %s", container.Image)
 
 	if dryRun {
-		// In dry-run mode, we can't actually pull, so we'll check the existing image
-		// This means dry-run won't detect new updates, only log what would happen
+		// In dry-run mode, we can't actually pull to check for updates
+		// We log this limitation to be clear
+		log.Infof("[DRY-RUN] Skipping image pull for %s. Cannot determine if update is available without pulling.", container.Image)
 		return false, nil
 	}
 
