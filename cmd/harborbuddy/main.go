@@ -4,9 +4,12 @@ import (
 	"fmt"
 	"os"
 
+	"context"
+
 	"github.com/MikeO7/HarborBuddy/internal/config"
 	"github.com/MikeO7/HarborBuddy/internal/docker"
 	"github.com/MikeO7/HarborBuddy/internal/scheduler"
+	"github.com/MikeO7/HarborBuddy/internal/selfupdate"
 	"github.com/MikeO7/HarborBuddy/pkg/log"
 	flag "github.com/spf13/pflag"
 )
@@ -25,11 +28,40 @@ func main() {
 	cleanupOnly := flag.Bool("cleanup-only", false, "Run only cleanup logic and exit")
 	showVersion := flag.Bool("version", false, "Show version and exit")
 
+	// Internal flags for self-update mechanism
+	updaterMode := flag.Bool("updater-mode", false, "Internal: Run in updater helper mode")
+	targetID := flag.String("target-container-id", "", "Internal: ID of the container to update")
+	newImage := flag.String("new-image-id", "", "Internal: ID/Name of the new image")
+
 	flag.Parse()
 
 	if *showVersion {
 		fmt.Printf("HarborBuddy version %s\n", version)
 		os.Exit(0)
+	}
+
+	// If running in updater mode, we skip normal configuration loading
+	if *updaterMode {
+		log.Initialize("info", false) // Basic logging for helper
+
+		if *targetID == "" || *newImage == "" {
+			log.Error("Updater mode requires --target-container-id and --new-image-id")
+			os.Exit(1)
+		}
+
+		// Create Docker client (assume default host)
+		dockerClient, err := docker.NewClient("unix:///var/run/docker.sock")
+		if err != nil {
+			log.ErrorErr("Failed to create Docker client for updater", err)
+			os.Exit(1)
+		}
+		defer dockerClient.Close()
+
+		if err := selfupdate.RunUpdater(context.Background(), dockerClient, *targetID, *newImage); err != nil {
+			log.ErrorErr("Updater failed", err)
+			os.Exit(1)
+		}
+		return
 	}
 
 	// Load configuration

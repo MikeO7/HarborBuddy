@@ -21,6 +21,8 @@ type Client interface {
 	CreateContainerLike(ctx context.Context, old ContainerInfo, newImage string) (string, error)
 	ReplaceContainer(ctx context.Context, oldID, newID, name string, stopTimeout time.Duration) error
 	GetContainersUsingImage(ctx context.Context, imageID string) ([]string, error)
+	RenameContainer(ctx context.Context, id, newName string) error
+	CreateHelperContainer(ctx context.Context, original ContainerInfo, image, name string, cmd []string) (string, error)
 
 	// Image functions
 	ListDanglingImages(ctx context.Context) ([]ImageInfo, error)

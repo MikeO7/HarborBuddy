@@ -61,6 +61,7 @@ func (d *DockerClient) InspectContainer(ctx context.Context, id string) (Contain
 		Config:        inspect.Config,
 		HostConfig:    inspect.HostConfig,
 		NetworkConfig: networkConfig,
+		State:         inspect.State,
 	}, nil
 }
 
@@ -205,4 +206,41 @@ func (d *DockerClient) GetContainersUsingImage(ctx context.Context, imageID stri
 	}
 
 	return ids, nil
+}
+
+// RenameContainer renames a container
+func (d *DockerClient) RenameContainer(ctx context.Context, id, newName string) error {
+	return d.cli.ContainerRename(ctx, id, newName)
+}
+
+// CreateHelperContainer creates a temporary helper container with overridden CMD
+func (d *DockerClient) CreateHelperContainer(ctx context.Context, original ContainerInfo, image, name string, cmd []string) (string, error) {
+	// Clone config
+	config := &container.Config{
+		Image: image,
+		Cmd:   cmd,
+		Env:   original.Config.Env,
+		// We inherit labels to ensure we don't break things, but maybe we should add a label "harborbuddy-helper"
+		Labels: original.Config.Labels,
+	}
+
+	// We need to keep HostConfig (mounts!) but maybe relax other things
+	hostConfig := original.HostConfig
+
+	// Ensure we don't have conflicting port bindings (helpers shouldn't bind ports anyway usually)
+	// But if the original had ports, and we reuse HostConfig, the helper WILL try to bind them.
+	// This is BAD. The original is still running when the helper starts!
+	// We MUST clear PortBindings.
+
+	// Create a shallow copy of HostConfig to modify it safely
+	newHostConfig := *hostConfig
+	newHostConfig.PortBindings = nil
+	newHostConfig.RestartPolicy = container.RestartPolicy{Name: "no"} // Helpers shouldn't restart
+
+	resp, err := d.cli.ContainerCreate(ctx, config, &newHostConfig, nil, nil, name)
+	if err != nil {
+		return "", fmt.Errorf("failed to create helper container: %w", err)
+	}
+
+	return resp.ID, nil
 }

@@ -3,10 +3,13 @@ package updater
 import (
 	"context"
 	"fmt"
+	"os"
+	"strings"
 	"time"
 
 	"github.com/MikeO7/HarborBuddy/internal/config"
 	"github.com/MikeO7/HarborBuddy/internal/docker"
+	"github.com/MikeO7/HarborBuddy/internal/selfupdate"
 	"github.com/MikeO7/HarborBuddy/pkg/log"
 	"github.com/rs/zerolog"
 )
@@ -75,6 +78,22 @@ func RunUpdateCycle(ctx context.Context, cfg config.Config, dockerClient docker.
 			containerLogger.Info().Msgf("[DRY-RUN] Would update container with image %s", container.Image)
 			updatedCount++
 		} else {
+			// Check if self-update
+			isSelf, err := isSelf(container.ID)
+			if err != nil {
+				containerLogger.Warn().Err(err).Msg("Failed to check if container is self")
+			}
+
+			if isSelf {
+				containerLogger.Info().Msg("Self-update detected! Triggering helper...")
+				// selfupdate.Trigger exits the process on success, so we won't return here.
+				if err := selfupdate.Trigger(ctx, dockerClient, container, container.Image); err != nil {
+					containerLogger.Error().Err(err).Msg("Failed to trigger self-update")
+				}
+				// If we are here, it failed.
+				continue
+			}
+
 			containerLogger.Info().Msgf("Updating container with image %s", container.Image)
 			if err := updateContainer(ctx, cfg, dockerClient, container, containerLogger); err != nil {
 				containerLogger.Error().Err(err).Msg("Failed to update container")
@@ -88,6 +107,32 @@ func RunUpdateCycle(ctx context.Context, cfg config.Config, dockerClient docker.
 	log.Infof("Update cycle complete: %d updated, %d skipped, %d total (in %v)",
 		updatedCount, skippedCount, len(containers), time.Since(startTime))
 	return nil
+}
+
+// isSelf checks if the given container ID matches the current container's ID
+func isSelf(id string) (bool, error) {
+	// Try to read /etc/hostname
+	hostname, err := os.Hostname()
+	if err != nil {
+		return false, err
+	}
+
+	// If hostname is the short ID (12 chars), we need to check if container.ID starts with it
+	if strings.HasPrefix(id, hostname) {
+		return true, nil
+	}
+
+	// If hostname is NOT the ID (custom hostname), we can try to read /proc/self/cgroup
+	// This is more reliable.
+	data, err := os.ReadFile("/proc/self/cgroup")
+	if err == nil {
+		content := string(data)
+		if strings.Contains(content, id) {
+			return true, nil
+		}
+	}
+
+	return false, nil
 }
 
 // checkForUpdate checks if a container needs updating

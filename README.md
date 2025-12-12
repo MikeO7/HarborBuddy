@@ -100,6 +100,17 @@ services:
 
 *Note: You should also add this label to HarborBuddy itself if you want to update it manually!*
 
+## 🔄 Self-Update
+
+HarborBuddy can update itself! If a new image version is detected, it will:
+
+1.  Spawn a temporary helper container.
+2.  Gracefully stop the current HarborBuddy instance.
+3.  Replace it with the new version.
+4.  Remove the helper container.
+
+This process is automatic and ensures zero conflict or "zombie" processes. It preserves your Docker Compose project names and labels, so your stack remains intact.
+
 ## ⚙️ Configuration
 
 HarborBuddy is highly configurable via Environment Variables.
