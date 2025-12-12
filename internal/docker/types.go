@@ -3,6 +3,7 @@ package docker
 import (
 	"time"
 
+	"github.com/docker/docker/api/types"
 	"github.com/docker/docker/api/types/container"
 	"github.com/docker/docker/api/types/network"
 )
@@ -15,6 +16,7 @@ type ContainerInfo struct {
 	ImageID   string
 	Labels    map[string]string
 	CreatedAt time.Time
+	State     *types.ContainerState
 
 	// Config needed for recreation
 	Config        *container.Config

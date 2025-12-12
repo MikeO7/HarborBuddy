@@ -25,6 +25,8 @@ type MockDockerClient struct {
 	RemovedContainers  []string
 	CreatedContainers  []CreateRequest
 	ReplacedContainers []ReplaceRequest
+	RenamedContainers  []RenameRequest
+	CreatedHelpers     []CreateHelperRequest
 
 	// Control behavior
 	ListContainersError          error
@@ -39,6 +41,8 @@ type MockDockerClient struct {
 	ReplaceContainerError        error
 	GetContainersUsingImageError error
 	ListDanglingImagesError      error
+	RenameContainerError         error
+	CreateHelperContainerError   error
 
 	// Image pull simulation
 	PullImageReturns map[string]ImageInfo
@@ -56,6 +60,20 @@ type ReplaceRequest struct {
 	NewID       string
 	Name        string
 	StopTimeout time.Duration
+}
+
+// RenameRequest records container rename attempts
+type RenameRequest struct {
+	ID      string
+	NewName string
+}
+
+// CreateHelperRequest records helper creation attempts
+type CreateHelperRequest struct {
+	Original ContainerInfo
+	Image    string
+	Name     string
+	Cmd      []string
 }
 
 // NewMockDockerClient creates a new mock Docker client
@@ -251,6 +269,41 @@ func (m *MockDockerClient) ListDanglingImages(ctx context.Context) ([]ImageInfo,
 	return dangling, nil
 }
 
+// RenameContainer records the rename
+func (m *MockDockerClient) RenameContainer(ctx context.Context, id, newName string) error {
+	m.mu.Lock()
+	defer m.mu.Unlock()
+
+	m.RenamedContainers = append(m.RenamedContainers, RenameRequest{
+		ID:      id,
+		NewName: newName,
+	})
+
+	if m.RenameContainerError != nil {
+		return m.RenameContainerError
+	}
+	return nil
+}
+
+// CreateHelperContainer records the helper creation
+func (m *MockDockerClient) CreateHelperContainer(ctx context.Context, original ContainerInfo, image, name string, cmd []string) (string, error) {
+	m.mu.Lock()
+	defer m.mu.Unlock()
+
+	m.CreatedHelpers = append(m.CreatedHelpers, CreateHelperRequest{
+		Original: original,
+		Image:    image,
+		Name:     name,
+		Cmd:      cmd,
+	})
+
+	if m.CreateHelperContainerError != nil {
+		return "", m.CreateHelperContainerError
+	}
+
+	return "helper-container-id-" + name, nil
+}
+
 // Close does nothing for the mock
 func (m *MockDockerClient) Close() error {
 	return nil
@@ -268,4 +321,6 @@ func (m *MockDockerClient) Reset() {
 	m.RemovedContainers = []string{}
 	m.CreatedContainers = []CreateRequest{}
 	m.ReplacedContainers = []ReplaceRequest{}
+	m.RenamedContainers = []RenameRequest{}
+	m.CreatedHelpers = []CreateHelperRequest{}
 }
