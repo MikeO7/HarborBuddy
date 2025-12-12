@@ -1,5 +1,3 @@
-version: '3.8'
-
 # Integration test docker-compose for HarborBuddy
 # This compose file tests HarborBuddy with various container scenarios
 
