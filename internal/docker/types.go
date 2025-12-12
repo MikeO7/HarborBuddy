@@ -19,6 +19,8 @@ type ContainerInfo struct {
 	State     *types.ContainerState
 
 	// Config needed for recreation
+	// Note: These fields may be nil if the ContainerInfo was returned by ListContainers (optimization).
+	// They are populated by InspectContainer.
 	Config        *container.Config
 	HostConfig    *container.HostConfig
 	NetworkConfig *network.NetworkingConfig
