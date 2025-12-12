@@ -8,6 +8,7 @@ import (
 	"github.com/MikeO7/HarborBuddy/internal/config"
 	"github.com/MikeO7/HarborBuddy/internal/docker"
 	"github.com/MikeO7/HarborBuddy/pkg/log"
+	"github.com/MikeO7/HarborBuddy/pkg/util"
 	"github.com/rs/zerolog"
 )
 
@@ -52,6 +53,7 @@ func RunCleanup(ctx context.Context, cfg config.Config, dockerClient docker.Clie
 	minAge := time.Duration(cfg.Cleanup.MinAgeHours) * time.Hour
 	removedCount := 0
 	skippedCount := 0
+	var totalReclaimed int64
 
 	for _, image := range images {
 		if err := ctx.Err(); err != nil {
@@ -72,19 +74,21 @@ func RunCleanup(ctx context.Context, cfg config.Config, dockerClient docker.Clie
 			continue
 		}
 
-		imageLogger.Info().Msgf("Removing image (tags: %v)", image.RepoTags)
+		sizeStr := util.FormatBytes(image.Size)
+		imageLogger.Info().Msgf("Removing image (tags: %v, size: %s)", image.RepoTags, sizeStr)
 		if err := dockerClient.RemoveImage(ctx, image.ID); err != nil {
 			imageLogger.Error().Err(err).Msg("Failed to remove image")
 			skippedCount++
 			continue
 		}
 
-		imageLogger.Info().Msg("Successfully removed image")
+		imageLogger.Info().Msgf("Successfully removed image. Reclaimed %s", sizeStr)
 		removedCount++
+		totalReclaimed += image.Size
 	}
 
-	log.Infof("Cleanup complete: %d removed, %d skipped, %d total (in %v)",
-		removedCount, skippedCount, len(images), time.Since(startTime))
+	log.Infof("Cleanup complete: %d removed, %d skipped, %d total. Total space reclaimed: %s (in %v)",
+		removedCount, skippedCount, len(images), util.FormatBytes(totalReclaimed), time.Since(startTime))
 	return nil
 }
 
