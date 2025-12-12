@@ -29,6 +29,8 @@ func Run(cfg config.Config, dockerClient docker.Client) error {
 		cancel()
 	}()
 
+	log.Info("HarborBuddy started")
+
 	// Run once mode
 	if cfg.RunOnce {
 		log.Info("Running in once mode")

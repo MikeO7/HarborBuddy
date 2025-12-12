@@ -89,12 +89,38 @@ func ErrorErr(msg string, err error) {
 	logger.Error().Err(err).Msg(msg)
 }
 
+// Fatal logs a fatal message and exits
+func Fatal(msg string) {
+	logger.Fatal().Msg(msg)
+}
+
+// Fatalf logs a formatted fatal message and exits
+func Fatalf(format string, args ...interface{}) {
+	logger.Fatal().Msgf(format, args...)
+}
+
+// Panic logs a panic message and panics
+func Panic(msg string) {
+	logger.Panic().Msg(msg)
+}
+
+// Panicf logs a formatted panic message and panics
+func Panicf(format string, args ...interface{}) {
+	logger.Panic().Msgf(format, args...)
+}
+
 // WithContainer returns a logger with container context
 func WithContainer(containerID, containerName string) *zerolog.Logger {
 	l := logger.With().
 		Str("container_id", containerID).
 		Str("container_name", containerName).
 		Logger()
+	return &l
+}
+
+// WithFields returns a logger with generic fields context
+func WithFields(fields map[string]interface{}) *zerolog.Logger {
+	l := logger.With().Fields(fields).Logger()
 	return &l
 }
 

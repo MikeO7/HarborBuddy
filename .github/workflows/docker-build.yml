@@ -59,7 +59,7 @@ jobs:
           # Tag with branch name for main branch
           type=ref,event=branch
           # Tag with short SHA for every commit
-          type=sha,prefix={{branch}}-,format=short
+          type=sha,prefix={{branch}}-,format=short,enable=${{ github.ref_type != 'tag' }}
           # Tag PR number for pull requests
           type=ref,event=pr
         labels: |

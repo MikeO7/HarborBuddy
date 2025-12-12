@@ -196,9 +196,10 @@ func TestRunCleanup(t *testing.T) {
 				t.Log("  Checking eligibility logic:")
 				for i, img := range tt.images {
 					age := time.Since(img.CreatedAt)
+					logger := log.WithImage(shortID(img.ID), "test")
 					t.Logf("    [%d] ID: %s, Dangling: %v, Age: %v, Eligible: %v",
 						i, img.ID[:12], img.Dangling, age.Round(time.Hour),
-						isEligibleForCleanup(img, tt.config, time.Duration(tt.config.MinAgeHours)*time.Hour))
+						isEligibleForCleanup(img, tt.config, time.Duration(tt.config.MinAgeHours)*time.Hour, logger))
 				}
 			} else {
 				t.Logf("✓ Correct number of images removed: %d", actualRemoved)
@@ -357,7 +358,8 @@ func TestIsEligibleForCleanup(t *testing.T) {
 			t.Logf("  Image age: %v", time.Since(tt.image.CreatedAt).Round(time.Hour))
 			t.Logf("  Dangling: %v, DanglingOnly: %v", tt.image.Dangling, tt.config.DanglingOnly)
 
-			result := isEligibleForCleanup(tt.image, tt.config, tt.minAge)
+			logger := log.WithImage(shortID(tt.image.ID), "test")
+			result := isEligibleForCleanup(tt.image, tt.config, tt.minAge, logger)
 			if result != tt.expected {
 				t.Errorf("isEligibleForCleanup() = %v, want %v", result, tt.expected)
 				t.Logf("  Eligibility check failed")
