@@ -66,13 +66,16 @@ func RunUpdateCycle(ctx context.Context, cfg config.Config, dockerClient docker.
 		}
 
 		if !needsUpdate {
-			containerLogger.Info().Msg("Container is up to date")
+			// Only log "up to date" if we actually checked (i.e., not skipped by dry-run)
+			if !cfg.Updates.DryRun {
+				containerLogger.Info().Msg("Container is up to date")
+			}
 			continue
 		}
 
 		// Apply update
 		if cfg.Updates.DryRun {
-			containerLogger.Info().Msgf("[DRY-RUN] Would update container with image %s", container.Image)
+			containerLogger.Info().Msgf("[DRY-RUN] Update available. Would update container with image %s", container.Image)
 			updatedCount++
 		} else {
 			containerLogger.Info().Msgf("Updating container with image %s", container.Image)
