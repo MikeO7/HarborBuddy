@@ -6,6 +6,9 @@ on:
     # Run weekly to verify images are still buildable
     - cron: '0 0 * * 0'
 
+permissions:
+  contents: read
+
 jobs:
   verify:
     name: Verify Multi-Architecture Support
