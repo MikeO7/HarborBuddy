@@ -51,12 +51,12 @@ func RunUpdateCycle(ctx context.Context, cfg config.Config, dockerClient docker.
 		decision := DetermineEligibility(container, cfg.Updates)
 
 		if !decision.Eligible {
-			containerLogger.Info().Msgf("Skipping container: %s", decision.Reason)
+			containerLogger.Debug().Msgf("Skipping container: %s", decision.Reason)
 			skippedCount++
 			continue
 		}
 
-		containerLogger.Info().Msgf("Checking container for updates (Image: %s)", container.Image)
+		containerLogger.Debug().Msgf("Checking container for updates (Image: %s)", container.Image)
 
 		// Check for updates
 		needsUpdate, err := checkForUpdate(ctx, dockerClient, container, cfg.Updates.DryRun, containerLogger)
@@ -66,7 +66,7 @@ func RunUpdateCycle(ctx context.Context, cfg config.Config, dockerClient docker.
 		}
 
 		if !needsUpdate {
-			containerLogger.Info().Msg("Container is up to date")
+			containerLogger.Debug().Msg("Container is up to date")
 			continue
 		}
 
