@@ -33,16 +33,8 @@ func TestRunUpdater(t *testing.T) {
 	// We need to simulate the target stopping asynchronously
 	go func() {
 		time.Sleep(100 * time.Millisecond)
-		// Accessing internal state of mock directly is hacky but we don't have a SetContainerState method
-		// Let's rely on the mock being accessible here.
-		// Since we cannot access unexported fields, we need to update the Containers slice which is exported
-
-		// Race condition here in test, but acceptable for this mock
-		containers, _ := mockClient.ListContainers(context.Background())
-		if len(containers) > 0 {
-			containers[0].State.Running = false
-			mockClient.Containers = containers
-		}
+		// Update the container state safely using the new method
+		mockClient.SetContainerState(targetID, false)
 	}()
 
 	err := RunUpdater(ctx, mockClient, targetID, newImage)

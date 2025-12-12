@@ -324,3 +324,16 @@ func (m *MockDockerClient) Reset() {
 	m.RenamedContainers = []RenameRequest{}
 	m.CreatedHelpers = []CreateHelperRequest{}
 }
+
+// SetContainerState updates the state of a container for testing
+func (m *MockDockerClient) SetContainerState(id string, running bool) {
+	m.mu.Lock()
+	defer m.mu.Unlock()
+
+	for i := range m.Containers {
+		if m.Containers[i].ID == id {
+			m.Containers[i].State.Running = running
+			return
+		}
+	}
+}
