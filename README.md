@@ -27,8 +27,6 @@
 1. Create a `docker-compose.yml` file:
 
 ```yaml
-version: '3.8'
-
 services:
   harborbuddy:
     image: ghcr.io/mikeo7/harborbuddy:latest

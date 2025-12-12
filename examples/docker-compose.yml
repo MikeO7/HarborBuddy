@@ -1,5 +1,3 @@
-version: '3.8'
-
 services:
   harborbuddy:
     image: ghcr.io/mikeo7/harborbuddy:latest

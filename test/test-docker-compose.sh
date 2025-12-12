@@ -111,13 +111,13 @@ else
 fi
 
 # Check that managed containers were checked
-if echo "$LOGS" | grep -q "Checking container test-nginx"; then
+if echo "$LOGS" | grep -q "Checking container.*test-nginx"; then
     echo -e "${GREEN}✓ Checked test-nginx for updates${NC}"
 else
     echo -e "${RED}✗ Did not check test-nginx${NC}"
 fi
 
-if echo "$LOGS" | grep -q "Checking container test-alpine"; then
+if echo "$LOGS" | grep -q "Checking container.*test-alpine"; then
     echo -e "${GREEN}✓ Checked test-alpine for updates${NC}"
 else
     echo -e "${RED}✗ Did not check test-alpine${NC}"
