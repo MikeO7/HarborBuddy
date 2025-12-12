@@ -27,7 +27,6 @@ sleep 3
 
 # Create test compose with debug logging
 cat > /tmp/test-debug.yml << 'EOF'
-version: '3.8'
 services:
   harborbuddy:
     build:
@@ -70,7 +69,6 @@ echo "Testing interval-based scheduling instead of daily time..."
 
 # Create test compose with interval
 cat > /tmp/test-interval.yml << 'EOF'
-version: '3.8'
 services:
   harborbuddy:
     build:
@@ -113,7 +111,6 @@ echo "Testing with cleanup functionality disabled..."
 
 # Create test compose with cleanup disabled
 cat > /tmp/test-no-cleanup.yml << 'EOF'
-version: '3.8'
 services:
   harborbuddy:
     build:
@@ -157,7 +154,6 @@ echo "Testing with update functionality disabled..."
 
 # Create test compose with updates disabled
 cat > /tmp/test-no-updates.yml << 'EOF'
-version: '3.8'
 services:
   harborbuddy:
     build:
@@ -201,7 +197,6 @@ echo "Testing with different timezone configuration..."
 
 # Create test compose with different timezone
 cat > /tmp/test-timezone.yml << 'EOF'
-version: '3.8'
 services:
   harborbuddy:
     build:
