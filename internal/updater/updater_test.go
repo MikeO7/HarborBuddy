@@ -225,6 +225,43 @@ func TestRunUpdateCycle(t *testing.T) {
 			wantError:            false,
 			description:          "Should update eligible containers and skip excluded ones",
 		},
+		{
+			name: "duplicate images - should pull once",
+			containers: []docker.ContainerInfo{
+				{
+					ID:      "container1",
+					Name:    "nginx1",
+					Image:   "nginx:latest",
+					ImageID: "sha256:old-nginx",
+				},
+				{
+					ID:      "container2",
+					Name:    "nginx2",
+					Image:   "nginx:latest",
+					ImageID: "sha256:old-nginx",
+				},
+			},
+			images: map[string]docker.ImageInfo{
+				"nginx:latest": {
+					ID:       "sha256:new-nginx",
+					RepoTags: []string{"nginx:latest"},
+				},
+			},
+			config: config.Config{
+				Updates: config.UpdatesConfig{
+					Enabled:       true,
+					UpdateAll:     true,
+					CheckInterval: 30 * time.Minute,
+					DryRun:        false,
+					AllowImages:   []string{"*"},
+					DenyImages:    []string{},
+				},
+			},
+			expectedPulls:        1, // Optimized from 2 to 1
+			expectedReplacements: 2,
+			wantError:            false,
+			description:          "Multiple containers with same image should trigger only one pull",
+		},
 	}
 
 	for _, tt := range tests {
