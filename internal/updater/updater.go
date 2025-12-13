@@ -22,6 +22,11 @@ func shortID(id string) string {
 	return id
 }
 
+type pullCacheEntry struct {
+	info docker.ImageInfo
+	err  error
+}
+
 // RunUpdateCycle performs one complete update cycle
 func RunUpdateCycle(ctx context.Context, cfg config.Config, dockerClient docker.Client) error {
 	startTime := time.Now()
@@ -40,6 +45,9 @@ func RunUpdateCycle(ctx context.Context, cfg config.Config, dockerClient docker.
 
 	updatedCount := 0
 	skippedCount := 0
+
+	// Cache for image pulls to avoid redundant network calls
+	pullCache := make(map[string]pullCacheEntry)
 
 	// Process each container
 	for _, container := range containers {
@@ -63,7 +71,7 @@ func RunUpdateCycle(ctx context.Context, cfg config.Config, dockerClient docker.
 		containerLogger.Debug().Msgf("Checking container for updates (Image: %s)", container.Image)
 
 		// Check for updates
-		needsUpdate, err := checkForUpdate(ctx, dockerClient, container, cfg.Updates.DryRun, containerLogger)
+		needsUpdate, err := checkForUpdate(ctx, dockerClient, container, cfg.Updates.DryRun, containerLogger, pullCache)
 		if err != nil {
 			containerLogger.Error().Err(err).Msg("Failed to check for updates")
 			continue
@@ -148,21 +156,38 @@ func isSelf(id string) (bool, error) {
 }
 
 // checkForUpdate checks if a container needs updating
-func checkForUpdate(ctx context.Context, dockerClient docker.Client, container docker.ContainerInfo, dryRun bool, logger *zerolog.Logger) (bool, error) {
+func checkForUpdate(ctx context.Context, dockerClient docker.Client, container docker.ContainerInfo, dryRun bool, logger *zerolog.Logger, pullCache map[string]pullCacheEntry) (bool, error) {
 	// Get current image ID
 	currentImageID := container.ImageID
-
-	// Pull the latest version of the image
-	logger.Debug().Msgf("Pulling image %s", container.Image)
 
 	if dryRun {
 		// In dry-run mode, we can't actually pull to check for updates
 		// We log this limitation to be clear
+		logger.Debug().Msgf("Pulling image %s", container.Image)
 		logger.Info().Msgf("[DRY-RUN] Skipping image pull for %s. Cannot determine if update is available without pulling.", container.Image)
 		return false, nil
 	}
 
-	newImage, err := dockerClient.PullImage(ctx, container.Image)
+	var newImage docker.ImageInfo
+	var err error
+
+	// Check cache first
+	if cached, hit := pullCache[container.Image]; hit {
+		logger.Debug().Msgf("Using cached pull result for %s", container.Image)
+		newImage = cached.info
+		err = cached.err
+	} else {
+		// Pull the latest version of the image
+		logger.Debug().Msgf("Pulling image %s", container.Image)
+		newImage, err = dockerClient.PullImage(ctx, container.Image)
+
+		// Update cache
+		pullCache[container.Image] = pullCacheEntry{
+			info: newImage,
+			err:  err,
+		}
+	}
+
 	if err != nil {
 		return false, fmt.Errorf("failed to pull image: %w", err)
 	}
