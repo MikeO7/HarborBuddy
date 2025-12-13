@@ -12,6 +12,8 @@ import (
 )
 
 // ListContainers returns a list of all running containers
+// Note: This returns a "shallow" ContainerInfo. Config, HostConfig, and NetworkConfig will be nil.
+// Call InspectContainer if you need deep details.
 func (d *DockerClient) ListContainers(ctx context.Context) ([]ContainerInfo, error) {
 	containers, err := d.cli.ContainerList(ctx, container.ListOptions{
 		All: false, // Only running containers
@@ -22,10 +24,24 @@ func (d *DockerClient) ListContainers(ctx context.Context) ([]ContainerInfo, err
 
 	var result []ContainerInfo
 	for _, c := range containers {
-		info, err := d.InspectContainer(ctx, c.ID)
-		if err != nil {
-			// Log but don't fail the entire list
-			continue
+		// Extract container name (remove leading /)
+		name := ""
+		if len(c.Names) > 0 {
+			name = strings.TrimPrefix(c.Names[0], "/")
+		}
+
+		// ListContainers returns a simpler struct, so we populate what we can.
+		info := ContainerInfo{
+			ID:        c.ID,
+			Name:      name,
+			Image:     c.Image,
+			ImageID:   c.ImageID,
+			Labels:    c.Labels,
+			CreatedAt: time.Unix(c.Created, 0),
+			// State: nil, // types.Container only has State string, not *types.ContainerState
+			// Config: nil,
+			// HostConfig: nil,
+			// NetworkConfig: nil,
 		}
 		result = append(result, info)
 	}

@@ -28,6 +28,7 @@ func RunUpdateCycle(ctx context.Context, cfg config.Config, dockerClient docker.
 	log.Info("Starting update cycle")
 
 	// Discovery phase: list all containers
+	// Note: ListContainers is optimized to return a shallow list (no detailed Config/HostConfig)
 	listStart := time.Now()
 	containers, err := dockerClient.ListContainers(ctx)
 	if err != nil {
@@ -78,6 +79,17 @@ func RunUpdateCycle(ctx context.Context, cfg config.Config, dockerClient docker.
 			containerLogger.Info().Msgf("[DRY-RUN] Would update container with image %s", container.Image)
 			updatedCount++
 		} else {
+			// **CRITICAL**: ListContainers returns shallow info. Before acting, we MUST inspect the container
+			// to get its full configuration (Env, Ports, Volumes, etc.).
+			containerLogger.Debug().Msg("Fetching full container details before update...")
+			fullContainer, err := dockerClient.InspectContainer(ctx, container.ID)
+			if err != nil {
+				containerLogger.Error().Err(err).Msg("Failed to inspect container for update details")
+				continue
+			}
+			// Use the fully populated struct from here on
+			container = fullContainer
+
 			// Check if self-update
 			isSelf, err := isSelf(container.ID)
 			if err != nil {
