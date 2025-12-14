@@ -49,8 +49,13 @@ func main() {
 			os.Exit(1)
 		}
 
-		// Create Docker client (assume default host)
-		dockerClient, err := docker.NewClient("unix:///var/run/docker.sock")
+		// Create Docker client (check env first, default to socket)
+		dockerHost := os.Getenv("HARBORBUDDY_DOCKER_HOST")
+		if dockerHost == "" {
+			dockerHost = "unix:///var/run/docker.sock"
+		}
+
+		dockerClient, err := docker.NewClient(dockerHost)
 		if err != nil {
 			log.ErrorErr("Failed to create Docker client for updater", err)
 			os.Exit(1)
