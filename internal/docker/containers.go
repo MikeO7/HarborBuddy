@@ -22,7 +22,7 @@ func (d *DockerClient) ListContainers(ctx context.Context) ([]ContainerInfo, err
 		return nil, fmt.Errorf("failed to list containers: %w", err)
 	}
 
-	var result []ContainerInfo
+	result := make([]ContainerInfo, 0, len(containers))
 	for _, c := range containers {
 		// Extract container name (remove leading /)
 		name := ""
@@ -216,7 +216,7 @@ func (d *DockerClient) GetContainersUsingImage(ctx context.Context, imageID stri
 		return nil, fmt.Errorf("failed to list containers using image: %w", err)
 	}
 
-	var ids []string
+	ids := make([]string, 0, len(containers))
 	for _, c := range containers {
 		ids = append(ids, c.ID)
 	}

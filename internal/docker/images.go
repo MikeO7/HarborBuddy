@@ -50,7 +50,7 @@ func (d *DockerClient) ListImages(ctx context.Context) ([]ImageInfo, error) {
 		return nil, fmt.Errorf("failed to list images: %w", err)
 	}
 
-	var result []ImageInfo
+	result := make([]ImageInfo, 0, len(images))
 	for _, img := range images {
 		result = append(result, ImageInfo{
 			ID:        img.ID,
@@ -77,7 +77,7 @@ func (d *DockerClient) ListDanglingImages(ctx context.Context) ([]ImageInfo, err
 		return nil, fmt.Errorf("failed to list dangling images: %w", err)
 	}
 
-	var result []ImageInfo
+	result := make([]ImageInfo, 0, len(images))
 	for _, img := range images {
 		result = append(result, ImageInfo{
 			ID:        img.ID,
