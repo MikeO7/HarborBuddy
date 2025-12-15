@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"os"
 	"strings"
+	"sync"
 	"time"
 
 	"github.com/MikeO7/HarborBuddy/internal/config"
@@ -23,8 +24,59 @@ func shortID(id string) string {
 }
 
 type pullCacheEntry struct {
-	info docker.ImageInfo
-	err  error
+	info  docker.ImageInfo
+	err   error
+	ready chan struct{}
+}
+
+// SafePullCache handles concurrent image pulls, ensuring only one pull per image happens at a time.
+type SafePullCache struct {
+	mu    sync.Mutex
+	cache map[string]*pullCacheEntry
+}
+
+// NewSafePullCache creates a new SafePullCache
+func NewSafePullCache() *SafePullCache {
+	return &SafePullCache{
+		cache: make(map[string]*pullCacheEntry),
+	}
+}
+
+// GetOrPull returns the image info from cache or executes the pull function.
+// If multiple goroutines request the same image, only one executes pullFunc, others wait.
+func (c *SafePullCache) GetOrPull(ctx context.Context, image string, pullFunc func() (docker.ImageInfo, error)) (docker.ImageInfo, error, bool) {
+	c.mu.Lock()
+	entry, exists := c.cache[image]
+	if !exists {
+		// Create entry with open channel
+		entry = &pullCacheEntry{
+			ready: make(chan struct{}),
+		}
+		c.cache[image] = entry
+		c.mu.Unlock()
+
+		// Perform the pull (without lock)
+		info, err := pullFunc()
+
+		// Update entry and close channel
+		// We don't need to lock to write to the entry fields because we are the only writer
+		// (others are waiting on the channel), but for visibility/correctness we should
+		// ensure the writes happen-before the close. The close happens-before the receive returns.
+		entry.info = info
+		entry.err = err
+		close(entry.ready)
+
+		return info, err, false
+	}
+	c.mu.Unlock()
+
+	// Wait for the pull to complete
+	select {
+	case <-entry.ready:
+		return entry.info, entry.err, true
+	case <-ctx.Done():
+		return docker.ImageInfo{}, ctx.Err(), false
+	}
 }
 
 // RunUpdateCycle performs one complete update cycle
@@ -47,9 +99,22 @@ func RunUpdateCycle(ctx context.Context, cfg config.Config, dockerClient docker.
 	skippedCount := 0
 
 	// Cache for image pulls to avoid redundant network calls
-	pullCache := make(map[string]pullCacheEntry)
+	pullCache := NewSafePullCache()
 
-	// Process each container
+	// Candidate list for updates
+	type updateCandidate struct {
+		container docker.ContainerInfo
+		logger    *zerolog.Logger
+	}
+	candidates := make([]updateCandidate, 0)
+	var candidatesMu sync.Mutex
+
+	// Concurrency control
+	concurrencyLimit := 5
+	semaphore := make(chan struct{}, concurrencyLimit)
+	var wg sync.WaitGroup
+
+	// Phase 1: Check for updates in parallel
 	for _, container := range containers {
 		if err := ctx.Err(); err != nil {
 			log.Warn("Update cycle interrupted")
@@ -68,19 +133,42 @@ func RunUpdateCycle(ctx context.Context, cfg config.Config, dockerClient docker.
 			continue
 		}
 
-		containerLogger.Debug().Msgf("Checking container for updates (Image: %s)", container.Image)
+		wg.Add(1)
+		go func(c docker.ContainerInfo, l *zerolog.Logger) {
+			defer wg.Done()
+			semaphore <- struct{}{} // Acquire token
+			defer func() { <-semaphore }() // Release token
 
-		// Check for updates
-		needsUpdate, err := checkForUpdate(ctx, dockerClient, container, cfg.Updates.DryRun, containerLogger, pullCache)
-		if err != nil {
-			containerLogger.Error().Err(err).Msg("Failed to check for updates")
-			continue
+			l.Debug().Msgf("Checking container for updates (Image: %s)", c.Image)
+
+			// Check for updates
+			needsUpdate, err := checkForUpdate(ctx, dockerClient, c, cfg.Updates.DryRun, l, pullCache)
+			if err != nil {
+				l.Error().Err(err).Msg("Failed to check for updates")
+				return
+			}
+
+			if needsUpdate {
+				candidatesMu.Lock()
+				candidates = append(candidates, updateCandidate{container: c, logger: l})
+				candidatesMu.Unlock()
+			} else {
+				l.Debug().Msg("Container is up to date")
+			}
+		}(container, containerLogger)
+	}
+
+	wg.Wait()
+
+	// Phase 2: Apply updates sequentially
+	for _, candidate := range candidates {
+		if err := ctx.Err(); err != nil {
+			log.Warn("Update cycle interrupted during update phase")
+			return err
 		}
 
-		if !needsUpdate {
-			containerLogger.Debug().Msg("Container is up to date")
-			continue
-		}
+		container := candidate.container
+		containerLogger := candidate.logger
 
 		// Apply update
 		if cfg.Updates.DryRun {
@@ -156,7 +244,7 @@ func isSelf(id string) (bool, error) {
 }
 
 // checkForUpdate checks if a container needs updating
-func checkForUpdate(ctx context.Context, dockerClient docker.Client, container docker.ContainerInfo, dryRun bool, logger *zerolog.Logger, pullCache map[string]pullCacheEntry) (bool, error) {
+func checkForUpdate(ctx context.Context, dockerClient docker.Client, container docker.ContainerInfo, dryRun bool, logger *zerolog.Logger, pullCache *SafePullCache) (bool, error) {
 	// Get current image ID
 	currentImageID := container.ImageID
 
@@ -168,28 +256,18 @@ func checkForUpdate(ctx context.Context, dockerClient docker.Client, container d
 		return false, nil
 	}
 
-	var newImage docker.ImageInfo
-	var err error
-
-	// Check cache first
-	if cached, hit := pullCache[container.Image]; hit {
-		logger.Debug().Msgf("Using cached pull result for %s", container.Image)
-		newImage = cached.info
-		err = cached.err
-	} else {
-		// Pull the latest version of the image
+	// Get image info from cache or pull
+	newImage, err, hit := pullCache.GetOrPull(ctx, container.Image, func() (docker.ImageInfo, error) {
 		logger.Debug().Msgf("Pulling image %s", container.Image)
-		newImage, err = dockerClient.PullImage(ctx, container.Image)
-
-		// Update cache
-		pullCache[container.Image] = pullCacheEntry{
-			info: newImage,
-			err:  err,
-		}
-	}
+		return dockerClient.PullImage(ctx, container.Image)
+	})
 
 	if err != nil {
 		return false, fmt.Errorf("failed to pull image: %w", err)
+	}
+
+	if hit {
+		logger.Debug().Msgf("Using cached pull result for %s", container.Image)
 	}
 
 	// Compare image IDs
