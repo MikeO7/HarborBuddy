@@ -137,22 +137,35 @@ func isSelf(id string) (bool, error) {
 		return false, err
 	}
 
-	// If hostname is the short ID (12 chars), we need to check if container.ID starts with it
-	if strings.HasPrefix(id, hostname) {
-		return true, nil
-	}
-
-	// If hostname is NOT the ID (custom hostname), we can try to read /proc/self/cgroup
-	// This is more reliable.
+	// Try to read /proc/self/cgroup
+	cgroupContent := ""
 	data, err := os.ReadFile("/proc/self/cgroup")
 	if err == nil {
-		content := string(data)
-		if strings.Contains(content, id) {
-			return true, nil
+		cgroupContent = string(data)
+	}
+
+	return checkIsSelf(id, hostname, cgroupContent), nil
+}
+
+// checkIsSelf contains the logic for isSelf, separated for testing and security
+func checkIsSelf(id, hostname, cgroupContent string) bool {
+	// Security: If hostname is empty, we must NOT use it for prefix check.
+	// strings.HasPrefix(id, "") is always true, which would cause all containers to match.
+	if hostname != "" {
+		// If hostname is the short ID (12 chars), we need to check if container.ID starts with it
+		if strings.HasPrefix(id, hostname) {
+			return true
 		}
 	}
 
-	return false, nil
+	// Check cgroup content if available
+	if cgroupContent != "" {
+		if strings.Contains(cgroupContent, id) {
+			return true
+		}
+	}
+
+	return false
 }
 
 // checkForUpdate checks if a container needs updating
