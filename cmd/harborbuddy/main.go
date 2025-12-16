@@ -3,6 +3,7 @@ package main
 import (
 	"fmt"
 	"os"
+	"strconv"
 
 	"context"
 
@@ -55,7 +56,27 @@ func main() {
 			dockerHost = "unix:///var/run/docker.sock"
 		}
 
-		dockerClient, err := docker.NewClient(dockerHost)
+		// Construct DockerConfig from env
+		dockerConfig := config.DockerConfig{
+			Host: dockerHost,
+		}
+
+		// Support TLS in updater mode
+		if val := os.Getenv("HARBORBUDDY_DOCKER_TLS"); val != "" {
+			if tls, err := strconv.ParseBool(val); err == nil {
+				dockerConfig.TLS = tls
+			}
+		}
+		dockerConfig.CertPath = os.Getenv("HARBORBUDDY_DOCKER_CERT_PATH")
+		dockerConfig.KeyPath = os.Getenv("HARBORBUDDY_DOCKER_KEY_PATH")
+		dockerConfig.CAPath = os.Getenv("HARBORBUDDY_DOCKER_CA_PATH")
+		if val := os.Getenv("HARBORBUDDY_DOCKER_TLS_VERIFY"); val != "" {
+			if verify, err := strconv.ParseBool(val); err == nil {
+				dockerConfig.TLSVerify = verify
+			}
+		}
+
+		dockerClient, err := docker.NewClient(dockerConfig)
 		if err != nil {
 			log.ErrorErr("Failed to create Docker client for updater", err)
 			os.Exit(1)
@@ -137,7 +158,7 @@ func main() {
 	log.Infof("Dry-run mode: %v", cfg.Updates.DryRun)
 
 	// Create Docker client
-	dockerClient, err := docker.NewClient(cfg.Docker.Host)
+	dockerClient, err := docker.NewClient(cfg.Docker)
 	if err != nil {
 		log.ErrorErr("Failed to create Docker client", err)
 		os.Exit(1)

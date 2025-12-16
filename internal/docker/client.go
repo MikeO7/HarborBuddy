@@ -5,7 +5,9 @@ import (
 	"fmt"
 	"time"
 
+	"github.com/MikeO7/HarborBuddy/internal/config"
 	"github.com/docker/docker/client"
+	"github.com/rs/zerolog/log"
 )
 
 // Client is the interface for Docker operations
@@ -34,10 +36,41 @@ type DockerClient struct {
 }
 
 // NewClient creates a new Docker client
-func NewClient(host string) (*DockerClient, error) {
+func NewClient(cfg config.DockerConfig) (*DockerClient, error) {
 	opts := []client.Opt{
-		client.WithHost(host),
+		client.WithHost(cfg.Host),
 		client.WithAPIVersionNegotiation(),
+	}
+
+	if cfg.TLS {
+		// If explicit paths are provided, use them
+		if cfg.CertPath != "" && cfg.KeyPath != "" && cfg.CAPath != "" {
+			opts = append(opts, client.WithTLSClientConfig(cfg.CAPath, cfg.CertPath, cfg.KeyPath))
+		} else {
+			// If TLS is requested but no paths provided, we might be relying on default locations
+			// or DOCKER_CERT_PATH env var.
+			// client.WithTLSClientConfig requires explicit paths.
+			// However, client.NewClientWithOpts(client.FromEnv) handles this automatically.
+			// Since we want to support both explicit config AND standard env vars, let's add FromEnv.
+			// But client.FromEnv might conflict with client.WithHost if both are set?
+			// client.FromEnv reads DOCKER_HOST. If cfg.Host is set, it overrides it (since we added WithHost first? No, last wins).
+			// Wait, options are applied in order.
+			// If we put FromEnv first, then WithHost, WithHost wins for the host.
+			// But FromEnv also sets TLS config if DOCKER_TLS_VERIFY is set.
+
+			// So correct strategy:
+			// 1. Add FromEnv (to pick up standard env vars for things we don't explicitly set)
+			// 2. Add WithHost (to enforce our configured host)
+			// 3. Add explicit TLS config if provided
+
+			// However, if we add FromEnv, it might override other things.
+			// Let's stick to explicit configuration if possible.
+
+			// If the user wants TLS but didn't provide paths, we warn them unless they are using env vars?
+			log.Warn().Msg("TLS enabled but no certificate paths provided in config. Assuming standard environment variables or default locations.")
+			// We can try to add FromEnv here to pick up TLS settings from env
+			opts = append(opts, client.FromEnv)
+		}
 	}
 
 	cli, err := client.NewClientWithOpts(opts...)

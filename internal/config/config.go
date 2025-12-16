@@ -25,8 +25,12 @@ type Config struct {
 
 // DockerConfig holds Docker connection settings
 type DockerConfig struct {
-	Host string `yaml:"host"`
-	TLS  bool   `yaml:"tls"`
+	Host      string `yaml:"host"`
+	TLS       bool   `yaml:"tls"`
+	CertPath  string `yaml:"cert_path"`
+	KeyPath   string `yaml:"key_path"`
+	CAPath    string `yaml:"ca_path"`
+	TLSVerify bool   `yaml:"tls_verify"`
 }
 
 // UpdatesConfig holds update behavior settings
@@ -68,8 +72,9 @@ type LoggingConfig struct {
 func Default() Config {
 	return Config{
 		Docker: DockerConfig{
-			Host: "unix:///var/run/docker.sock",
-			TLS:  false,
+			Host:      "unix:///var/run/docker.sock",
+			TLS:       false,
+			TLSVerify: true,
 		},
 		Updates: UpdatesConfig{
 			Enabled:       true,
@@ -184,8 +189,28 @@ func parseDockerSize(s string) (int, error) {
 
 // ApplyEnvironmentOverrides applies environment variable overrides to the config
 func (c *Config) ApplyEnvironmentOverrides() {
+	// Docker config
 	if val := os.Getenv("HARBORBUDDY_DOCKER_HOST"); val != "" {
 		c.Docker.Host = val
+	}
+	if val := os.Getenv("HARBORBUDDY_DOCKER_TLS"); val != "" {
+		if tls, err := strconv.ParseBool(val); err == nil {
+			c.Docker.TLS = tls
+		}
+	}
+	if val := os.Getenv("HARBORBUDDY_DOCKER_TLS_VERIFY"); val != "" {
+		if verify, err := strconv.ParseBool(val); err == nil {
+			c.Docker.TLSVerify = verify
+		}
+	}
+	if val := os.Getenv("HARBORBUDDY_DOCKER_CERT_PATH"); val != "" {
+		c.Docker.CertPath = val
+	}
+	if val := os.Getenv("HARBORBUDDY_DOCKER_KEY_PATH"); val != "" {
+		c.Docker.KeyPath = val
+	}
+	if val := os.Getenv("HARBORBUDDY_DOCKER_CA_PATH"); val != "" {
+		c.Docker.CAPath = val
 	}
 
 	if val := os.Getenv("HARBORBUDDY_INTERVAL"); val != "" {
