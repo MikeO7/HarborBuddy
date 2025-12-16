@@ -150,6 +150,8 @@ func runCycle(ctx context.Context, cfg config.Config, dockerClient docker.Client
 		if err := cleanup.RunCleanup(ctx, cfg, dockerClient); err != nil {
 			return err
 		}
+	} else {
+		log.Debug("Cleanup is disabled, skipping")
 	}
 
 	log.Info("➖➖➖➖ Cycle complete ➖➖➖➖")

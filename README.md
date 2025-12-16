@@ -23,8 +23,9 @@ Perfect for **Home Labs**, **Staging Environments**, and **Production** setups w
 
 ## ✨ Features
 
-- **Automated Updates**: Polls for new Docker images at your chosen interval.
-- **Smart Cleanup**: Removes "dangling" and unused images to keep your host clean.
+- [x] Automated Updates: Polls for new Docker images at your chosen interval.
+- [x] Scheduled Updates: Run daily at a specific time (e.g., "03:00").
+- [x] Smart Cleanup: Removes "dangling" and unused images to keep your host clean.
 - **Flexible Control**: Update everything by default, or opt-out specific containers.
 - **Pattern Filtering**: Allow or Deny updates based on image names (e.g., "never update `postgres:*`").
 - **Lightweight**: Written in Go, runs as a tiny container (~10MB) with minimal resource usage.
@@ -118,6 +119,8 @@ HarborBuddy is highly configurable via Environment Variables.
 | Variable | Default | Description |
 |----------|---------|-------------|
 | `HARBORBUDDY_INTERVAL` | `30m` | How often to check for updates (e.g., `15m`, `1h`, `6h`, `24h`). |
+| `HARBORBUDDY_SCHEDULE_TIME` | `""` | Specific time to run daily (HH:MM, e.g., `03:00`). Overrides interval. |
+| `HARBORBUDDY_TIMEZONE` | `UTC` | Timezone for the schedule (e.g., `America/Los_Angeles`). |
 | `HARBORBUDDY_DRY_RUN` | `false` | If `true`, logs what *would* happen but makes no changes. Great for testing! |
 | `HARBORBUDDY_LOG_LEVEL` | `info` | Control log detail (`debug`, `info`, `warn`, `error`). |
 | `HARBORBUDDY_LOG_JSON` | `false` | Output logs in JSON format for tools like Splunk/ELK. |
@@ -193,6 +196,20 @@ We welcome contributions from everyone!
 - 🐛 [Report a Bug](https://github.com/MikeO7/HarborBuddy/issues)
 - 💡 [Request a Feature](https://github.com/MikeO7/HarborBuddy/issues)
 - 👩‍💻 [Submit a Pull Request](CONTRIBUTING.md)
+
+## 🛠️ Development & Testing
+
+HarborBuddy is built with robust testing in mind (>90% code coverage).
+
+### Running Tests
+To run the full test suite:
+
+```bash
+make test
+# OR
+go test ./...
+```
+
 
 ## 📄 License
 

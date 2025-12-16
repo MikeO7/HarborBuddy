@@ -36,3 +36,5 @@ config/harborbuddy.yml
 # Test binaries (but keep test/ directory and scripts)
 harborbuddy-test
 /test-results/
+/test/test-logs/
+
