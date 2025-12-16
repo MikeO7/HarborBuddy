@@ -6,25 +6,55 @@ import (
 	"time"
 
 	"github.com/rs/zerolog"
+	"gopkg.in/natefinch/lumberjack.v2"
 )
 
 var logger zerolog.Logger
 
-// Initialize sets up the logger with the given level and output format
-func Initialize(level string, jsonOutput bool) {
-	var output io.Writer = os.Stdout
+// Config holds logging configuration
+type Config struct {
+	Level      string
+	JSON       bool
+	File       string
+	MaxSize    int // megabytes
+	MaxBackups int
+	Output     io.Writer // Optional: override output (default stdout)
+}
 
-	// Set up console writer for pretty output if not JSON
-	if !jsonOutput {
-		output = zerolog.ConsoleWriter{
+// Initialize sets up the logger with the given configuration
+func Initialize(cfg Config) {
+	var writers []io.Writer
+
+	// Set up console writer
+	if cfg.Output != nil {
+		writers = append(writers, cfg.Output)
+	} else if !cfg.JSON {
+		writers = append(writers, zerolog.ConsoleWriter{
 			Out:        os.Stdout,
 			TimeFormat: time.RFC3339,
-		}
+		})
+	} else {
+		writers = append(writers, os.Stdout)
 	}
+
+	// Set up file writer if configured
+	if cfg.File != "" {
+		fileLogger := &lumberjack.Logger{
+			Filename:   cfg.File,
+			MaxSize:    cfg.MaxSize,
+			MaxBackups: cfg.MaxBackups,
+			MaxAge:     0,
+			Compress:   false,
+		}
+		writers = append(writers, fileLogger)
+	}
+
+	// Create multi-writer
+	output := io.MultiWriter(writers...)
 
 	// Parse log level
 	logLevel := zerolog.InfoLevel
-	switch level {
+	switch cfg.Level {
 	case "debug":
 		logLevel = zerolog.DebugLevel
 	case "info":

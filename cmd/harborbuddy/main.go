@@ -14,7 +14,7 @@ import (
 	flag "github.com/spf13/pflag"
 )
 
-const version = "0.1.0"
+const version = "0.2.0"
 
 func main() {
 	// Define CLI flags
@@ -42,7 +42,7 @@ func main() {
 
 	// If running in updater mode, we skip normal configuration loading
 	if *updaterMode {
-		log.Initialize("info", false) // Basic logging for helper
+		log.Initialize(log.Config{Level: "info"}) // Basic logging for helper
 
 		if *targetID == "" || *newImage == "" {
 			log.Error("Updater mode requires --target-container-id and --new-image-id")
@@ -105,8 +105,25 @@ func main() {
 		os.Exit(1)
 	}
 
+	// Auto-detect log volume if not explicitly configured
+	if cfg.Log.File == "" {
+		if info, err := os.Stat("/logs"); err == nil && info.IsDir() {
+			cfg.Log.File = "/logs/harborbuddy.log"
+			fmt.Printf("Detected /logs volume, enabling file logging to %s\n", cfg.Log.File)
+		} else if info, err := os.Stat("/config"); err == nil && info.IsDir() {
+			cfg.Log.File = "/config/harborbuddy.log"
+			fmt.Printf("Detected /config volume, enabling file logging to %s\n", cfg.Log.File)
+		}
+	}
+
 	// Initialize logger
-	log.Initialize(cfg.Log.Level, cfg.Log.JSON)
+	log.Initialize(log.Config{
+		Level:      cfg.Log.Level,
+		JSON:       cfg.Log.JSON,
+		File:       cfg.Log.File,
+		MaxSize:    cfg.Log.MaxSize,
+		MaxBackups: cfg.Log.MaxBackups,
+	})
 
 	log.Infof("HarborBuddy version %s starting", version)
 	log.Infof("Docker host: %s", cfg.Docker.Host)

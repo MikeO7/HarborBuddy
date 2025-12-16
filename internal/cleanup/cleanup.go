@@ -27,7 +27,6 @@ func RunCleanup(ctx context.Context, cfg config.Config, dockerClient docker.Clie
 		return nil
 	}
 
-	startTime := time.Now()
 	log.Info("Starting image cleanup")
 
 	// List images
@@ -75,20 +74,26 @@ func RunCleanup(ctx context.Context, cfg config.Config, dockerClient docker.Clie
 		}
 
 		sizeStr := util.FormatBytes(image.Size)
-		imageLogger.Info().Msgf("Removing image (tags: %v, size: %s)", image.RepoTags, sizeStr)
+		// Log attempt at Debug level to reduce noise
+		imageLogger.Debug().Msgf("Attempting to remove image (tags: %v, size: %s)", image.RepoTags, sizeStr)
+
 		if err := dockerClient.RemoveImage(ctx, image.ID); err != nil {
 			imageLogger.Error().Err(err).Msg("Failed to remove image")
 			skippedCount++
 			continue
 		}
 
-		imageLogger.Info().Msgf("Successfully removed image. Reclaimed %s", sizeStr)
+		// Friendly "Removed" message
+		tagDisplay := "Dangling"
+		if len(image.RepoTags) > 0 {
+			tagDisplay = strings.Join(image.RepoTags, ", ")
+		}
+		imageLogger.Info().Msgf("🗑️  Removed image %s (%s) | Reclaimed: %s", shortID(image.ID), tagDisplay, sizeStr)
 		removedCount++
 		totalReclaimed += image.Size
 	}
 
-	log.Infof("Cleanup complete: %d removed, %d skipped, %d total. Total space reclaimed: %s (in %v)",
-		removedCount, skippedCount, len(images), util.FormatBytes(totalReclaimed), time.Since(startTime))
+	log.Infof("✨ Cleanup complete: %d removed. Space Reclaimed: %s", removedCount, util.FormatBytes(totalReclaimed))
 	return nil
 }
 

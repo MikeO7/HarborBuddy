@@ -1,16 +1,26 @@
 package selfupdate
 
 import (
+	"bytes"
 	"context"
+	"strings"
 	"testing"
 	"time"
 
 	"github.com/MikeO7/HarborBuddy/internal/docker"
+	"github.com/MikeO7/HarborBuddy/pkg/log"
 	"github.com/docker/docker/api/types"
 	"github.com/docker/docker/api/types/container"
 )
 
 func TestRunUpdater(t *testing.T) {
+	// Capture logs
+	var logBuf bytes.Buffer
+	log.Initialize(log.Config{
+		Level:  "info",
+		Output: &logBuf,
+	})
+
 	mockClient := docker.NewMockDockerClient()
 	ctx := context.Background()
 
@@ -69,6 +79,20 @@ func TestRunUpdater(t *testing.T) {
 	// 4. Started
 	if len(mockClient.StartedContainers) != 1 {
 		t.Errorf("Expected 1 start operation, got %d", len(mockClient.StartedContainers))
+	}
+
+	// 5. Verify Logs
+	logs := logBuf.String()
+	expectedSubstrings := []string{
+		"Updater: 🔄 Started",
+		"Updater: 🚀 Starting new container",
+		"Updater: ✅ Update complete",
+	}
+
+	for _, s := range expectedSubstrings {
+		if !strings.Contains(logs, s) {
+			t.Errorf("Log output missing expected string: %q", s)
+		}
 	}
 }
 

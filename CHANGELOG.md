@@ -5,6 +5,19 @@ All notable changes to HarborBuddy will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.2.0] - 2025-12-15
+
+### Added
+- **Log Persistence**: Logs can now be rotated and saved to a file (`/logs/harborbuddy.log`).
+- **Auto-Detection**: Automatically detects mounted `/logs` or `/config` directories to enable file logging.
+- **Docker-Style Config**: Support for the `logging` block in `harborbuddy.yml` (compatible with `docker-compose` logging config).
+- **Log Rotation**: Built-in log rotation (defaults to 10MB file size, 1 backup).
+- **Improved Logging**: Enhanced log readability with visual icons and clearer status messages.
+
+### Changed
+- **Defaults**: Simplified log rotation defaults (MaxBackups=1, Compress=false).
+- **CLI**: Removed verbose log rotation flags in favor of config/env variables.
+
 ## [0.1.0] - 2024-12-03
 
 ### Added

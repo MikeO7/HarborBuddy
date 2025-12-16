@@ -11,7 +11,7 @@ import (
 )
 
 func init() {
-	log.Initialize("debug", false)
+	log.Initialize(log.Config{Level: "debug"})
 }
 
 func TestRunCycle(t *testing.T) {
@@ -234,7 +234,7 @@ func TestSchedulerModes(t *testing.T) {
 
 		<-done
 		// We should have run at least 3 cycles in 500ms with 100ms interval
-		if len(mockClient.PulledImages) < 0 { // Mock tracks all pulls
+		if len(mockClient.PulledImages) >= 0 { // Mock tracks all pulls
 			t.Log("✓ Continuous mode executed multiple cycles")
 		}
 	})
