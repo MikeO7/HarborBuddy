@@ -39,6 +39,14 @@ func Initialize(cfg Config) {
 
 	// Set up file writer if configured
 	if cfg.File != "" {
+		// Ensure the file exists with 0644 permissions so it's readable by the host user
+		// This handles the "NoPermissions" error when mounting logs from Docker
+		f, err := os.OpenFile(cfg.File, os.O_CREATE|os.O_APPEND|os.O_WRONLY, 0644)
+		if err == nil {
+			f.Close()
+			_ = os.Chmod(cfg.File, 0644)
+		}
+
 		fileLogger := &lumberjack.Logger{
 			Filename:   cfg.File,
 			MaxSize:    cfg.MaxSize,
