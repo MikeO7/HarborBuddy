@@ -136,7 +136,7 @@ func RunUpdateCycle(ctx context.Context, cfg config.Config, dockerClient docker.
 		wg.Add(1)
 		go func(c docker.ContainerInfo, l *zerolog.Logger) {
 			defer wg.Done()
-			semaphore <- struct{}{} // Acquire token
+			semaphore <- struct{}{}        // Acquire token
 			defer func() { <-semaphore }() // Release token
 
 			l.Debug().Msgf("Checking container for updates (Image: %s)", c.Image)
