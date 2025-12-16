@@ -88,8 +88,8 @@ func runScheduledMode(ctx context.Context, cfg config.Config, dockerClient docke
 
 	for {
 		// Calculate next run time
-		nextRun := calculateNextRun(cfg.Updates.ScheduleTime, location)
 		now := time.Now().In(location)
+		nextRun := calculateNextRun(now, cfg.Updates.ScheduleTime, location)
 		waitDuration := nextRun.Sub(now)
 
 		log.Infof("⏳ Next scheduled run: %s (in %v)", nextRun.Format("2006-01-02 15:04:05 MST"), waitDuration.Round(time.Second))
@@ -111,9 +111,7 @@ func runScheduledMode(ctx context.Context, cfg config.Config, dockerClient docke
 }
 
 // calculateNextRun calculates the next scheduled run time
-func calculateNextRun(scheduleTime string, location *time.Location) time.Time {
-	now := time.Now().In(location)
-
+func calculateNextRun(now time.Time, scheduleTime string, location *time.Location) time.Time {
 	// Parse the schedule time (HH:MM format)
 	scheduledTime, _ := time.Parse("15:04", scheduleTime)
 

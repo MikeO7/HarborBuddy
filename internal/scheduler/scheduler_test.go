@@ -349,39 +349,32 @@ func TestCalculateNextRun(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			// Save/Patch time.Now if possible?
-			// Since calculateNextRun calls time.Now(), we can't easily mock it without dependency injection
-			// or changing the function signature.
-			// However, calculateNextRun is: func calculateNextRun(scheduleTime string, location *time.Location) time.Time
-			// It uses time.Now().
-			//
-			// To test this reliably without changing code structure, we rely on the logic:
-			// nextRun = time.Date(..., scheduleTime...)
-			// if nextRun <= now { nextRun += 24h }
-			//
-			// We can verify the Hour/Minute match the request, and check if it's today or tomorrow relative to actual Now.
+			// Use a fixed time to avoid midnight flakiness
+			// 2023-01-01 12:00:00
+			realNow := time.Date(2023, 1, 1, 12, 0, 0, 0, tt.location)
 
-			// Let's use real time but construct the test case relative to it
-			realNow := time.Now().In(tt.location)
-
-			// Construct a schedule time 1 hour in the future
+			// Construct a schedule time 1 hour in the future (13:00)
 			future := realNow.Add(time.Hour)
 			futureTimeStr := future.Format("15:04")
 
-			nextRunFuture := calculateNextRun(futureTimeStr, tt.location)
+			nextRunFuture := calculateNextRun(realNow, futureTimeStr, tt.location)
+			// Should be same day
 			if nextRunFuture.Day() != realNow.Day() {
-				t.Errorf("Expected future time today, got next day: %v", nextRunFuture)
+				t.Errorf("Expected future time to be today (%d), got day %d. NextRun: %v", realNow.Day(), nextRunFuture.Day(), nextRunFuture)
+			}
+			if nextRunFuture.Hour() != future.Hour() || nextRunFuture.Minute() != future.Minute() {
+				t.Errorf("Expected time %s, got %s", futureTimeStr, nextRunFuture.Format("15:04"))
 			}
 
-			// Construct a schedule time 1 hour in the past
+			// Construct a schedule time 1 hour in the past (11:00)
 			past := realNow.Add(-time.Hour)
 			pastTimeStr := past.Format("15:04")
 
-			nextRunPast := calculateNextRun(pastTimeStr, tt.location)
+			nextRunPast := calculateNextRun(realNow, pastTimeStr, tt.location)
 			// Should be tomorrow
 			expectedTomorrow := realNow.Add(24 * time.Hour)
 			if nextRunPast.Day() != expectedTomorrow.Day() {
-				t.Errorf("Expected past time to be tomorrow, got: %v", nextRunPast)
+				t.Errorf("Expected past time to be tomorrow (%d), got day %d. NextRun: %v", expectedTomorrow.Day(), nextRunPast.Day(), nextRunPast)
 			}
 		})
 	}
