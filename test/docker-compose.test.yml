@@ -15,12 +15,12 @@ services:
       - TZ=America/Los_Angeles
       - HARBORBUDDY_SCHEDULE_TIME=03:00
       - HARBORBUDDY_DRY_RUN=true
-      - HARBORBUDDY_LOG_LEVEL=info
+      - HARBORBUDDY_LOG_LEVEL=debug
     labels:
       com.harborbuddy.autoupdate: "false"
       com.harborbuddy.test: "true"
     # Run once and exit
-    command: [ "--once", "--dry-run", "--log-level", "info" ]
+    command: [ "--once", "--dry-run", "--log-level", "debug" ]
 
   # Test container 1: Should be managed (no exclusion label)
   test-nginx:

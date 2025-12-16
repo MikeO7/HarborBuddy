@@ -421,3 +421,139 @@ func TestCheckForUpdateLogging(t *testing.T) {
 		t.Logf("Actual logs: %s", logs)
 	}
 }
+
+func TestIsSelf(t *testing.T) {
+	t.Log("Testing detecting self container")
+
+	tests := []struct {
+		name          string
+		id            string
+		hostname      string
+		cgroupContent string
+		expected      bool
+	}{
+		{
+			name:          "match by prefix hostname",
+			id:            "abcdef1234567890",
+			hostname:      "abcdef123456",
+			cgroupContent: "",
+			expected:      true,
+		},
+		{
+			name:          "no match prefix hostname",
+			id:            "abcdef1234567890",
+			hostname:      "fedcba654321",
+			cgroupContent: "",
+			expected:      false,
+		},
+		{
+			name:          "empty hostname should not match",
+			id:            "abcdef1234567890",
+			hostname:      "",
+			cgroupContent: "",
+			expected:      false,
+		},
+		{
+			name:          "match by cgroup",
+			id:            "abcdef1234567890",
+			hostname:      "fedcba654321", // hostname non-match
+			cgroupContent: "11:pids:/docker/abcdef1234567890\n",
+			expected:      true,
+		},
+		{
+			name:          "no match by cgroup",
+			id:            "abcdef1234567890",
+			hostname:      "fedcba654321",
+			cgroupContent: "11:pids:/docker/othercontainer\n",
+			expected:      false,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			result := checkIsSelf(tt.id, tt.hostname, tt.cgroupContent)
+			if result != tt.expected {
+				t.Errorf("checkIsSelf() = %v, want %v", result, tt.expected)
+			}
+		})
+	}
+}
+
+func TestUpdateContainer_Errors(t *testing.T) {
+	t.Log("Testing container update error handling")
+
+	// Setup generic happy path data
+	container := docker.ContainerInfo{
+		ID:      "container1",
+		Name:    "nginx",
+		Image:   "nginx:latest",
+		ImageID: "sha256:old",
+	}
+	cfg := config.Default()
+	ctx := context.Background()
+	logger := log.WithContainer("container1", "nginx")
+
+	t.Run("CreateContainerLike error", func(t *testing.T) {
+		mockClient := docker.NewMockDockerClient()
+		mockClient.CreateContainerError = fmt.Errorf("name conflict")
+
+		err := updateContainer(ctx, cfg, mockClient, container, logger)
+		if err == nil {
+			t.Error("Expected error when CreateContainerLike fails")
+		} else if !strings.Contains(err.Error(), "failed to create new container") {
+			t.Errorf("Unexpected error message: %v", err)
+		}
+	})
+
+	t.Run("ReplaceContainer error", func(t *testing.T) {
+		mockClient := docker.NewMockDockerClient()
+		mockClient.ReplaceContainerError = fmt.Errorf("network error")
+
+		err := updateContainer(ctx, cfg, mockClient, container, logger)
+		if err == nil {
+			t.Error("Expected error when ReplaceContainer fails")
+		} else if !strings.Contains(err.Error(), "failed to replace container") {
+			t.Errorf("Unexpected error message: %v", err)
+		}
+	})
+
+	t.Run("ReplaceContainer warning (non-fatal)", func(t *testing.T) {
+		mockClient := docker.NewMockDockerClient()
+		// Mock a warning by returning an error starting with "warning"
+		// This simulates the behavior documented in internal/updater/updater.go:306
+		mockClient.ReplaceContainerError = fmt.Errorf("warning: could not remove old container")
+
+		err := updateContainer(ctx, cfg, mockClient, container, logger)
+		if err != nil {
+			t.Errorf("Expected nil error for warning, got: %v", err)
+		}
+	})
+}
+
+func TestRunUpdateCycle_ContextCancellation(t *testing.T) {
+	t.Log("Testing update cycle cancellation")
+
+	mockClient := docker.NewMockDockerClient()
+	// Simulate many containers to ensure we catch it in the loop
+	containers := make([]docker.ContainerInfo, 10)
+	for i := 0; i < 10; i++ {
+		containers[i] = docker.ContainerInfo{
+			ID:    fmt.Sprintf("container%d", i),
+			Image: "test:latest",
+		}
+	}
+	mockClient.Containers = containers
+
+	cfg := config.Default()
+
+	// Create a context that is already cancelled or cancels quickly
+	ctx, cancel := context.WithCancel(context.Background())
+	cancel() // Cancel immediately
+
+	err := RunUpdateCycle(ctx, cfg, mockClient)
+	if err == nil {
+		t.Error("Expected error when context is cancelled")
+	} else if err != context.Canceled {
+		t.Errorf("Expected context.Canceled error, got: %v", err)
+	}
+}

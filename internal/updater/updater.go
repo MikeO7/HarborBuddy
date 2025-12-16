@@ -57,10 +57,8 @@ func (c *SafePullCache) GetOrPull(ctx context.Context, image string, pullFunc fu
 		// Perform the pull (without lock)
 		info, err := pullFunc()
 
-		// Update entry and close channel
-		// We don't need to lock to write to the entry fields because we are the only writer
-		// (others are waiting on the channel), but for visibility/correctness we should
-		// ensure the writes happen-before the close. The close happens-before the receive returns.
+		// Update entry and close channel.
+		// Note: The channel close acts as a memory barrier, ensuring readers see these writes.
 		entry.info = info
 		entry.err = err
 		close(entry.ready)
@@ -172,8 +170,8 @@ func RunUpdateCycle(ctx context.Context, cfg config.Config, dockerClient docker.
 			containerLogger.Info().Msgf("[DRY-RUN] Would update container with image %s", container.Image)
 			updatedCount++
 		} else {
-			// **CRITICAL**: ListContainers returns shallow info. Before acting, we MUST inspect the container
-			// to get its full configuration (Env, Ports, Volumes, etc.).
+			// Note: ListContainers returns shallow info. We must inspect the container
+			// to get its full configuration (Env, Ports, Volumes, etc.) before updating.
 			containerLogger.Debug().Msg("Fetching full container details before update...")
 			fullContainer, err := dockerClient.InspectContainer(ctx, container.ID)
 			if err != nil {

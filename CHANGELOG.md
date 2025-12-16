@@ -13,6 +13,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - **Docker-Style Config**: Support for the `logging` block in `harborbuddy.yml` (compatible with `docker-compose` logging config).
 - **Log Rotation**: Built-in log rotation (defaults to 10MB file size, 1 backup).
 - **Improved Logging**: Enhanced log readability with visual icons and clearer status messages.
+- **Scheduled Updates**: Support for running at a specific daily time (e.g., "03:00") via `HARBORBUDDY_SCHEDULE_TIME`.
+
+### Fixed
+- **Exclusion Logic**: Fixed bug where excluded containers were not correctly skipped in logs.
+- **Config**: Added missing checks for negative stop timeout and invalid timezones.
+- **Environment Support**: Added `HARBORBUDDY_UPDATES_ENABLED` and `HARBORBUDDY_CLEANUP_ENABLED` variables.
 
 ### Changed
 - **Defaults**: Simplified log rotation defaults (MaxBackups=1, Compress=false).

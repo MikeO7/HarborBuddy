@@ -14,13 +14,27 @@ func TestMatchesPattern(t *testing.T) {
 		pattern  string
 		expected bool
 	}{
-		{"universal wildcard", "nginx:latest", "*", true},
+		// Exact Match
 		{"exact match", "nginx:latest", "nginx:latest", true},
-		{"no match", "nginx:latest", "postgres:latest", false},
-		{"tag wildcard", "nginx:latest", "nginx:*", true},
-		{"tag wildcard no match", "postgres:latest", "nginx:*", false},
-		{"prefix wildcard", "ghcr.io/org/app:v1", "ghcr.io/org/*", true},
-		{"prefix wildcard no match", "docker.io/org/app:v1", "ghcr.io/org/*", false},
+		{"exact match fail", "nginx:latest", "nginx:1.19", false},
+
+		// Wildcard *
+		{"universal wildcard", "anything:at-all", "*", true},
+		{"universal wildcard empty", "", "*", true},
+
+		// Prefix Match (repo:*)
+		{"prefix match", "nginx:latest", "nginx:*", true},
+		{"prefix match 2", "postgres:14", "postgres:*", true},
+		{"prefix match fail", "redis:latest", "nginx:*", false},
+		{"prefix registry match", "ghcr.io/org/image:tag", "ghcr.io/org/*", true},
+
+		// Suffix Match (*:tag)
+		{"suffix match", "nginx:latest", "*:latest", true},
+		{"suffix match fail", "nginx:alpine", "*:latest", false},
+		{"suffix match 2", "redis:alpine", "*:alpine", true},
+
+		// No Wildcard
+		{"no wildcard partial fail", "nginx:latest", "nginx", false},
 	}
 
 	for _, tt := range tests {
@@ -35,11 +49,11 @@ func TestMatchesPattern(t *testing.T) {
 
 func TestDetermineEligibility(t *testing.T) {
 	tests := []struct {
-		name      string
-		container docker.ContainerInfo
-		cfg       config.UpdatesConfig
-		eligible  bool
-		reason    string
+		name           string
+		container      docker.ContainerInfo
+		config         config.UpdatesConfig
+		expectEligible bool
+		expectReason   string
 	}{
 		{
 			name: "default eligible",
@@ -47,64 +61,85 @@ func TestDetermineEligibility(t *testing.T) {
 				Image:  "nginx:latest",
 				Labels: map[string]string{},
 			},
-			cfg: config.UpdatesConfig{
+			config: config.UpdatesConfig{
 				AllowImages: []string{"*"},
 				DenyImages:  []string{},
 			},
-			eligible: true,
-			reason:   "eligible for updates",
+			expectEligible: true,
+			expectReason:   "eligible for updates",
 		},
 		{
-			name: "opt-out label",
+			name: "label opt-out",
 			container: docker.ContainerInfo{
 				Image: "nginx:latest",
 				Labels: map[string]string{
 					"com.harborbuddy.autoupdate": "false",
 				},
 			},
-			cfg: config.UpdatesConfig{
+			config: config.UpdatesConfig{
 				AllowImages: []string{"*"},
-				DenyImages:  []string{},
 			},
-			eligible: false,
-			reason:   "label com.harborbuddy.autoupdate=false",
+			expectEligible: false,
+			expectReason:   "label com.harborbuddy.autoupdate=false",
 		},
 		{
-			name: "deny pattern",
+			name: "deny list match",
 			container: docker.ContainerInfo{
-				Image:  "postgres:15",
-				Labels: map[string]string{},
+				Image: "postgres:14",
 			},
-			cfg: config.UpdatesConfig{
+			config: config.UpdatesConfig{
 				AllowImages: []string{"*"},
 				DenyImages:  []string{"postgres:*"},
 			},
-			eligible: false,
-			reason:   "matches deny pattern: postgres:*",
+			expectEligible: false,
+			expectReason:   "matches deny pattern: postgres:*",
 		},
 		{
-			name: "not in allow list",
+			name: "allow list match",
 			container: docker.ContainerInfo{
-				Image:  "postgres:15",
-				Labels: map[string]string{},
+				Image: "nginx:latest",
 			},
-			cfg: config.UpdatesConfig{
+			config: config.UpdatesConfig{
 				AllowImages: []string{"nginx:*"},
-				DenyImages:  []string{},
 			},
-			eligible: false,
-			reason:   "does not match any allow pattern",
+			expectEligible: true,
+			expectReason:   "eligible for updates",
+		},
+		{
+			name: "allow list mismatch",
+			container: docker.ContainerInfo{
+				Image: "redis:latest",
+			},
+			config: config.UpdatesConfig{
+				AllowImages: []string{"nginx:*"},
+			},
+			expectEligible: false,
+			expectReason:   "does not match any allow pattern",
+		},
+		{
+			name: "deny takes precedence over allow",
+			container: docker.ContainerInfo{
+				Image: "nginx:latest",
+			},
+			config: config.UpdatesConfig{
+				AllowImages: []string{"nginx:*"},
+				DenyImages:  []string{"nginx:*"},
+			},
+			expectEligible: false,
+			expectReason:   "matches deny pattern: nginx:*",
 		},
 	}
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			decision := DetermineEligibility(tt.container, tt.cfg)
-			if decision.Eligible != tt.eligible {
-				t.Errorf("DetermineEligibility() eligible = %v, want %v", decision.Eligible, tt.eligible)
+			decision := DetermineEligibility(tt.container, tt.config)
+
+			if decision.Eligible != tt.expectEligible {
+				t.Errorf("Eligible = %v, want %v", decision.Eligible, tt.expectEligible)
 			}
-			if decision.Reason != tt.reason {
-				t.Errorf("DetermineEligibility() reason = %q, want %q", decision.Reason, tt.reason)
+
+			if decision.Reason != tt.expectReason {
+				t.Errorf("Reason = %q, want %q", decision.Reason, tt.expectReason)
 			}
 		})
 	}

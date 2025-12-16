@@ -165,9 +165,7 @@ func parseDockerSize(s string) (int, error) {
 		multi = 1024 * 1024 * 1024
 		s = s[:len(s)-1]
 	} else {
-		// Docker requires a unit for memory limits usually but here we want to be strict to avoid confusion?
-		// Or default to MB? The user's request showed "50m".
-		// My test expects error on "100".
+		// Docker requires a unit for memory limits. We enforce this to avoid ambiguity.
 		return 0, fmt.Errorf("missing unit (must be k, m, or g)")
 	}
 
@@ -217,6 +215,18 @@ func (c *Config) ApplyEnvironmentOverrides() {
 	if val := os.Getenv("HARBORBUDDY_STOP_TIMEOUT"); val != "" {
 		if duration, err := time.ParseDuration(val); err == nil {
 			c.Updates.StopTimeout = duration
+		}
+	}
+
+	if val := os.Getenv("HARBORBUDDY_UPDATES_ENABLED"); val != "" {
+		if enabled, err := strconv.ParseBool(val); err == nil {
+			c.Updates.Enabled = enabled
+		}
+	}
+
+	if val := os.Getenv("HARBORBUDDY_CLEANUP_ENABLED"); val != "" {
+		if enabled, err := strconv.ParseBool(val); err == nil {
+			c.Cleanup.Enabled = enabled
 		}
 	}
 

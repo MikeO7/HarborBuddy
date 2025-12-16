@@ -370,3 +370,53 @@ func TestIsEligibleForCleanup(t *testing.T) {
 		})
 	}
 }
+
+func TestIsEligibleForCleanup_EdgeCases(t *testing.T) {
+	// Boundary testing exactly at MinAge
+	now := time.Now()
+	minAge := 24 * time.Hour
+
+	t.Run("boundary condition - exact age", func(t *testing.T) {
+		image := docker.ImageInfo{
+			ID:        "sha256:boundary",
+			Dangling:  true,
+			CreatedAt: now.Add(-minAge), // Exactly 24h old
+		}
+		cfg := config.CleanupConfig{DanglingOnly: true}
+
+		// Should be eligible (>= logic usually implied or > check)
+		// Code logic: Check if image is old enough
+		// age := time.Since(image.CreatedAt)
+		// if age < minAge { return false }
+		// So exact age is NOT (< minAge), thus eligible (true)
+
+		eligible := isEligibleForCleanup(image, cfg, minAge, log.WithImage("test", "test"))
+		if !eligible {
+			t.Error("Exact age match should be eligible")
+		}
+	})
+
+	t.Run("slightly older", func(t *testing.T) {
+		image := docker.ImageInfo{
+			ID:        "sha256:older",
+			Dangling:  true,
+			CreatedAt: now.Add(-minAge - 1*time.Minute),
+		}
+		eligible := isEligibleForCleanup(image, config.CleanupConfig{DanglingOnly: true}, minAge, log.WithImage("test", "test"))
+		if !eligible {
+			t.Error("Older than minAge should be eligible")
+		}
+	})
+
+	t.Run("slightly newer", func(t *testing.T) {
+		image := docker.ImageInfo{
+			ID:        "sha256:newer",
+			Dangling:  true,
+			CreatedAt: now.Add(-minAge + 1*time.Minute),
+		}
+		eligible := isEligibleForCleanup(image, config.CleanupConfig{DanglingOnly: true}, minAge, log.WithImage("test", "test"))
+		if eligible {
+			t.Error("Newer than minAge should NOT be eligible")
+		}
+	})
+}

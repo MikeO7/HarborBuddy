@@ -368,6 +368,23 @@ func TestValidate(t *testing.T) {
 			wantError: true,
 			errorMsg:  "invalid log level",
 		},
+		{
+			name: "invalid timezone",
+			setup: func(c *Config) {
+				c.Updates.ScheduleTime = "12:00"
+				c.Updates.Timezone = "Mars/Olympus"
+			},
+			wantError: true,
+			errorMsg:  "invalid timezone",
+		},
+		{
+			name: "negative stop timeout",
+			setup: func(c *Config) {
+				c.Updates.StopTimeout = -5 * time.Second
+			},
+			wantError: true,
+			errorMsg:  "updates.stop_timeout must be positive",
+		},
 	}
 
 	for _, tt := range tests {
