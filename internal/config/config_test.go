@@ -29,6 +29,8 @@ func TestDefault(t *testing.T) {
 		{"dangling only", cfg.Cleanup.DanglingOnly, true, "Cleanup.DanglingOnly"},
 		{"log level", cfg.Log.Level, "info", "Log.Level"},
 		{"log json", cfg.Log.JSON, false, "Log.JSON"},
+		{"log max size", cfg.Log.MaxSize, 10, "Log.MaxSize"},
+		{"log max backups", cfg.Log.MaxBackups, 1, "Log.MaxBackups"},
 	}
 
 	for _, tt := range tests {
@@ -102,6 +104,8 @@ cleanup:
 log:
   level: "debug"
   json: true
+  file: "/var/log/harborbuddy.log"
+  max_size: 50
 `
 		if err := os.WriteFile(cfgPath, []byte(yamlContent), 0644); err != nil {
 			t.Fatalf("Failed to write test config: %v", err)
@@ -129,6 +133,8 @@ log:
 			{"dangling only", cfg.Cleanup.DanglingOnly, false, "Cleanup.DanglingOnly"},
 			{"log level", cfg.Log.Level, "debug", "Log.Level"},
 			{"log json", cfg.Log.JSON, true, "Log.JSON"},
+			{"log file", cfg.Log.File, "/var/log/harborbuddy.log", "Log.File"},
+			{"log max size", cfg.Log.MaxSize, 50, "Log.MaxSize"},
 		}
 
 		for _, tt := range tests {
@@ -196,6 +202,9 @@ func TestApplyEnvironmentOverrides(t *testing.T) {
 		"HARBORBUDDY_DRY_RUN",
 		"HARBORBUDDY_LOG_LEVEL",
 		"HARBORBUDDY_LOG_JSON",
+		"HARBORBUDDY_LOG_FILE",
+		"HARBORBUDDY_LOG_MAX_SIZE",
+		"HARBORBUDDY_LOG_MAX_BACKUPS",
 	}
 	for _, key := range envVars {
 		originalEnv[key] = os.Getenv(key)
@@ -255,6 +264,30 @@ func TestApplyEnvironmentOverrides(t *testing.T) {
 			envValue: "true",
 			check: func(c *Config) (interface{}, interface{}, string) {
 				return c.Log.JSON, true, "Log.JSON"
+			},
+		},
+		{
+			name:     "log file override",
+			envKey:   "HARBORBUDDY_LOG_FILE",
+			envValue: "/tmp/hb.log",
+			check: func(c *Config) (interface{}, interface{}, string) {
+				return c.Log.File, "/tmp/hb.log", "Log.File"
+			},
+		},
+		{
+			name:     "log max size override",
+			envKey:   "HARBORBUDDY_LOG_MAX_SIZE",
+			envValue: "100",
+			check: func(c *Config) (interface{}, interface{}, string) {
+				return c.Log.MaxSize, 100, "Log.MaxSize"
+			},
+		},
+		{
+			name:     "log max backups override",
+			envKey:   "HARBORBUDDY_LOG_MAX_BACKUPS",
+			envValue: "5",
+			check: func(c *Config) (interface{}, interface{}, string) {
+				return c.Log.MaxBackups, 5, "Log.MaxBackups"
 			},
 		},
 	}
@@ -360,5 +393,76 @@ func TestValidate(t *testing.T) {
 				}
 			}
 		})
+	}
+}
+
+func TestParseBytesString(t *testing.T) {
+	tests := []struct {
+		input    string
+		want     int
+		wantErr  bool
+		errorMsg string
+	}{
+		{"10m", 10, false, ""},
+		{"50M", 50, false, ""},
+		{"1g", 1024, false, ""},
+		{"2G", 2048, false, ""},
+		{"100", 0, true, "missing unit"},
+		{"10k", 1, false, ""},
+		{"", 0, true, "empty"},
+		{"invalid", 0, true, "invalid syntax"},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.input, func(t *testing.T) {
+			got, err := parseBytesString(tt.input)
+			if tt.wantErr {
+				if err == nil {
+					t.Errorf("parseBytesString(%q) expected error, got nil", tt.input)
+				}
+			} else {
+				if err != nil {
+					t.Errorf("parseBytesString(%q) unexpected error: %v", tt.input, err)
+				}
+				if got != tt.want {
+					t.Errorf("parseBytesString(%q) = %d, want %d", tt.input, got, tt.want)
+				}
+			}
+		})
+	}
+}
+
+func TestApplyLoggingCompatibility(t *testing.T) {
+	cfg := Default()
+	cfg.Logging = LoggingConfig{
+		Driver: "json-file",
+		Options: map[string]string{
+			"max-size": "50m",
+			"max-file": "3",
+		},
+	}
+
+	cfg.ApplyLoggingCompatibility()
+
+	if cfg.Log.MaxSize != 50 {
+		t.Errorf("ApplyLoggingCompatibility() MaxSize = %d, want 50", cfg.Log.MaxSize)
+	}
+	if cfg.Log.MaxBackups != 3 {
+		t.Errorf("ApplyLoggingCompatibility() MaxBackups = %d, want 3", cfg.Log.MaxBackups)
+	}
+
+	// Test precedence (should overwrite default)
+	cfg = Default() // MaxSize=10, MaxBackups=1
+	cfg.Logging = LoggingConfig{
+		Options: map[string]string{
+			"max-size": "1g", // 1024
+		},
+	}
+	cfg.ApplyLoggingCompatibility()
+	if cfg.Log.MaxSize != 1024 {
+		t.Errorf("ApplyLoggingCompatibility() MaxSize = %d, want 1024", cfg.Log.MaxSize)
+	}
+	if cfg.Log.MaxBackups != 1 {
+		t.Errorf("ApplyLoggingCompatibility() MaxBackups should remain default 1, got %d", cfg.Log.MaxBackups)
 	}
 }

@@ -10,6 +10,7 @@ services:
     container_name: harborbuddy-test
     volumes:
       - /var/run/docker.sock:/var/run/docker.sock:ro
+      - ./test-logs:/logs
     environment:
       - TZ=America/Los_Angeles
       - HARBORBUDDY_SCHEDULE_TIME=03:00
@@ -19,7 +20,7 @@ services:
       com.harborbuddy.autoupdate: "false"
       com.harborbuddy.test: "true"
     # Run once and exit
-    command: ["--once", "--dry-run", "--log-level", "info"]
+    command: [ "--once", "--dry-run", "--log-level", "info" ]
 
   # Test container 1: Should be managed (no exclusion label)
   test-nginx:
@@ -27,7 +28,7 @@ services:
     container_name: test-nginx
     labels:
       com.harborbuddy.test: "true"
-    command: ["nginx", "-g", "daemon off;"]
+    command: [ "nginx", "-g", "daemon off;" ]
 
   # Test container 2: Should be excluded (has exclusion label)
   test-redis:
@@ -36,7 +37,7 @@ services:
     labels:
       com.harborbuddy.autoupdate: "false"
       com.harborbuddy.test: "true"
-    command: ["redis-server", "--save", "", "--appendonly", "no"]
+    command: [ "redis-server", "--save", "", "--appendonly", "no" ]
 
   # Test container 3: Alpine with older version (should be managed)
   test-alpine:
@@ -44,7 +45,7 @@ services:
     container_name: test-alpine
     labels:
       com.harborbuddy.test: "true"
-    command: ["sleep", "3600"]
+    command: [ "sleep", "3600" ]
 
   # Test container 4: Postgres with exclusion label
   test-postgres:
@@ -65,5 +66,4 @@ services:
     container_name: test-busybox
     labels:
       com.harborbuddy.test: "true"
-    command: ["sleep", "3600"]
-
+    command: [ "sleep", "3600" ]

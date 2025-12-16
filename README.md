@@ -141,7 +141,37 @@ For complex setups (like "Update `nginx` but never `mysql`"), you can use a `har
    volumes:
      - ./harborbuddy.yml:/config/harborbuddy.yml:ro
    ```
+   
+   ## 📝 Logs & Persistence
+   
+   HarborBuddy writes logs relative to the container. To persist logs, simply mount a volume to `/logs` OR `/config`:
+   
+   ```yaml
+   volumes:
+     - ./logs:/logs
+     # OR
+     - ./config:/config
+   ```
+   
+   **That's it!** HarborBuddy detects the volume and automatically:
+   1.  Writes logs to `/logs/harborbuddy.log` (or `/config/harborbuddy.log`).
+   2.  **Rotates** the log when it reaches 10MB.
+   3.  **Cleans up** old logs, keeping only 1 backup to save space.
+   
+   You can customize this behavior using environment variables:
+   -   `HARBORBUDDY_LOG_FILE`: Custom path (default: `/logs/harborbuddy.log` if volume exists)
+   -   `HARBORBUDDY_LOG_MAX_SIZE`: Max size in MB (default: 10)
 
+   #### Docker-Style Config (Recommended)
+   You can also use the standard Docker `logging` format in `harborbuddy.yml`:
+   ```yaml
+   logging:
+     driver: json-file
+     options:
+       max-size: "50m"
+       max-file: "3"
+   ```
+   
 ## ❓ FAQ
 
 **Q: Will this restart my containers?**
@@ -154,7 +184,7 @@ A: Yes! As long as the host machine has credentials (e.g., you ran `docker login
 A: Yes, but for critical production databases, we strictly recommend using specific version tags (e.g., `postgres:14.5` instead of `latest`) and using the **Opt-Out label** described above.
 
 **Q: How do I see what it's doing?**
-A: Check the logs! `docker logs -f harborbuddy`. It provides clear, human-readable steps of what it is checking and updating.
+A: Check the logs! `docker logs -f harborbuddy`. We use clear visual indicators (🚀, ✅, 🗑️) to make it easy to see exactly what's happening at a glance.
 
 ## 🤝 Contributing
 

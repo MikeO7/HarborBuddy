@@ -12,7 +12,7 @@ import (
 
 // RunUpdater is the entrypoint for the temporary helper container
 func RunUpdater(ctx context.Context, client docker.Client, targetID string, newImage string) error {
-	log.Info("Updater: Started. Waiting for target to stop...")
+	log.Info("Updater: 🔄 Started. Waiting for target to stop...")
 
 	// 1. Wait for the target container to stop
 	// We give it a generous timeout to shut down gracefully
@@ -96,12 +96,12 @@ func RunUpdater(ctx context.Context, client docker.Client, targetID string, newI
 	}
 
 	// 5. Start the new container
-	log.Info("Updater: Starting new container...")
+	log.Info("Updater: 🚀 Starting new container...")
 	if err := client.StartContainer(ctx, tempID); err != nil {
 		return fmt.Errorf("failed to start new container: %w", err)
 	}
 
-	log.Info("Updater: Update complete. Exiting.")
+	log.Info("Updater: ✅ Update complete. Exiting.")
 	return nil
 }
 
@@ -144,13 +144,13 @@ func Trigger(ctx context.Context, client docker.Client, myContainer docker.Conta
 		return fmt.Errorf("failed to create helper: %w", err)
 	}
 
-	log.Infof("Self-Update: Helper %s created. Starting...", helperID)
+	log.Infof("Self-Update: 🚀 Helper %s created. Starting...", helperID)
 
 	if err := client.StartContainer(ctx, helperID); err != nil {
 		return fmt.Errorf("failed to start helper: %w", err)
 	}
 
-	log.Info("Self-Update: Helper started. Shutting down self to allow update to proceed.")
+	log.Info("Self-Update: 🔄 Helper started. Shutting down self to allow update to proceed.")
 
 	// We exit successfully. The helper is waiting for us to stop.
 	os.Exit(0)

@@ -1,8 +1,10 @@
 package updater
 
 import (
+	"bytes"
 	"context"
 	"fmt"
+	"strings"
 	"testing"
 	"time"
 
@@ -13,7 +15,7 @@ import (
 
 func init() {
 	// Initialize logger for tests
-	log.Initialize("debug", false)
+	log.Initialize(log.Config{Level: "debug"})
 }
 
 func TestRunUpdateCycle(t *testing.T) {
@@ -378,4 +380,44 @@ func TestUpdateCycleErrorHandling(t *testing.T) {
 			t.Log("✓ No replacements attempted after pull failure")
 		}
 	})
+}
+
+func TestCheckForUpdateLogging(t *testing.T) {
+	// Capture logs
+	var logBuf bytes.Buffer
+	log.Initialize(log.Config{
+		Level:  "info",
+		Output: &logBuf,
+	})
+
+	mockClient := docker.NewMockDockerClient()
+	ctx := context.Background()
+	cfg := config.Default()
+
+	// Setup: One container needs update
+	containerID := "container1"
+	mockClient.Containers = []docker.ContainerInfo{
+		{
+			ID:      containerID,
+			Name:    "nginx",
+			Image:   "nginx:latest",
+			ImageID: "sha256:old",
+		},
+	}
+	mockClient.PullImageReturns = map[string]docker.ImageInfo{
+		"nginx:latest": {
+			ID: "sha256:new",
+		},
+	}
+
+	// Run cycle
+	_ = RunUpdateCycle(ctx, cfg, mockClient)
+
+	// Verify Log
+	logs := logBuf.String()
+	expected := "🚀 New version found"
+	if !strings.Contains(logs, expected) {
+		t.Errorf("Log missing expected string: %q", expected)
+		t.Logf("Actual logs: %s", logs)
+	}
 }

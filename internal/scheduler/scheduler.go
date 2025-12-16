@@ -92,7 +92,7 @@ func runScheduledMode(ctx context.Context, cfg config.Config, dockerClient docke
 		now := time.Now().In(location)
 		waitDuration := nextRun.Sub(now)
 
-		log.Infof("Next scheduled run: %s (in %v)", nextRun.Format("2006-01-02 15:04:05 MST"), waitDuration.Round(time.Second))
+		log.Infof("⏳ Next scheduled run: %s (in %v)", nextRun.Format("2006-01-02 15:04:05 MST"), waitDuration.Round(time.Second))
 
 		// Wait until scheduled time or cancellation
 		timer := time.NewTimer(waitDuration)
@@ -134,7 +134,7 @@ func calculateNextRun(scheduleTime string, location *time.Location) time.Time {
 
 // runCycle runs a single update and cleanup cycle
 func runCycle(ctx context.Context, cfg config.Config, dockerClient docker.Client) error {
-	log.Info("==== Starting new cycle ====")
+	log.Info("➖➖➖➖ Starting update & cleanup cycle ➖➖➖➖")
 
 	// Run updates if enabled
 	if cfg.Updates.Enabled {
@@ -152,6 +152,6 @@ func runCycle(ctx context.Context, cfg config.Config, dockerClient docker.Client
 		}
 	}
 
-	log.Info("==== Cycle complete ====")
+	log.Info("➖➖➖➖ Cycle complete ➖➖➖➖")
 	return nil
 }

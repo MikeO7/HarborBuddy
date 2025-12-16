@@ -6,7 +6,6 @@ import (
 	"os"
 	"strings"
 	"sync"
-	"time"
 
 	"github.com/MikeO7/HarborBuddy/internal/config"
 	"github.com/MikeO7/HarborBuddy/internal/docker"
@@ -81,19 +80,17 @@ func (c *SafePullCache) GetOrPull(ctx context.Context, image string, pullFunc fu
 
 // RunUpdateCycle performs one complete update cycle
 func RunUpdateCycle(ctx context.Context, cfg config.Config, dockerClient docker.Client) error {
-	startTime := time.Now()
 	log.Info("Starting update cycle")
 
 	// Discovery phase: list all containers
 	// Note: ListContainers is optimized to return a shallow list (no detailed Config/HostConfig)
-	listStart := time.Now()
 	containers, err := dockerClient.ListContainers(ctx)
 	if err != nil {
 		log.ErrorErr("Failed to list containers", err)
 		return err
 	}
 
-	log.Infof("Found %d running containers (in %v)", len(containers), time.Since(listStart))
+	log.Infof("🔎 Checking %d containers for updates...", len(containers))
 
 	updatedCount := 0
 	skippedCount := 0
@@ -207,13 +204,12 @@ func RunUpdateCycle(ctx context.Context, cfg config.Config, dockerClient docker.
 				containerLogger.Error().Err(err).Msg("Failed to update container")
 				continue
 			}
-			containerLogger.Info().Msg("Successfully updated container")
 			updatedCount++
 		}
 	}
 
-	log.Infof("Update cycle complete: %d updated, %d skipped, %d total (in %v)",
-		updatedCount, skippedCount, len(containers), time.Since(startTime))
+	log.Infof("✨ Update cycle complete: %d updated, %d skipped, %d total",
+		updatedCount, skippedCount, len(containers))
 	return nil
 }
 
@@ -289,7 +285,7 @@ func checkForUpdate(ctx context.Context, dockerClient docker.Client, container d
 		return false, nil
 	}
 
-	logger.Info().Msgf("New image available for %s: %s -> %s", container.Image, shortID(currentImageID), shortID(newImage.ID))
+	logger.Info().Msgf("🚀 New version found: %s -> %s", shortID(currentImageID), shortID(newImage.ID))
 	return true, nil
 }
 
@@ -314,6 +310,6 @@ func updateContainer(ctx context.Context, cfg config.Config, dockerClient docker
 		return fmt.Errorf("failed to replace container: %w", err)
 	}
 
-	logger.Info().Msgf("Container updated successfully (old: %s, new: %s)", shortID(container.ID), shortID(newID))
+	logger.Info().Msgf("✅  Container updated successfully (old: %s, new: %s)", shortID(container.ID), shortID(newID))
 	return nil
 }

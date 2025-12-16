@@ -11,6 +11,9 @@ echo "🐳 HarborBuddy Docker Compose Integration Test"
 echo "=============================================="
 echo ""
 
+mkdir -p test/test-logs
+chmod 777 test/test-logs # Ensure container can write
+
 # Color codes for output
 GREEN='\033[0;32m'
 YELLOW='\033[1;33m'
@@ -28,6 +31,9 @@ cleanup() {
     
     # Clean up test images (optional)
     # docker images --filter "label=$TEST_LABEL" -q | xargs -r docker rmi -f 2>/dev/null || true
+    
+    # Clean up test logs
+    # rm -rf test/test-logs
     
     echo "✓ Cleanup complete"
 }
@@ -94,9 +100,13 @@ else
 fi
 
 # Check that it found containers
-if echo "$LOGS" | grep -q "Found [0-9]* running containers"; then
-    FOUND_COUNT=$(echo "$LOGS" | grep "Found [0-9]* running containers" | sed -E 's/.*Found ([0-9]*) running.*/\1/')
+if echo "$LOGS" | grep -q "Checking [0-9]* containers for updates"; then
+    FOUND_COUNT=$(echo "$LOGS" | grep "Checking [0-9]* containers for updates" | sed -E 's/.*Checking ([0-9]*) containers.*/\1/')
     echo -e "${GREEN}✓ Discovered $FOUND_COUNT containers${NC}"
+    if [ "$FOUND_COUNT" -eq 0 ]; then
+         echo -e "${YELLOW}⚠ Found 0 containers, expected > 0${NC}"
+         exit 1
+    fi
 else
     echo -e "${RED}✗ Failed to discover containers${NC}"
     exit 1
@@ -181,7 +191,46 @@ else
 fi
 echo ""
 
-# Test 7: Show summary
+# Test 7: Log Persistence
+echo "💾 Test 7: Testing log persistence..."
+LOG_FILE="test/test-logs/harborbuddy.log"
+
+# Verify log file exists
+if [ -f "$LOG_FILE" ]; then
+    echo -e "${GREEN}✓ Log file created at $LOG_FILE${NC}"
+else
+    echo -e "${RED}✗ Log file not found at $LOG_FILE${NC}"
+    ls -R test/test-logs || echo "Directory empty or missing"
+    exit 1
+fi
+
+# Get initial size
+INITIAL_SIZE=$(wc -c < "$LOG_FILE" | tr -d ' ')
+echo "   Initial log size: $INITIAL_SIZE bytes"
+
+# Restart container to simulate update/recreation
+echo "   Restarting HarborBuddy..."
+docker-compose -f "$COMPOSE_FILE" restart harborbuddy
+sleep 5 # Wait for startup logs
+
+# Verify file still exists and has grown
+if [ -f "$LOG_FILE" ]; then
+    NEW_SIZE=$(wc -c < "$LOG_FILE" | tr -d ' ')
+    echo "   New log size: $NEW_SIZE bytes"
+    
+    if [ "$NEW_SIZE" -gt "$INITIAL_SIZE" ]; then
+        echo -e "${GREEN}✓ Log file persisted and grew (Appended $((-INITIAL_SIZE+NEW_SIZE)) bytes)${NC}"
+    else
+         echo -e "${RED}✗ Log file did not grow (Size: $NEW_SIZE, Initial: $INITIAL_SIZE)${NC}"
+         exit 1
+    fi
+else
+    echo -e "${RED}✗ Log file disappeared after restart${NC}"
+    exit 1
+fi
+echo ""
+
+# Test 8: Show summary
 echo "📊 Test Summary"
 echo "==============="
 docker ps --filter "label=$TEST_LABEL" --format "table {{.Names}}\t{{.Image}}\t{{.Status}}\t{{.Labels}}" | head -10
@@ -199,6 +248,7 @@ echo "   ✓ Checks eligible containers for updates"
 echo "   ✓ Dry-run mode prevents modifications"
 echo "   ✓ Update and cleanup cycles complete"
 echo "   ✓ Scheduled time configuration works"
+echo "   ✓ Log persistence confirmed"
 echo ""
 echo "🎉 HarborBuddy is production ready!"
 

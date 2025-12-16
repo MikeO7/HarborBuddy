@@ -12,7 +12,7 @@ import (
 )
 
 func init() {
-	log.Initialize("debug", false)
+	log.Initialize(log.Config{Level: "debug"})
 }
 
 func TestRunCleanup(t *testing.T) {

@@ -1,0 +1,76 @@
+{"level":"info","time":"2025-12-15T22:19:14-08:00","message":"HarborBuddy version 0.1.0 starting"}
+{"level":"info","time":"2025-12-15T22:19:14-08:00","message":"Docker host: unix:///var/run/docker.sock"}
+{"level":"info","time":"2025-12-15T22:19:14-08:00","message":"Schedule: Daily at 03:00 (America/Los_Angeles)"}
+{"level":"info","time":"2025-12-15T22:19:14-08:00","message":"Dry-run mode: true"}
+{"level":"info","time":"2025-12-15T22:19:14-08:00","message":"Successfully connected to Docker daemon"}
+{"level":"info","time":"2025-12-15T22:19:14-08:00","message":"HarborBuddy started"}
+{"level":"info","time":"2025-12-15T22:19:14-08:00","message":"Running in once mode"}
+{"level":"info","time":"2025-12-15T22:19:14-08:00","message":"➖➖➖➖ Starting update & cleanup cycle ➖➖➖➖"}
+{"level":"info","time":"2025-12-15T22:19:14-08:00","message":"Starting update cycle"}
+{"level":"info","time":"2025-12-15T22:19:14-08:00","message":"🔎 Checking 6 containers for updates..."}
+{"level":"info","container_id":"77929dc1face","container_name":"test-busybox","time":"2025-12-15T22:19:14-08:00","message":"[DRY-RUN] Skipping image pull for busybox:1.35. Cannot determine if update is available without pulling."}
+{"level":"info","container_id":"16227d880690","container_name":"test-nginx","time":"2025-12-15T22:19:14-08:00","message":"[DRY-RUN] Skipping image pull for nginx:1.24. Cannot determine if update is available without pulling."}
+{"level":"info","container_id":"a62ecec2a9ae","container_name":"test-alpine","time":"2025-12-15T22:19:14-08:00","message":"[DRY-RUN] Skipping image pull for alpine:3.18. Cannot determine if update is available without pulling."}
+{"level":"info","time":"2025-12-15T22:19:14-08:00","message":"✨ Update cycle complete: 0 updated, 3 skipped, 6 total"}
+{"level":"info","time":"2025-12-15T22:19:14-08:00","message":"Starting image cleanup"}
+{"level":"info","time":"2025-12-15T22:19:14-08:00","message":"Found 0 images (in 3.863334ms)"}
+{"level":"info","time":"2025-12-15T22:19:14-08:00","message":"✨ Cleanup complete: 0 removed. Space Reclaimed: 0 B"}
+{"level":"info","time":"2025-12-15T22:19:14-08:00","message":"➖➖➖➖ Cycle complete ➖➖➖➖"}
+{"level":"info","time":"2025-12-15T22:19:14-08:00","message":"HarborBuddy stopped"}
+{"level":"info","time":"2025-12-15T22:19:17-08:00","message":"HarborBuddy version 0.1.0 starting"}
+{"level":"info","time":"2025-12-15T22:19:17-08:00","message":"Docker host: unix:///var/run/docker.sock"}
+{"level":"info","time":"2025-12-15T22:19:17-08:00","message":"Schedule: Daily at 03:00 (America/Los_Angeles)"}
+{"level":"info","time":"2025-12-15T22:19:17-08:00","message":"Dry-run mode: true"}
+{"level":"info","time":"2025-12-15T22:19:17-08:00","message":"Successfully connected to Docker daemon"}
+{"level":"info","time":"2025-12-15T22:19:17-08:00","message":"HarborBuddy started"}
+{"level":"info","time":"2025-12-15T22:19:17-08:00","message":"Running in once mode"}
+{"level":"info","time":"2025-12-15T22:19:17-08:00","message":"➖➖➖➖ Starting update & cleanup cycle ➖➖➖➖"}
+{"level":"info","time":"2025-12-15T22:19:17-08:00","message":"Starting update cycle"}
+{"level":"info","time":"2025-12-15T22:19:17-08:00","message":"🔎 Checking 6 containers for updates..."}
+{"level":"info","container_id":"16227d880690","container_name":"test-nginx","time":"2025-12-15T22:19:17-08:00","message":"[DRY-RUN] Skipping image pull for nginx:1.24. Cannot determine if update is available without pulling."}
+{"level":"info","container_id":"a62ecec2a9ae","container_name":"test-alpine","time":"2025-12-15T22:19:17-08:00","message":"[DRY-RUN] Skipping image pull for alpine:3.18. Cannot determine if update is available without pulling."}
+{"level":"info","container_id":"77929dc1face","container_name":"test-busybox","time":"2025-12-15T22:19:17-08:00","message":"[DRY-RUN] Skipping image pull for busybox:1.35. Cannot determine if update is available without pulling."}
+{"level":"info","time":"2025-12-15T22:19:17-08:00","message":"✨ Update cycle complete: 0 updated, 3 skipped, 6 total"}
+{"level":"info","time":"2025-12-15T22:19:17-08:00","message":"Starting image cleanup"}
+{"level":"info","time":"2025-12-15T22:19:17-08:00","message":"Found 0 images (in 3.73ms)"}
+{"level":"info","time":"2025-12-15T22:19:17-08:00","message":"✨ Cleanup complete: 0 removed. Space Reclaimed: 0 B"}
+{"level":"info","time":"2025-12-15T22:19:17-08:00","message":"➖➖➖➖ Cycle complete ➖➖➖➖"}
+{"level":"info","time":"2025-12-15T22:19:17-08:00","message":"HarborBuddy stopped"}
+{"level":"info","time":"2025-12-15T22:25:46-08:00","message":"HarborBuddy version 0.2.0 starting"}
+{"level":"info","time":"2025-12-15T22:25:46-08:00","message":"Docker host: unix:///var/run/docker.sock"}
+{"level":"info","time":"2025-12-15T22:25:46-08:00","message":"Schedule: Daily at 03:00 (America/Los_Angeles)"}
+{"level":"info","time":"2025-12-15T22:25:46-08:00","message":"Dry-run mode: true"}
+{"level":"info","time":"2025-12-15T22:25:46-08:00","message":"Successfully connected to Docker daemon"}
+{"level":"info","time":"2025-12-15T22:25:46-08:00","message":"HarborBuddy started"}
+{"level":"info","time":"2025-12-15T22:25:46-08:00","message":"Running in once mode"}
+{"level":"info","time":"2025-12-15T22:25:46-08:00","message":"➖➖➖➖ Starting update & cleanup cycle ➖➖➖➖"}
+{"level":"info","time":"2025-12-15T22:25:46-08:00","message":"Starting update cycle"}
+{"level":"info","time":"2025-12-15T22:25:46-08:00","message":"🔎 Checking 6 containers for updates..."}
+{"level":"info","container_id":"3b0e850dbad3","container_name":"test-nginx","time":"2025-12-15T22:25:46-08:00","message":"[DRY-RUN] Skipping image pull for nginx:1.24. Cannot determine if update is available without pulling."}
+{"level":"info","container_id":"314c5f6b5cba","container_name":"test-busybox","time":"2025-12-15T22:25:46-08:00","message":"[DRY-RUN] Skipping image pull for busybox:1.35. Cannot determine if update is available without pulling."}
+{"level":"info","container_id":"8f5a496b8c60","container_name":"test-alpine","time":"2025-12-15T22:25:46-08:00","message":"[DRY-RUN] Skipping image pull for alpine:3.18. Cannot determine if update is available without pulling."}
+{"level":"info","time":"2025-12-15T22:25:46-08:00","message":"✨ Update cycle complete: 0 updated, 3 skipped, 6 total"}
+{"level":"info","time":"2025-12-15T22:25:46-08:00","message":"Starting image cleanup"}
+{"level":"info","time":"2025-12-15T22:25:46-08:00","message":"Found 0 images (in 3.85525ms)"}
+{"level":"info","time":"2025-12-15T22:25:46-08:00","message":"✨ Cleanup complete: 0 removed. Space Reclaimed: 0 B"}
+{"level":"info","time":"2025-12-15T22:25:46-08:00","message":"➖➖➖➖ Cycle complete ➖➖➖➖"}
+{"level":"info","time":"2025-12-15T22:25:46-08:00","message":"HarborBuddy stopped"}
+{"level":"info","time":"2025-12-15T22:25:48-08:00","message":"HarborBuddy version 0.2.0 starting"}
+{"level":"info","time":"2025-12-15T22:25:48-08:00","message":"Docker host: unix:///var/run/docker.sock"}
+{"level":"info","time":"2025-12-15T22:25:48-08:00","message":"Schedule: Daily at 03:00 (America/Los_Angeles)"}
+{"level":"info","time":"2025-12-15T22:25:48-08:00","message":"Dry-run mode: true"}
+{"level":"info","time":"2025-12-15T22:25:48-08:00","message":"Successfully connected to Docker daemon"}
+{"level":"info","time":"2025-12-15T22:25:48-08:00","message":"HarborBuddy started"}
+{"level":"info","time":"2025-12-15T22:25:48-08:00","message":"Running in once mode"}
+{"level":"info","time":"2025-12-15T22:25:48-08:00","message":"➖➖➖➖ Starting update & cleanup cycle ➖➖➖➖"}
+{"level":"info","time":"2025-12-15T22:25:48-08:00","message":"Starting update cycle"}
+{"level":"info","time":"2025-12-15T22:25:48-08:00","message":"🔎 Checking 6 containers for updates..."}
+{"level":"info","container_id":"8f5a496b8c60","container_name":"test-alpine","time":"2025-12-15T22:25:48-08:00","message":"[DRY-RUN] Skipping image pull for alpine:3.18. Cannot determine if update is available without pulling."}
+{"level":"info","container_id":"314c5f6b5cba","container_name":"test-busybox","time":"2025-12-15T22:25:48-08:00","message":"[DRY-RUN] Skipping image pull for busybox:1.35. Cannot determine if update is available without pulling."}
+{"level":"info","container_id":"3b0e850dbad3","container_name":"test-nginx","time":"2025-12-15T22:25:48-08:00","message":"[DRY-RUN] Skipping image pull for nginx:1.24. Cannot determine if update is available without pulling."}
+{"level":"info","time":"2025-12-15T22:25:48-08:00","message":"✨ Update cycle complete: 0 updated, 3 skipped, 6 total"}
+{"level":"info","time":"2025-12-15T22:25:48-08:00","message":"Starting image cleanup"}
+{"level":"info","time":"2025-12-15T22:25:48-08:00","message":"Found 0 images (in 3.784083ms)"}
+{"level":"info","time":"2025-12-15T22:25:48-08:00","message":"✨ Cleanup complete: 0 removed. Space Reclaimed: 0 B"}
+{"level":"info","time":"2025-12-15T22:25:48-08:00","message":"➖➖➖➖ Cycle complete ➖➖➖➖"}
+{"level":"info","time":"2025-12-15T22:25:48-08:00","message":"HarborBuddy stopped"}

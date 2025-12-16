@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"os"
 	"strconv"
+	"strings"
 	"time"
 
 	"gopkg.in/yaml.v3"
@@ -15,6 +16,7 @@ type Config struct {
 	Updates UpdatesConfig `yaml:"updates"`
 	Cleanup CleanupConfig `yaml:"cleanup"`
 	Log     LogConfig     `yaml:"log"`
+	Logging LoggingConfig `yaml:"logging"`
 
 	// Runtime flags (not in YAML)
 	RunOnce     bool
@@ -49,8 +51,17 @@ type CleanupConfig struct {
 
 // LogConfig holds logging settings
 type LogConfig struct {
-	Level string `yaml:"level"`
-	JSON  bool   `yaml:"json"`
+	Level      string `yaml:"level"`
+	JSON       bool   `yaml:"json"`
+	File       string `yaml:"file"`
+	MaxSize    int    `yaml:"max_size"`    // megabytes
+	MaxBackups int    `yaml:"max_backups"` // number of files
+}
+
+// LoggingConfig matches Docker's logging configuration structure
+type LoggingConfig struct {
+	Driver  string            `yaml:"driver"`
+	Options map[string]string `yaml:"options"`
 }
 
 // Default returns a config with sensible defaults
@@ -77,8 +88,10 @@ func Default() Config {
 			DanglingOnly: true,
 		},
 		Log: LogConfig{
-			Level: "info",
-			JSON:  false,
+			Level:      "info",
+			JSON:       false,
+			MaxSize:    10,
+			MaxBackups: 1,
 		},
 		RunOnce:     false,
 		CleanupOnly: false,
@@ -103,7 +116,72 @@ func LoadFromFile(path string) (Config, error) {
 		return cfg, fmt.Errorf("failed to parse config file: %w", err)
 	}
 
+	// Apply partial updates from 'logging' block if present
+	cfg.ApplyLoggingCompatibility()
+
 	return cfg, nil
+}
+
+// ApplyLoggingCompatibility maps Docker-style logging config to HarborBuddy config
+func (c *Config) ApplyLoggingCompatibility() {
+	if c.Logging.Options == nil {
+		return
+	}
+
+	// Parse max-size
+	if val, ok := c.Logging.Options["max-size"]; ok {
+		if sizeMB, err := parseBytesString(val); err == nil && sizeMB > 0 {
+			c.Log.MaxSize = sizeMB
+		}
+	}
+
+	// Parse max-file
+	if val, ok := c.Logging.Options["max-file"]; ok {
+		if backups, err := strconv.Atoi(val); err == nil && backups > 0 {
+			c.Log.MaxBackups = backups
+		}
+	}
+}
+
+// parseBytesString converts strings like "10m", "1g", "100k" to Megabytes (int)
+func parseBytesString(s string) (int, error) {
+	return parseDockerSize(s)
+}
+
+func parseDockerSize(s string) (int, error) {
+	s = strings.TrimSpace(strings.ToLower(s))
+	if s == "" {
+		return 0, fmt.Errorf("empty")
+	}
+
+	var multi int64 = 1
+	if strings.HasSuffix(s, "k") {
+		multi = 1024
+		s = s[:len(s)-1]
+	} else if strings.HasSuffix(s, "m") {
+		multi = 1024 * 1024
+		s = s[:len(s)-1]
+	} else if strings.HasSuffix(s, "g") {
+		multi = 1024 * 1024 * 1024
+		s = s[:len(s)-1]
+	} else {
+		// Docker requires a unit for memory limits usually but here we want to be strict to avoid confusion?
+		// Or default to MB? The user's request showed "50m".
+		// My test expects error on "100".
+		return 0, fmt.Errorf("missing unit (must be k, m, or g)")
+	}
+
+	val, err := strconv.ParseInt(s, 10, 64)
+	if err != nil {
+		return 0, err
+	}
+
+	bytes := val * multi
+	mb := bytes / (1024 * 1024)
+	if mb == 0 && bytes > 0 {
+		return 1, nil // Minimum 1MB if specified
+	}
+	return int(mb), nil
 }
 
 // ApplyEnvironmentOverrides applies environment variable overrides to the config
@@ -149,6 +227,22 @@ func (c *Config) ApplyEnvironmentOverrides() {
 	if val := os.Getenv("HARBORBUDDY_LOG_JSON"); val != "" {
 		if jsonLog, err := strconv.ParseBool(val); err == nil {
 			c.Log.JSON = jsonLog
+		}
+	}
+
+	if val := os.Getenv("HARBORBUDDY_LOG_FILE"); val != "" {
+		c.Log.File = val
+	}
+
+	if val := os.Getenv("HARBORBUDDY_LOG_MAX_SIZE"); val != "" {
+		if size, err := strconv.Atoi(val); err == nil {
+			c.Log.MaxSize = size
+		}
+	}
+
+	if val := os.Getenv("HARBORBUDDY_LOG_MAX_BACKUPS"); val != "" {
+		if backups, err := strconv.Atoi(val); err == nil {
+			c.Log.MaxBackups = backups
 		}
 	}
 }
