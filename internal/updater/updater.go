@@ -101,7 +101,8 @@ func RunUpdateCycle(ctx context.Context, cfg config.Config, dockerClient docker.
 		container docker.ContainerInfo
 		logger    *zerolog.Logger
 	}
-	candidates := make([]updateCandidate, 0)
+	// Pre-allocate slice with capacity equal to total containers to avoid reallocations
+	candidates := make([]updateCandidate, 0, len(containers))
 	var candidatesMu sync.Mutex
 
 	// Concurrency control
