@@ -6,10 +6,12 @@ import (
 	"os"
 	"strings"
 	"sync"
+	"time"
 
 	"github.com/MikeO7/HarborBuddy/internal/config"
 	"github.com/MikeO7/HarborBuddy/internal/docker"
 	"github.com/MikeO7/HarborBuddy/internal/selfupdate"
+	"github.com/MikeO7/HarborBuddy/pkg/log"
 	"github.com/rs/zerolog"
 )
 
@@ -75,49 +77,49 @@ func (c *SafePullCache) GetOrPull(ctx context.Context, image string, pullFunc fu
 	}
 }
 
-// RunUpdateCycle performs one complete update cycle
+// RunUpdateCycle performs the update logic for all containers
 func RunUpdateCycle(ctx context.Context, cfg config.Config, dockerClient docker.Client, logger *zerolog.Logger) error {
+	startTime := time.Now()
 	logger.Info().Msg("Starting update cycle")
 
 	// Discovery phase: list all containers
-	// Note: ListContainers is optimized to return a shallow list (no detailed Config/HostConfig)
 	containers, err := dockerClient.ListContainers(ctx)
 	if err != nil {
-		logger.Error().Err(err).Msg("Failed to list containers")
+		log.ErrorWithHint("Failed to list containers", "Ensure Docker daemon is running and socket is accessible", err)
 		return err
 	}
 
 	logger.Info().Msgf("🔎 Checking %d containers for updates...", len(containers))
 
-	updatedCount := 0
-	skippedCount := 0
-
-	// Cache for image pulls to avoid redundant network calls
+	// Safe pull cache for this cycle
 	pullCache := NewSafePullCache()
 
-	// Candidate list for updates
-	type updateCandidate struct {
-		container docker.ContainerInfo
-		logger    *zerolog.Logger
-	}
-	// Pre-allocate slice with capacity equal to total containers to avoid reallocations
-	candidates := make([]updateCandidate, 0, len(containers))
+	// Use a mutex to protect shared counters if we were parallelizing (we aren't yet fully, but good practice)
+	// Actually, we are running check in parallel!
 	var candidatesMu sync.Mutex
+	type updateCandidate struct {
+		Container docker.ContainerInfo
+		NewImage  docker.ImageInfo
+		Logger    *zerolog.Logger
+	}
+	var updateCandidates []updateCandidate
 
-	// Concurrency control
-	concurrencyLimit := 5
-	semaphore := make(chan struct{}, concurrencyLimit)
+	skippedCount := 0
+	errorCount := 0
+	updatedCount := 0
+
+	// Parallel check
 	var wg sync.WaitGroup
+	semaphore := make(chan struct{}, 5) // Concurrency limit
 
-	// Phase 1: Check for updates in parallel
 	for _, container := range containers {
+		// Check for context cancellation
 		if err := ctx.Err(); err != nil {
 			logger.Warn().Msg("Update cycle interrupted")
 			return err
 		}
 
 		// Create contextual logger for this container
-		// We use the passed logger instead of creating new one from global so we keep the cycle_id
 		containerLogger := logger.With().
 			Str("container_id", shortID(container.ID)).
 			Str("container_name", container.Name).
@@ -136,93 +138,104 @@ func RunUpdateCycle(ctx context.Context, cfg config.Config, dockerClient docker.
 		wg.Add(1)
 		go func(c docker.ContainerInfo, l *zerolog.Logger) {
 			defer wg.Done()
-			semaphore <- struct{}{}        // Acquire token
-			defer func() { <-semaphore }() // Release token
+			semaphore <- struct{}{}        // Acquire
+			defer func() { <-semaphore }() // Release
 
-			l.Debug().Msgf("Checking container for updates (Image: %s)", c.Image)
-
-			// Check for updates
+			// Check updates
 			needsUpdate, err := checkForUpdate(ctx, dockerClient, c, cfg.Updates.DryRun, l, pullCache)
 			if err != nil {
-				l.Error().Err(err).Msg("Failed to check for updates")
+				// We don't have access to ErrorWithHint on 'l' (zerolog logger) directly easily unless we wrap or use global
+				// But we can just use normal logging here or improved message.
+				// The global log.ErrorWithHint uses global logger.
+				// We can mimic it: l.Error().Err(err).Str("hint", "...").Msg(...)
+
+				// Provide hint for common pull errors
+				hint := "Check image name spelling and registry credentials"
+				if strings.Contains(err.Error(), "404") {
+					hint = "Image not found"
+				} else if strings.Contains(err.Error(), "401") || strings.Contains(err.Error(), "403") {
+					hint = "Authentication failed - check `config.json`"
+				}
+
+				l.Error().Err(err).Str("hint", hint).Msg("Failed to check for updates")
+				candidatesMu.Lock()
+				errorCount++
+				candidatesMu.Unlock()
 				return
 			}
 
-			if needsUpdate {
+			if !needsUpdate {
 				candidatesMu.Lock()
-				candidates = append(candidates, updateCandidate{container: c, logger: l})
+				skippedCount++
 				candidatesMu.Unlock()
-			} else {
-				l.Debug().Msg("Container is up to date")
+				return
 			}
+
+			// If needs update, add to candidates
+			// We need to re-fetch the image info or just store what we found?
+			// checkForUpdate returns bool, but we need the new image info to proceed?
+			// Actually checkForUpdate logic just checks compatibility.
+			// The current implementation re-pulls inside checkForUpdate but doesn't return the ImageInfo.
+			// We should probably rely on updateContainer doing the work or refactor.
+			// Currently updateContainer re-pulls/creates.
+
+			// For now, just add to candidates list
+			candidatesMu.Lock()
+			updateCandidates = append(updateCandidates, updateCandidate{
+				Container: c,
+				Logger:    l,
+			})
+			candidatesMu.Unlock()
+
 		}(container, containerLoggerPtr)
 	}
 
 	wg.Wait()
 
-	// Phase 2: Apply updates sequentially
-	for _, candidate := range candidates {
-		if err := ctx.Err(); err != nil {
-			logger.Warn().Msg("Update cycle interrupted during update phase")
-			return err
-		}
+	// Apply updates sequentially
+	if len(updateCandidates) > 0 {
+		logger.Info().Msgf("♻️  Found %d containers to update. Applying updates...", len(updateCandidates))
 
-		container := candidate.container
-		containerLogger := candidate.logger
-
-		// Apply update
-		if cfg.Updates.DryRun {
-			containerLogger.Info().Msgf("[DRY-RUN] Would update container with image %s", container.Image)
-			updatedCount++
-		} else {
-			// Note: ListContainers returns shallow info. We must inspect the container
-			// to get its full configuration (Env, Ports, Volumes, etc.) before updating.
-			containerLogger.Debug().Msg("Fetching full container details before update...")
-			fullContainer, err := dockerClient.InspectContainer(ctx, container.ID)
-			if err != nil {
-				containerLogger.Error().Err(err).Msg("Failed to inspect container for update details")
-				continue
+		for _, candidate := range updateCandidates {
+			if err := ctx.Err(); err != nil {
+				logger.Warn().Msg("Update cycle interrupted during application")
+				return err
 			}
-			// Use the fully populated struct from here on
-			container = fullContainer
 
-			// Check if self-update
+			container := candidate.Container
+			containerLogger := candidate.Logger
+
+			// Double check if it's a self-update situation
+			// Note: isSelf is likely a helper in this package
 			isSelf, err := isSelf(container.ID)
 			if err != nil {
 				containerLogger.Warn().Err(err).Msg("Failed to check if container is self")
+				errorCount++
 			}
 
 			if isSelf {
 				containerLogger.Info().Msg("Self-update detected! Triggering helper...")
-				// selfupdate.Trigger exits the process on success, so we won't return here.
 				if err := selfupdate.Trigger(ctx, dockerClient, container, container.Image); err != nil {
 					containerLogger.Error().Err(err).Msg("Failed to trigger self-update")
+					errorCount++
 				}
-				// If we are here, it failed.
 				continue
 			}
 
 			if err := updateContainer(ctx, cfg, dockerClient, container, containerLogger); err != nil {
 				containerLogger.Error().Err(err).Msg("Failed to update container")
+				errorCount++
 				continue
 			}
 
-			// Friendly update message
-			// We can get the new image ID from the container we just associated with the name,
-			// but we also have newID returned from CreateContainerLike.
-
-			// We want: "✅ Updated <container_name> to <new_image_short_sha>"
-			// Note: updateContainer doesn't return the new ID, so we can't easily print it here
-			// unless we refactor updateContainer or rely on updateContainer to log it.
-			// Actually, updateContainer DOES log the success message now (modified in previous step).
-			// So we can just rely on that, or log a high level one.
-			// Let's rely on updateContainer's message which we updated to be friendly.
+			// Friendly update message implied by updateContainer success
+			// logger.Info().Msgf("✅ Updated %s to ...", ...) -- updateContainer does this
 			updatedCount++
 		}
 	}
 
-	logger.Info().Msgf("✨ Update cycle complete: %d updated, %d skipped, %d total",
-		updatedCount, skippedCount, len(containers))
+	logger.Info().Msgf("✨ Update cycle complete: %d updated, %d skipped, %d errors, %d total (taken %v)",
+		updatedCount, skippedCount, errorCount, len(containers), time.Since(startTime).Round(time.Millisecond))
 	return nil
 }
 
@@ -244,22 +257,16 @@ func isSelf(id string) (bool, error) {
 	return checkIsSelf(id, hostname, cgroupContent), nil
 }
 
-// checkIsSelf contains the logic for isSelf, separated for testing and security
-func checkIsSelf(id, hostname, cgroupContent string) bool {
-	// Security: If hostname is empty, we must NOT use it for prefix check.
-	// strings.HasPrefix(id, "") is always true, which would cause all containers to match.
-	if hostname != "" {
-		// If hostname is the short ID (12 chars), we need to check if container.ID starts with it
-		if strings.HasPrefix(id, hostname) {
-			return true
-		}
+// checkIsSelf is the core logic for checking if we are running in the target container
+func checkIsSelf(targetID string, hostname string, cgroupContent string) bool {
+	// 1. Check if hostname matches short ID
+	if len(targetID) >= 12 && strings.HasPrefix(targetID, hostname) && len(hostname) > 0 {
+		return true
 	}
 
-	// Check cgroup content if available
-	if cgroupContent != "" {
-		if strings.Contains(cgroupContent, id) {
-			return true
-		}
+	// 2. Check cgroup content (more reliable for Docker)
+	if strings.Contains(cgroupContent, targetID) {
+		return true
 	}
 
 	return false

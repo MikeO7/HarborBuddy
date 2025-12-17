@@ -50,6 +50,8 @@ func TestInitialize(t *testing.T) {
 func TestHelperFunctions(t *testing.T) {
 	// Setup to capture output
 	var buf bytes.Buffer
+	// Reset global level to ensure debug logs pass
+	zerolog.SetGlobalLevel(zerolog.DebugLevel)
 	logger = zerolog.New(&buf).Level(zerolog.DebugLevel)
 
 	t.Run("Debug", func(t *testing.T) {
@@ -150,8 +152,9 @@ func TestLogLevels(t *testing.T) {
 	for _, tt := range levels {
 		t.Run(tt.cfgLevel, func(t *testing.T) {
 			Initialize(Config{Level: tt.cfgLevel})
-			if logger.GetLevel() != tt.wantLevel {
-				t.Errorf("Expected level %v for config %s, got %v", tt.wantLevel, tt.cfgLevel, logger.GetLevel())
+			// Since we use GlobalLevel now, check that instead of logger instance level
+			if zerolog.GlobalLevel() != tt.wantLevel {
+				t.Errorf("Expected global level %v for config %s, got %v", tt.wantLevel, tt.cfgLevel, zerolog.GlobalLevel())
 			}
 		})
 	}
@@ -187,6 +190,7 @@ func TestFileLogging(t *testing.T) {
 
 func TestFormattedLogging(t *testing.T) {
 	var buf bytes.Buffer
+	zerolog.SetGlobalLevel(zerolog.DebugLevel)
 	logger = zerolog.New(&buf).Level(zerolog.DebugLevel)
 
 	t.Run("Debugf", func(t *testing.T) {

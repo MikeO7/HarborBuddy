@@ -22,14 +22,21 @@ func Run(cfg config.Config, dockerClient docker.Client) error {
 	ctx, cancel := context.WithCancel(context.Background())
 	defer cancel()
 
-	// Set up signal handling for graceful shutdown
+	// Set up signal handling for graceful shutdown and dynamic reconfig
 	sigChan := make(chan os.Signal, 1)
-	signal.Notify(sigChan, os.Interrupt, syscall.SIGTERM, syscall.SIGINT)
+	signal.Notify(sigChan, os.Interrupt, syscall.SIGTERM, syscall.SIGINT, syscall.SIGUSR1)
 
 	go func() {
-		sig := <-sigChan
-		log.Infof("Received signal %v, shutting down gracefully...", sig)
-		cancel()
+		for {
+			sig := <-sigChan
+			if sig == syscall.SIGUSR1 {
+				log.ToggleDebug()
+				continue
+			}
+			log.Infof("Received signal %v, shutting down gracefully...", sig)
+			cancel()
+			return
+		}
 	}()
 
 	log.Info("HarborBuddy started")
@@ -143,6 +150,8 @@ func runCycle(ctx context.Context, cfg config.Config, dockerClient docker.Client
 	cycleLogger := log.WithFields(map[string]interface{}{"cycle_id": cycleID})
 
 	cycleLogger.Info().Msg("➖➖➖➖ Starting update & cleanup cycle ➖➖➖➖")
+	cycleLogger.Info().Msgf("⚙️ Configuration: Updates=%v, DryRun=%v, Cleanup=%v",
+		cfg.Updates.Enabled, cfg.Updates.DryRun, cfg.Cleanup.Enabled)
 
 	// Run updates if enabled
 	if cfg.Updates.Enabled {

@@ -3,6 +3,8 @@ package main
 import (
 	"fmt"
 	"os"
+	"runtime"
+	"runtime/debug"
 
 	"context"
 
@@ -16,7 +18,20 @@ import (
 
 const version = "0.2.0"
 
+var (
+	// commit is injected at build time
+	commit = "unknown"
+)
+
 func main() {
+	// Panic recovery to ensure logs are flushed and errors captured
+	defer func() {
+		if r := recover(); r != nil {
+			log.Error(fmt.Sprintf("PANIC: %v\nStack Trace:\n%s", r, debug.Stack()))
+			os.Exit(1)
+		}
+	}()
+
 	// Define CLI flags
 	configPath := flag.String("config", "/config/harborbuddy.yml", "Path to config file")
 	interval := flag.Duration("interval", 0, "Override update check interval (e.g., 15m, 1h)")
@@ -35,8 +50,10 @@ func main() {
 
 	flag.Parse()
 
+	flag.Parse()
+
 	if *showVersion {
-		fmt.Printf("HarborBuddy version %s\n", version)
+		fmt.Printf("HarborBuddy version %s (commit: %s, %s/%s)\n", version, commit, runtime.GOOS, runtime.GOARCH)
 		os.Exit(0)
 	}
 
@@ -126,6 +143,7 @@ func main() {
 	})
 
 	log.Infof("HarborBuddy version %s starting", version)
+	log.Infof("Build: commit=%s, os=%s, arch=%s", commit, runtime.GOOS, runtime.GOARCH)
 	log.Infof("Docker host: %s", cfg.Docker.Host)
 
 	if cfg.Updates.ScheduleTime != "" {
