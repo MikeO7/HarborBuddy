@@ -35,7 +35,7 @@ func (m *mockTransport) RoundTrip(req *http.Request) (*http.Response, error) {
 	}
 
 	// Try pattern matching if exact match fails
-    // This is useful if we use prefixes
+	// This is useful if we use prefixes
 	m.mu.Lock()
 	for k, h := range m.handlers {
 		if strings.HasSuffix(k, "*") {
