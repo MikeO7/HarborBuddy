@@ -77,17 +77,21 @@ func matchesPattern(image, pattern string) bool {
 	}
 
 	// Pattern with wildcards
-	if strings.Contains(pattern, "*") {
-		// Convert pattern to prefix/suffix matching
-		if strings.HasSuffix(pattern, "*") {
+	// Check for wildcards directly to avoid full string search if possible
+	// Optimization: Avoid strings.Contains, strings.HasSuffix, and strings.TrimSuffix
+	// for common wildcard patterns to reduce allocations and CPU cycles.
+	pLen := len(pattern)
+	if pLen > 0 {
+		if pattern[pLen-1] == '*' {
 			// e.g., "postgres:*" or "registry.io/org/*"
-			prefix := strings.TrimSuffix(pattern, "*")
-			return strings.HasPrefix(image, prefix)
+			// Check if image starts with pattern[:pLen-1]
+			// This avoids allocating a new string for the prefix
+			return strings.HasPrefix(image, pattern[:pLen-1])
 		}
-		if strings.HasPrefix(pattern, "*") {
+		if pattern[0] == '*' {
 			// e.g., "*:latest"
-			suffix := strings.TrimPrefix(pattern, "*")
-			return strings.HasSuffix(image, suffix)
+			// Check if image ends with pattern[1:]
+			return strings.HasSuffix(image, pattern[1:])
 		}
 	}
 
