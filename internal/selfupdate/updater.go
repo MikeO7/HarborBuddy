@@ -10,6 +10,9 @@ import (
 	"github.com/MikeO7/HarborBuddy/pkg/log"
 )
 
+// exitFunc is the function called to exit the process. It can be overridden in tests.
+var exitFunc = os.Exit
+
 // RunUpdater is the entrypoint for the temporary helper container
 func RunUpdater(ctx context.Context, client docker.Client, targetID string, newImage string) error {
 	log.Info("Updater: 🔄 Started. Waiting for target to stop...")
@@ -153,7 +156,7 @@ func Trigger(ctx context.Context, client docker.Client, myContainer docker.Conta
 	log.Info("Self-Update: 🔄 Helper started. Shutting down self to allow update to proceed.")
 
 	// We exit successfully. The helper is waiting for us to stop.
-	os.Exit(0)
+	exitFunc(0)
 
 	return nil
 }

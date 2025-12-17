@@ -35,6 +35,18 @@ jobs:
       run: |
         go test -coverprofile=coverage.out ./...
         go tool cover -func=coverage.out
+        
+        # Extract total coverage percentage
+        COVERAGE=$(go tool cover -func=coverage.out | grep total | awk '{print $3}' | sed 's/%//')
+        echo "Total coverage: $COVERAGE%"
+        
+        # Enforce minimum coverage threshold
+        THRESHOLD=70
+        if [ "$(echo "$COVERAGE < $THRESHOLD" | bc -l)" -eq 1 ]; then
+          echo "::error::Coverage $COVERAGE% is below threshold $THRESHOLD%"
+          exit 1
+        fi
+        echo "::notice::Coverage $COVERAGE% meets threshold $THRESHOLD%"
 
     - name: Run go vet
       run: go vet ./...

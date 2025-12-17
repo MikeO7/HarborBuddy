@@ -677,6 +677,17 @@ func TestApplyLoggingCompatibility_EdgeCases(t *testing.T) {
 	})
 }
 
+func TestParseDockerSize_SmallValueReturnsMinimum(t *testing.T) {
+	// Test that very small values (less than 1MB) return 1MB minimum
+	result, err := parseBytesString("100k") // 100KB = 0.097MB, rounds to 1MB
+	if err != nil {
+		t.Fatalf("Unexpected error: %v", err)
+	}
+	if result != 1 {
+		t.Errorf("Expected 1 (minimum MB), got %d", result)
+	}
+}
+
 func TestValidate_AllLogLevels(t *testing.T) {
 	validLevels := []string{"debug", "info", "warn", "error"}
 	for _, level := range validLevels {

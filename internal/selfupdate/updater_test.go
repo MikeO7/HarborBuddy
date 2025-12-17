@@ -310,7 +310,156 @@ func TestRunUpdaterStartFails(t *testing.T) {
 	}
 }
 
-func TestTrigger(t *testing.T) {
-	// Trigger calls os.Exit, so we can't test it easily without subprocesses or mocking os.Exit.
-	// We will skip testing Trigger directly in this unit test file.
+func TestTrigger_Success(t *testing.T) {
+	var logBuf bytes.Buffer
+	log.Initialize(log.Config{
+		Level:  "info",
+		Output: &logBuf,
+	})
+
+	mockClient := docker.NewMockDockerClient()
+	ctx := context.Background()
+
+	myContainer := docker.ContainerInfo{
+		ID:   "my-container-123",
+		Name: "harborbuddy",
+		Config: &container.Config{
+			Image: "harborbuddy:old",
+		},
+	}
+	newImage := "harborbuddy:latest"
+
+	// Track exit call
+	exitCalled := false
+	exitCode := -1
+	originalExitFunc := exitFunc
+	exitFunc = func(code int) {
+		exitCalled = true
+		exitCode = code
+	}
+	defer func() { exitFunc = originalExitFunc }()
+
+	err := Trigger(ctx, mockClient, myContainer, newImage)
+	// Trigger returns nil after calling exitFunc (which we mocked)
+	if err != nil {
+		t.Errorf("Unexpected error: %v", err)
+	}
+
+	// Verify exit was called with code 0
+	if !exitCalled {
+		t.Error("Expected exitFunc to be called")
+	}
+	if exitCode != 0 {
+		t.Errorf("Expected exit code 0, got %d", exitCode)
+	}
+
+	// Verify helper was created
+	if len(mockClient.CreatedHelpers) != 1 {
+		t.Fatalf("Expected 1 helper creation, got %d", len(mockClient.CreatedHelpers))
+	}
+
+	helper := mockClient.CreatedHelpers[0]
+	if helper.Image != newImage {
+		t.Errorf("Expected helper image %s, got %s", newImage, helper.Image)
+	}
+
+	// Verify helper name contains container name
+	if !strings.Contains(helper.Name, "harborbuddy-updater-") {
+		t.Errorf("Expected helper name to contain 'harborbuddy-updater-', got %s", helper.Name)
+	}
+
+	// Verify command includes updater mode flags
+	cmdStr := strings.Join(helper.Cmd, " ")
+	if !strings.Contains(cmdStr, "--updater-mode") {
+		t.Error("Expected command to include --updater-mode")
+	}
+	if !strings.Contains(cmdStr, "--target-container-id") {
+		t.Error("Expected command to include --target-container-id")
+	}
+	if !strings.Contains(cmdStr, myContainer.ID) {
+		t.Errorf("Expected command to include container ID %s", myContainer.ID)
+	}
+
+	// Verify helper was started
+	if len(mockClient.StartedContainers) != 1 {
+		t.Error("Expected helper container to be started")
+	}
+
+	// Verify logs
+	logs := logBuf.String()
+	if !strings.Contains(logs, "Self-Update: Triggering helper process") {
+		t.Error("Expected trigger log message")
+	}
+}
+
+func TestTrigger_CreateHelperFails(t *testing.T) {
+	var logBuf bytes.Buffer
+	log.Initialize(log.Config{
+		Level:  "info",
+		Output: &logBuf,
+	})
+
+	mockClient := docker.NewMockDockerClient()
+	mockClient.CreateHelperContainerError = fmt.Errorf("failed to create helper")
+
+	ctx := context.Background()
+	myContainer := docker.ContainerInfo{
+		ID:   "my-container-123",
+		Name: "harborbuddy",
+	}
+
+	// Should NOT call exit if helper creation fails
+	exitCalled := false
+	originalExitFunc := exitFunc
+	exitFunc = func(code int) {
+		exitCalled = true
+	}
+	defer func() { exitFunc = originalExitFunc }()
+
+	err := Trigger(ctx, mockClient, myContainer, "harborbuddy:latest")
+	if err == nil {
+		t.Error("Expected error when helper creation fails")
+	}
+	if !strings.Contains(err.Error(), "failed to create helper") {
+		t.Errorf("Expected create helper error, got: %v", err)
+	}
+	if exitCalled {
+		t.Error("Exit should not be called when helper creation fails")
+	}
+}
+
+func TestTrigger_StartHelperFails(t *testing.T) {
+	var logBuf bytes.Buffer
+	log.Initialize(log.Config{
+		Level:  "info",
+		Output: &logBuf,
+	})
+
+	mockClient := docker.NewMockDockerClient()
+	mockClient.StartContainerError = fmt.Errorf("failed to start helper")
+
+	ctx := context.Background()
+	myContainer := docker.ContainerInfo{
+		ID:   "my-container-123",
+		Name: "harborbuddy",
+	}
+
+	// Should NOT call exit if helper start fails
+	exitCalled := false
+	originalExitFunc := exitFunc
+	exitFunc = func(code int) {
+		exitCalled = true
+	}
+	defer func() { exitFunc = originalExitFunc }()
+
+	err := Trigger(ctx, mockClient, myContainer, "harborbuddy:latest")
+	if err == nil {
+		t.Error("Expected error when helper start fails")
+	}
+	if !strings.Contains(err.Error(), "failed to start helper") {
+		t.Errorf("Expected start helper error, got: %v", err)
+	}
+	if exitCalled {
+		t.Error("Exit should not be called when helper start fails")
+	}
 }
