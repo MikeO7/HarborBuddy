@@ -311,6 +311,93 @@ func TestApplyEnvironmentOverrides(t *testing.T) {
 			}
 		})
 	}
+
+	// Additional test cases for previously uncovered environment variables
+	t.Run("schedule time override", func(t *testing.T) {
+		os.Setenv("HARBORBUDDY_SCHEDULE_TIME", "15:30")
+		defer os.Unsetenv("HARBORBUDDY_SCHEDULE_TIME")
+
+		cfg := Default()
+		cfg.ApplyEnvironmentOverrides()
+
+		if cfg.Updates.ScheduleTime != "15:30" {
+			t.Errorf("ScheduleTime = %s, want 15:30", cfg.Updates.ScheduleTime)
+		}
+	})
+
+	t.Run("timezone override", func(t *testing.T) {
+		os.Setenv("HARBORBUDDY_TIMEZONE", "America/New_York")
+		defer os.Unsetenv("HARBORBUDDY_TIMEZONE")
+
+		cfg := Default()
+		cfg.ApplyEnvironmentOverrides()
+
+		if cfg.Updates.Timezone != "America/New_York" {
+			t.Errorf("Timezone = %s, want America/New_York", cfg.Updates.Timezone)
+		}
+	})
+
+	t.Run("TZ fallback for timezone", func(t *testing.T) {
+		os.Setenv("TZ", "Europe/London")
+		defer os.Unsetenv("TZ")
+
+		cfg := Default()
+		cfg.ApplyEnvironmentOverrides()
+
+		if cfg.Updates.Timezone != "Europe/London" {
+			t.Errorf("Timezone = %s, want Europe/London", cfg.Updates.Timezone)
+		}
+	})
+
+	t.Run("HARBORBUDDY_TIMEZONE takes priority over TZ", func(t *testing.T) {
+		os.Setenv("TZ", "Europe/London")
+		os.Setenv("HARBORBUDDY_TIMEZONE", "America/Los_Angeles")
+		defer os.Unsetenv("TZ")
+		defer os.Unsetenv("HARBORBUDDY_TIMEZONE")
+
+		cfg := Default()
+		cfg.ApplyEnvironmentOverrides()
+
+		if cfg.Updates.Timezone != "America/Los_Angeles" {
+			t.Errorf("Timezone = %s, want America/Los_Angeles", cfg.Updates.Timezone)
+		}
+	})
+
+	t.Run("stop timeout override", func(t *testing.T) {
+		os.Setenv("HARBORBUDDY_STOP_TIMEOUT", "30s")
+		defer os.Unsetenv("HARBORBUDDY_STOP_TIMEOUT")
+
+		cfg := Default()
+		cfg.ApplyEnvironmentOverrides()
+
+		if cfg.Updates.StopTimeout != 30*time.Second {
+			t.Errorf("StopTimeout = %v, want 30s", cfg.Updates.StopTimeout)
+		}
+	})
+
+	t.Run("updates enabled override", func(t *testing.T) {
+		os.Setenv("HARBORBUDDY_UPDATES_ENABLED", "false")
+		defer os.Unsetenv("HARBORBUDDY_UPDATES_ENABLED")
+
+		cfg := Default()
+		cfg.ApplyEnvironmentOverrides()
+
+		if cfg.Updates.Enabled != false {
+			t.Errorf("Updates.Enabled = %v, want false", cfg.Updates.Enabled)
+		}
+	})
+
+	t.Run("cleanup enabled override", func(t *testing.T) {
+		os.Setenv("HARBORBUDDY_CLEANUP_ENABLED", "false")
+		defer os.Unsetenv("HARBORBUDDY_CLEANUP_ENABLED")
+
+		cfg := Default()
+		cfg.ApplyEnvironmentOverrides()
+
+		if cfg.Cleanup.Enabled != false {
+			t.Errorf("Cleanup.Enabled = %v, want false", cfg.Cleanup.Enabled)
+		}
+	})
 }
 
 func TestValidate(t *testing.T) {
