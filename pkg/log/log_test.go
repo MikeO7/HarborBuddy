@@ -3,6 +3,7 @@ package log
 import (
 	"bytes"
 	"encoding/json"
+	"fmt"
 	"os"
 	"strings"
 	"testing"
@@ -182,4 +183,74 @@ func TestFileLogging(t *testing.T) {
 	if !strings.Contains(string(content), "file log test") {
 		t.Errorf("Log file did not contain expected message")
 	}
+}
+
+func TestFormattedLogging(t *testing.T) {
+	var buf bytes.Buffer
+	logger = zerolog.New(&buf).Level(zerolog.DebugLevel)
+
+	t.Run("Debugf", func(t *testing.T) {
+		buf.Reset()
+		Debugf("debug %s %d", "test", 42)
+		if !strings.Contains(buf.String(), "debug test 42") {
+			t.Errorf("Expected output to contain 'debug test 42', got: %s", buf.String())
+		}
+	})
+
+	t.Run("Warnf", func(t *testing.T) {
+		buf.Reset()
+		Warnf("warning %s", "message")
+		if !strings.Contains(buf.String(), "warning message") {
+			t.Errorf("Expected output to contain 'warning message', got: %s", buf.String())
+		}
+	})
+
+	t.Run("Errorf", func(t *testing.T) {
+		buf.Reset()
+		Errorf("error %d", 500)
+		if !strings.Contains(buf.String(), "error 500") {
+			t.Errorf("Expected output to contain 'error 500', got: %s", buf.String())
+		}
+	})
+}
+
+func TestErrorWithErr(t *testing.T) {
+	var buf bytes.Buffer
+	logger = zerolog.New(&buf).Level(zerolog.ErrorLevel)
+
+	testErr := fmt.Errorf("test error")
+	ErrorErr("operation failed", testErr)
+
+	output := buf.String()
+	if !strings.Contains(output, "operation failed") {
+		t.Errorf("Expected output to contain 'operation failed', got: %s", output)
+	}
+	if !strings.Contains(output, "test error") {
+		t.Errorf("Expected output to contain 'test error', got: %s", output)
+	}
+}
+
+func TestPanicLogging(t *testing.T) {
+	var buf bytes.Buffer
+	logger = zerolog.New(&buf)
+
+	t.Run("Panic", func(t *testing.T) {
+		buf.Reset()
+		defer func() {
+			if r := recover(); r == nil {
+				t.Errorf("Expected Panic to panic, but it didn't")
+			}
+		}()
+		Panic("panic message")
+	})
+
+	t.Run("Panicf", func(t *testing.T) {
+		buf.Reset()
+		defer func() {
+			if r := recover(); r == nil {
+				t.Errorf("Expected Panicf to panic, but it didn't")
+			}
+		}()
+		Panicf("panic %s", "formatted")
+	})
 }
