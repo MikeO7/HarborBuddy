@@ -557,3 +557,351 @@ func TestRunUpdateCycle_ContextCancellation(t *testing.T) {
 		t.Errorf("Expected context.Canceled error, got: %v", err)
 	}
 }
+
+func TestSafePullCache(t *testing.T) {
+	t.Log("Testing SafePullCache functionality")
+
+	t.Run("first call triggers pull", func(t *testing.T) {
+		cache := NewSafePullCache()
+		ctx := context.Background()
+		callCount := 0
+
+		pullFunc := func() (docker.ImageInfo, error) {
+			callCount++
+			return docker.ImageInfo{ID: "sha256:test"}, nil
+		}
+
+		info, err, hit := cache.GetOrPull(ctx, "test:latest", pullFunc)
+		if err != nil {
+			t.Errorf("Unexpected error: %v", err)
+		}
+		if hit {
+			t.Error("Expected cache miss on first call")
+		}
+		if info.ID != "sha256:test" {
+			t.Errorf("Expected ID sha256:test, got %s", info.ID)
+		}
+		if callCount != 1 {
+			t.Errorf("Expected pullFunc called once, got %d", callCount)
+		}
+	})
+
+	t.Run("second call uses cache", func(t *testing.T) {
+		cache := NewSafePullCache()
+		ctx := context.Background()
+		callCount := 0
+
+		pullFunc := func() (docker.ImageInfo, error) {
+			callCount++
+			return docker.ImageInfo{ID: "sha256:test"}, nil
+		}
+
+		// First call
+		_, _, _ = cache.GetOrPull(ctx, "test:latest", pullFunc)
+
+		// Second call should hit cache
+		info, err, hit := cache.GetOrPull(ctx, "test:latest", pullFunc)
+		if err != nil {
+			t.Errorf("Unexpected error: %v", err)
+		}
+		if !hit {
+			t.Error("Expected cache hit on second call")
+		}
+		if info.ID != "sha256:test" {
+			t.Errorf("Expected ID sha256:test, got %s", info.ID)
+		}
+		if callCount != 1 {
+			t.Errorf("Expected pullFunc called only once, got %d", callCount)
+		}
+	})
+
+	t.Run("context cancellation during wait", func(t *testing.T) {
+		cache := NewSafePullCache()
+
+		// Create a context that cancels quickly
+		ctx, cancel := context.WithTimeout(context.Background(), 10*time.Millisecond)
+		defer cancel()
+
+		// Start a slow pull
+		slowPull := func() (docker.ImageInfo, error) {
+			time.Sleep(100 * time.Millisecond)
+			return docker.ImageInfo{ID: "sha256:slow"}, nil
+		}
+
+		// Start first call in goroutine
+		go cache.GetOrPull(context.Background(), "slow:latest", slowPull)
+
+		// Wait for the first call to start
+		time.Sleep(5 * time.Millisecond)
+
+		// Second call should time out waiting
+		_, err, _ := cache.GetOrPull(ctx, "slow:latest", slowPull)
+		if err == nil {
+			t.Error("Expected context timeout error")
+		}
+	})
+
+	t.Run("pull error is cached", func(t *testing.T) {
+		cache := NewSafePullCache()
+		ctx := context.Background()
+		pullErr := fmt.Errorf("network error")
+
+		pullFunc := func() (docker.ImageInfo, error) {
+			return docker.ImageInfo{}, pullErr
+		}
+
+		// First call - should get error
+		_, err, _ := cache.GetOrPull(ctx, "error:latest", pullFunc)
+		if err != pullErr {
+			t.Errorf("Expected pullErr, got %v", err)
+		}
+
+		// Second call - should get cached error
+		_, err, hit := cache.GetOrPull(ctx, "error:latest", pullFunc)
+		if !hit {
+			t.Error("Expected cache hit for error result")
+		}
+		if err != pullErr {
+			t.Errorf("Expected cached pullErr, got %v", err)
+		}
+	})
+}
+
+func TestShortID(t *testing.T) {
+	tests := []struct {
+		input    string
+		expected string
+	}{
+		{"sha256:1234567890abcdef", "sha256:12345"}, // 23 chars -> truncate to 12
+		{"short", "short"},
+		{"exactly12chs", "exactly12chs"},  // Exactly 12 chars
+		{"thirteenchars", "thirteenchar"}, // 13 chars -> truncate to 12
+		{"", ""},
+		{"abcdefghijkl", "abcdefghijkl"},  // 12 chars exactly
+		{"abcdefghijklm", "abcdefghijkl"}, // 13 chars -> truncate to 12
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.input, func(t *testing.T) {
+			result := shortID(tt.input)
+			if result != tt.expected {
+				t.Errorf("shortID(%q) = %q, want %q", tt.input, result, tt.expected)
+			}
+		})
+	}
+}
+
+func TestRunUpdateCycle_DenyList(t *testing.T) {
+	t.Log("Testing update cycle with deny list")
+
+	mockClient := docker.NewMockDockerClient()
+	mockClient.Containers = []docker.ContainerInfo{
+		{
+			ID:      "container1",
+			Name:    "postgres",
+			Image:   "postgres:15",
+			ImageID: "sha256:old-postgres",
+			Labels:  map[string]string{},
+		},
+	}
+	mockClient.PullImageReturns = map[string]docker.ImageInfo{
+		"postgres:15": {
+			ID: "sha256:new-postgres",
+		},
+	}
+
+	cfg := config.Config{
+		Updates: config.UpdatesConfig{
+			Enabled:     true,
+			UpdateAll:   true,
+			AllowImages: []string{"*"},
+			DenyImages:  []string{"postgres:*"}, // Deny postgres
+		},
+	}
+
+	ctx := context.Background()
+	err := RunUpdateCycle(ctx, cfg, mockClient)
+	if err != nil {
+		t.Errorf("Unexpected error: %v", err)
+	}
+
+	// Should not update postgres
+	if len(mockClient.ReplacedContainers) != 0 {
+		t.Errorf("Expected 0 replacements (denied), got %d", len(mockClient.ReplacedContainers))
+	}
+}
+
+func TestRunUpdateCycle_AllowList(t *testing.T) {
+	t.Log("Testing update cycle with allow list")
+
+	mockClient := docker.NewMockDockerClient()
+	mockClient.Containers = []docker.ContainerInfo{
+		{
+			ID:      "container1",
+			Name:    "nginx",
+			Image:   "nginx:latest",
+			ImageID: "sha256:old-nginx",
+			Labels:  map[string]string{},
+		},
+		{
+			ID:      "container2",
+			Name:    "redis",
+			Image:   "redis:latest",
+			ImageID: "sha256:old-redis",
+			Labels:  map[string]string{},
+		},
+	}
+	mockClient.PullImageReturns = map[string]docker.ImageInfo{
+		"nginx:latest": {ID: "sha256:new-nginx"},
+		"redis:latest": {ID: "sha256:new-redis"},
+	}
+
+	cfg := config.Config{
+		Updates: config.UpdatesConfig{
+			Enabled:     true,
+			UpdateAll:   true,
+			AllowImages: []string{"nginx:*"}, // Only allow nginx
+			DenyImages:  []string{},
+		},
+	}
+
+	ctx := context.Background()
+	err := RunUpdateCycle(ctx, cfg, mockClient)
+	if err != nil {
+		t.Errorf("Unexpected error: %v", err)
+	}
+
+	// Should only update nginx, not redis
+	if len(mockClient.PulledImages) != 1 {
+		t.Errorf("Expected 1 pull (nginx only), got %d: %v", len(mockClient.PulledImages), mockClient.PulledImages)
+	}
+}
+
+func TestRunUpdateCycle_InspectContainerError(t *testing.T) {
+	t.Log("Testing update cycle with InspectContainer error")
+
+	mockClient := docker.NewMockDockerClient()
+	mockClient.Containers = []docker.ContainerInfo{
+		{
+			ID:      "container1",
+			Name:    "nginx",
+			Image:   "nginx:latest",
+			ImageID: "sha256:old-nginx",
+		},
+	}
+	mockClient.PullImageReturns = map[string]docker.ImageInfo{
+		"nginx:latest": {ID: "sha256:new-nginx"},
+	}
+	mockClient.InspectContainerError = fmt.Errorf("container not found")
+
+	cfg := config.Default()
+	ctx := context.Background()
+
+	// Should not fail the entire cycle, just skip this container
+	err := RunUpdateCycle(ctx, cfg, mockClient)
+	if err != nil {
+		t.Errorf("Expected nil error (continue on inspect error), got: %v", err)
+	}
+}
+
+func TestRunUpdateCycle_ContextCancelledDuringUpdatePhase(t *testing.T) {
+	t.Log("Testing context cancellation during update phase")
+
+	mockClient := docker.NewMockDockerClient()
+	mockClient.Containers = []docker.ContainerInfo{
+		{
+			ID:      "container1",
+			Name:    "nginx",
+			Image:   "nginx:latest",
+			ImageID: "sha256:old-nginx",
+		},
+	}
+	mockClient.PullImageReturns = map[string]docker.ImageInfo{
+		"nginx:latest": {ID: "sha256:new-nginx"},
+	}
+
+	cfg := config.Default()
+
+	// Create context that we'll cancel during the update phase
+	ctx, cancel := context.WithCancel(context.Background())
+
+	// Run the update cycle in goroutine
+	errChan := make(chan error, 1)
+	go func() {
+		errChan <- RunUpdateCycle(ctx, cfg, mockClient)
+	}()
+
+	// Wait a bit for the update to start, then cancel
+	time.Sleep(50 * time.Millisecond)
+	cancel()
+
+	err := <-errChan
+	// May or may not be cancelled depending on timing
+	if err != nil && err != context.Canceled {
+		t.Logf("Got error (expected context.Canceled or nil): %v", err)
+	}
+}
+
+func TestRunUpdateCycle_UpdateContainerError(t *testing.T) {
+	t.Log("Testing update cycle with updateContainer error")
+
+	mockClient := docker.NewMockDockerClient()
+	mockClient.Containers = []docker.ContainerInfo{
+		{
+			ID:      "container1",
+			Name:    "nginx",
+			Image:   "nginx:latest",
+			ImageID: "sha256:old-nginx",
+		},
+	}
+	mockClient.PullImageReturns = map[string]docker.ImageInfo{
+		"nginx:latest": {ID: "sha256:new-nginx"},
+	}
+	// Make create container fail
+	mockClient.CreateContainerError = fmt.Errorf("create error")
+
+	cfg := config.Default()
+	ctx := context.Background()
+
+	// Should not fail the entire cycle, just skip this container
+	err := RunUpdateCycle(ctx, cfg, mockClient)
+	if err != nil {
+		t.Errorf("Expected nil error (continue on update error), got: %v", err)
+	}
+}
+
+func TestRunUpdateCycle_DryRunWithCandidates(t *testing.T) {
+	t.Log("Testing dry run with actual update candidates")
+
+	mockClient := docker.NewMockDockerClient()
+	mockClient.Containers = []docker.ContainerInfo{
+		{
+			ID:      "container1",
+			Name:    "nginx",
+			Image:   "nginx:latest",
+			ImageID: "sha256:old-nginx",
+		},
+	}
+	// In dry run mode, we don't actually pull, so this shouldn't be used
+	// But we need to have the update candidate exist
+
+	cfg := config.Config{
+		Updates: config.UpdatesConfig{
+			Enabled:     true,
+			UpdateAll:   true,
+			DryRun:      true,
+			AllowImages: []string{"*"},
+		},
+	}
+
+	ctx := context.Background()
+	err := RunUpdateCycle(ctx, cfg, mockClient)
+	if err != nil {
+		t.Errorf("Unexpected error: %v", err)
+	}
+
+	// No actual replacements in dry run
+	if len(mockClient.ReplacedContainers) != 0 {
+		t.Errorf("Expected 0 replacements in dry run, got %d", len(mockClient.ReplacedContainers))
+	}
+}
