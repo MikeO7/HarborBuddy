@@ -7,7 +7,6 @@ import (
 
 	"github.com/MikeO7/HarborBuddy/internal/config"
 	"github.com/MikeO7/HarborBuddy/internal/docker"
-	"github.com/MikeO7/HarborBuddy/pkg/log"
 	"github.com/MikeO7/HarborBuddy/pkg/util"
 	"github.com/rs/zerolog"
 )
@@ -21,13 +20,13 @@ func shortID(id string) string {
 }
 
 // RunCleanup performs image cleanup based on configuration
-func RunCleanup(ctx context.Context, cfg config.Config, dockerClient docker.Client) error {
+func RunCleanup(ctx context.Context, cfg config.Config, dockerClient docker.Client, logger *zerolog.Logger) error {
 	if !cfg.Cleanup.Enabled {
-		log.Debug("Cleanup is disabled")
+		logger.Debug().Msg("Cleanup is disabled")
 		return nil
 	}
 
-	log.Info("Starting image cleanup")
+	logger.Info().Msg("Starting image cleanup")
 
 	// List images
 	listStart := time.Now()
@@ -35,19 +34,19 @@ func RunCleanup(ctx context.Context, cfg config.Config, dockerClient docker.Clie
 	var err error
 
 	if cfg.Cleanup.DanglingOnly {
-		log.Debug("Listing only dangling images")
+		logger.Debug().Msg("Listing only dangling images")
 		images, err = dockerClient.ListDanglingImages(ctx)
 	} else {
-		log.Debug("Listing all images")
+		logger.Debug().Msg("Listing all images")
 		images, err = dockerClient.ListImages(ctx)
 	}
 
 	if err != nil {
-		log.ErrorErr("Failed to list images", err)
+		logger.Error().Err(err).Msg("Failed to list images")
 		return err
 	}
 
-	log.Infof("Found %d images (in %v)", len(images), time.Since(listStart))
+	logger.Info().Int64("duration_ms", time.Since(listStart).Milliseconds()).Msgf("Found %d images (in %v)", len(images), time.Since(listStart))
 
 	minAge := time.Duration(cfg.Cleanup.MinAgeHours) * time.Hour
 	removedCount := 0
@@ -56,7 +55,7 @@ func RunCleanup(ctx context.Context, cfg config.Config, dockerClient docker.Clie
 
 	for _, image := range images {
 		if err := ctx.Err(); err != nil {
-			log.Warn("Cleanup interrupted")
+			logger.Warn().Msg("Cleanup interrupted")
 			return err
 		}
 
@@ -65,10 +64,16 @@ func RunCleanup(ctx context.Context, cfg config.Config, dockerClient docker.Clie
 		if len(image.RepoTags) > 0 {
 			imageTag = strings.Join(image.RepoTags, ",")
 		}
-		imageLogger := log.WithImage(shortID(image.ID), imageTag)
+
+		// Derive from parent logger to keep cycle_id
+		imageLogger := logger.With().
+			Str("image_id", shortID(image.ID)).
+			Str("image_tag", imageTag).
+			Logger()
+		imageLoggerPtr := &imageLogger
 
 		// Check if image is eligible for cleanup
-		if !isEligibleForCleanup(image, cfg.Cleanup, minAge, imageLogger) {
+		if !isEligibleForCleanup(image, cfg.Cleanup, minAge, imageLoggerPtr) {
 			skippedCount++
 			continue
 		}
@@ -93,7 +98,7 @@ func RunCleanup(ctx context.Context, cfg config.Config, dockerClient docker.Clie
 		totalReclaimed += image.Size
 	}
 
-	log.Infof("✨ Cleanup complete: %d removed. Space Reclaimed: %s", removedCount, util.FormatBytes(totalReclaimed))
+	logger.Info().Msgf("✨ Cleanup complete: %d removed. Space Reclaimed: %s", removedCount, util.FormatBytes(totalReclaimed))
 	return nil
 }
 

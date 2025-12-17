@@ -7,6 +7,9 @@ import (
 	"syscall"
 	"time"
 
+	"crypto/rand"
+	"encoding/hex"
+
 	"github.com/MikeO7/HarborBuddy/internal/cleanup"
 	"github.com/MikeO7/HarborBuddy/internal/config"
 	"github.com/MikeO7/HarborBuddy/internal/docker"
@@ -40,7 +43,10 @@ func Run(cfg config.Config, dockerClient docker.Client) error {
 	// Cleanup only mode
 	if cfg.CleanupOnly {
 		log.Info("Running in cleanup-only mode")
-		return cleanup.RunCleanup(ctx, cfg, dockerClient)
+		// For one-off mode, we generate a cycle ID too
+		cycleID := generateCycleID()
+		logger := log.WithFields(map[string]interface{}{"cycle_id": cycleID})
+		return cleanup.RunCleanup(ctx, cfg, dockerClient, logger)
 	}
 
 	// Normal loop mode - check if using scheduled time or interval
@@ -132,26 +138,41 @@ func calculateNextRun(now time.Time, scheduleTime string, location *time.Locatio
 
 // runCycle runs a single update and cleanup cycle
 func runCycle(ctx context.Context, cfg config.Config, dockerClient docker.Client) error {
-	log.Info("➖➖➖➖ Starting update & cleanup cycle ➖➖➖➖")
+	cycleID := generateCycleID()
+	// Create a scoped logger for this cycle
+	cycleLogger := log.WithFields(map[string]interface{}{"cycle_id": cycleID})
+
+	cycleLogger.Info().Msg("➖➖➖➖ Starting update & cleanup cycle ➖➖➖➖")
 
 	// Run updates if enabled
 	if cfg.Updates.Enabled {
-		if err := updater.RunUpdateCycle(ctx, cfg, dockerClient); err != nil {
+		if err := updater.RunUpdateCycle(ctx, cfg, dockerClient, cycleLogger); err != nil {
 			return err
 		}
 	} else {
-		log.Info("Updates are disabled, skipping update cycle")
+		cycleLogger.Info().Msg("Updates are disabled, skipping update cycle")
 	}
 
 	// Run cleanup if enabled
 	if cfg.Cleanup.Enabled {
-		if err := cleanup.RunCleanup(ctx, cfg, dockerClient); err != nil {
+		if err := cleanup.RunCleanup(ctx, cfg, dockerClient, cycleLogger); err != nil {
 			return err
 		}
 	} else {
-		log.Debug("Cleanup is disabled, skipping")
+		cycleLogger.Debug().Msg("Cleanup is disabled, skipping")
 	}
 
-	log.Info("➖➖➖➖ Cycle complete ➖➖➖➖")
+	cycleLogger.Info().Msg("➖➖➖➖ Cycle complete ➖➖➖➖")
 	return nil
+}
+
+// generateCycleID returns a short random ID for the cycle
+func generateCycleID() string {
+	b := make([]byte, 4) // 4 bytes = 8 hex chars
+	_, err := rand.Read(b)
+	if err != nil {
+		// Fallback to timestamp if random fails (unlikely)
+		return time.Now().Format("150405")
+	}
+	return hex.EncodeToString(b)
 }

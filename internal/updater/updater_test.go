@@ -11,6 +11,7 @@ import (
 	"github.com/MikeO7/HarborBuddy/internal/config"
 	"github.com/MikeO7/HarborBuddy/internal/docker"
 	"github.com/MikeO7/HarborBuddy/pkg/log"
+	"github.com/rs/zerolog"
 )
 
 func init() {
@@ -279,7 +280,8 @@ func TestRunUpdateCycle(t *testing.T) {
 
 			// Run update cycle
 			ctx := context.Background()
-			err := RunUpdateCycle(ctx, tt.config, mockClient)
+			testLogger := zerolog.New(zerolog.NewConsoleWriter())
+			err := RunUpdateCycle(ctx, tt.config, mockClient, &testLogger)
 
 			// Check error expectation
 			if tt.wantError && err == nil {
@@ -330,8 +332,9 @@ func TestUpdateCycleErrorHandling(t *testing.T) {
 
 		cfg := config.Default()
 		ctx := context.Background()
+		testLogger := zerolog.New(zerolog.NewConsoleWriter())
 
-		err := RunUpdateCycle(ctx, cfg, mockClient)
+		err := RunUpdateCycle(ctx, cfg, mockClient, &testLogger)
 		if err == nil {
 			t.Error("RunUpdateCycle() should return error when ListContainers fails")
 			t.Log("  Expected Docker connection error to propagate")
@@ -364,8 +367,9 @@ func TestUpdateCycleErrorHandling(t *testing.T) {
 
 		cfg := config.Default()
 		ctx := context.Background()
+		testLogger := zerolog.New(zerolog.NewConsoleWriter())
 
-		err := RunUpdateCycle(ctx, cfg, mockClient)
+		err := RunUpdateCycle(ctx, cfg, mockClient, &testLogger)
 		if err != nil {
 			t.Errorf("RunUpdateCycle() = %v, want nil (errors should not abort cycle)", err)
 			t.Log("  Individual container errors should be logged but not fail the cycle")
@@ -411,11 +415,12 @@ func TestCheckForUpdateLogging(t *testing.T) {
 	}
 
 	// Run cycle
-	_ = RunUpdateCycle(ctx, cfg, mockClient)
+	testLogger := zerolog.New(&logBuf)
+	_ = RunUpdateCycle(ctx, cfg, mockClient, &testLogger)
 
 	// Verify Log
 	logs := logBuf.String()
-	expected := "🚀 New version found"
+	expected := "🚀 Update found for nginx"
 	if !strings.Contains(logs, expected) {
 		t.Errorf("Log missing expected string: %q", expected)
 		t.Logf("Actual logs: %s", logs)
@@ -550,7 +555,8 @@ func TestRunUpdateCycle_ContextCancellation(t *testing.T) {
 	ctx, cancel := context.WithCancel(context.Background())
 	cancel() // Cancel immediately
 
-	err := RunUpdateCycle(ctx, cfg, mockClient)
+	testLogger := zerolog.New(zerolog.NewConsoleWriter())
+	err := RunUpdateCycle(ctx, cfg, mockClient, &testLogger)
 	if err == nil {
 		t.Error("Expected error when context is cancelled")
 	} else if err != context.Canceled {
@@ -720,7 +726,8 @@ func TestRunUpdateCycle_DenyList(t *testing.T) {
 	}
 
 	ctx := context.Background()
-	err := RunUpdateCycle(ctx, cfg, mockClient)
+	testLogger := zerolog.New(zerolog.NewConsoleWriter())
+	err := RunUpdateCycle(ctx, cfg, mockClient, &testLogger)
 	if err != nil {
 		t.Errorf("Unexpected error: %v", err)
 	}
@@ -766,7 +773,8 @@ func TestRunUpdateCycle_AllowList(t *testing.T) {
 	}
 
 	ctx := context.Background()
-	err := RunUpdateCycle(ctx, cfg, mockClient)
+	testLogger := zerolog.New(zerolog.NewConsoleWriter())
+	err := RunUpdateCycle(ctx, cfg, mockClient, &testLogger)
 	if err != nil {
 		t.Errorf("Unexpected error: %v", err)
 	}
@@ -798,7 +806,8 @@ func TestRunUpdateCycle_InspectContainerError(t *testing.T) {
 	ctx := context.Background()
 
 	// Should not fail the entire cycle, just skip this container
-	err := RunUpdateCycle(ctx, cfg, mockClient)
+	testLogger := zerolog.New(zerolog.NewConsoleWriter())
+	err := RunUpdateCycle(ctx, cfg, mockClient, &testLogger)
 	if err != nil {
 		t.Errorf("Expected nil error (continue on inspect error), got: %v", err)
 	}
@@ -828,7 +837,8 @@ func TestRunUpdateCycle_ContextCancelledDuringUpdatePhase(t *testing.T) {
 	// Run the update cycle in goroutine
 	errChan := make(chan error, 1)
 	go func() {
-		errChan <- RunUpdateCycle(ctx, cfg, mockClient)
+		testLogger := zerolog.New(zerolog.NewConsoleWriter())
+		errChan <- RunUpdateCycle(ctx, cfg, mockClient, &testLogger)
 	}()
 
 	// Wait a bit for the update to start, then cancel
@@ -864,7 +874,8 @@ func TestRunUpdateCycle_UpdateContainerError(t *testing.T) {
 	ctx := context.Background()
 
 	// Should not fail the entire cycle, just skip this container
-	err := RunUpdateCycle(ctx, cfg, mockClient)
+	testLogger := zerolog.New(zerolog.NewConsoleWriter())
+	err := RunUpdateCycle(ctx, cfg, mockClient, &testLogger)
 	if err != nil {
 		t.Errorf("Expected nil error (continue on update error), got: %v", err)
 	}
@@ -895,7 +906,8 @@ func TestRunUpdateCycle_DryRunWithCandidates(t *testing.T) {
 	}
 
 	ctx := context.Background()
-	err := RunUpdateCycle(ctx, cfg, mockClient)
+	testLogger := zerolog.New(zerolog.NewConsoleWriter())
+	err := RunUpdateCycle(ctx, cfg, mockClient, &testLogger)
 	if err != nil {
 		t.Errorf("Unexpected error: %v", err)
 	}

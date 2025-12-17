@@ -9,6 +9,7 @@ import (
 	"github.com/MikeO7/HarborBuddy/internal/config"
 	"github.com/MikeO7/HarborBuddy/internal/docker"
 	"github.com/MikeO7/HarborBuddy/pkg/log"
+	"github.com/rs/zerolog"
 )
 
 func init() {
@@ -183,7 +184,8 @@ func TestRunCleanup(t *testing.T) {
 			}
 
 			ctx := context.Background()
-			err := RunCleanup(ctx, cfg, mockClient)
+			testLogger := zerolog.New(zerolog.NewConsoleWriter())
+			err := RunCleanup(ctx, cfg, mockClient, &testLogger)
 			if err != nil {
 				t.Errorf("RunCleanup() error = %v, want nil", err)
 				t.Log("  Cleanup should complete without errors")
@@ -231,7 +233,8 @@ func TestCleanupErrorHandling(t *testing.T) {
 		}
 
 		ctx := context.Background()
-		err := RunCleanup(ctx, cfg, mockClient)
+		testLogger := zerolog.New(zerolog.NewConsoleWriter())
+		err := RunCleanup(ctx, cfg, mockClient, &testLogger)
 		if err == nil {
 			t.Error("RunCleanup() should return error when ListImages fails")
 			t.Log("  Expected Docker error to propagate")
@@ -270,7 +273,8 @@ func TestCleanupErrorHandling(t *testing.T) {
 		}
 
 		ctx := context.Background()
-		err := RunCleanup(ctx, cfg, mockClient)
+		testLogger := zerolog.New(zerolog.NewConsoleWriter())
+		err := RunCleanup(ctx, cfg, mockClient, &testLogger)
 		if err != nil {
 			t.Errorf("RunCleanup() = %v, want nil (errors should not abort cleanup)", err)
 			t.Log("  Individual image errors should be logged but not fail cleanup")
@@ -450,7 +454,8 @@ func TestRunCleanup_ContextCancellation(t *testing.T) {
 	ctx, cancel := context.WithCancel(context.Background())
 	cancel() // Cancel immediately
 
-	err := RunCleanup(ctx, cfg, mockClient)
+	testLogger := zerolog.New(zerolog.NewConsoleWriter())
+	err := RunCleanup(ctx, cfg, mockClient, &testLogger)
 	if err == nil {
 		t.Error("Expected error when context is cancelled")
 	} else if err != context.Canceled {
@@ -506,7 +511,8 @@ func TestRunCleanup_WithRepoTags(t *testing.T) {
 	}
 
 	ctx := context.Background()
-	err := RunCleanup(ctx, cfg, mockClient)
+	testLogger := zerolog.New(zerolog.NewConsoleWriter())
+	err := RunCleanup(ctx, cfg, mockClient, &testLogger)
 	if err != nil {
 		t.Errorf("RunCleanup() error = %v", err)
 	}
@@ -531,7 +537,8 @@ func TestRunCleanup_ListImagesError_NonDangling(t *testing.T) {
 	}
 
 	ctx := context.Background()
-	err := RunCleanup(ctx, cfg, mockClient)
+	testLogger := zerolog.New(zerolog.NewConsoleWriter())
+	err := RunCleanup(ctx, cfg, mockClient, &testLogger)
 	if err == nil {
 		t.Error("Expected error from ListImages")
 	}

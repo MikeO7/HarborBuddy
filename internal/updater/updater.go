@@ -10,7 +10,6 @@ import (
 	"github.com/MikeO7/HarborBuddy/internal/config"
 	"github.com/MikeO7/HarborBuddy/internal/docker"
 	"github.com/MikeO7/HarborBuddy/internal/selfupdate"
-	"github.com/MikeO7/HarborBuddy/pkg/log"
 	"github.com/rs/zerolog"
 )
 
@@ -77,18 +76,18 @@ func (c *SafePullCache) GetOrPull(ctx context.Context, image string, pullFunc fu
 }
 
 // RunUpdateCycle performs one complete update cycle
-func RunUpdateCycle(ctx context.Context, cfg config.Config, dockerClient docker.Client) error {
-	log.Info("Starting update cycle")
+func RunUpdateCycle(ctx context.Context, cfg config.Config, dockerClient docker.Client, logger *zerolog.Logger) error {
+	logger.Info().Msg("Starting update cycle")
 
 	// Discovery phase: list all containers
 	// Note: ListContainers is optimized to return a shallow list (no detailed Config/HostConfig)
 	containers, err := dockerClient.ListContainers(ctx)
 	if err != nil {
-		log.ErrorErr("Failed to list containers", err)
+		logger.Error().Err(err).Msg("Failed to list containers")
 		return err
 	}
 
-	log.Infof("🔎 Checking %d containers for updates...", len(containers))
+	logger.Info().Msgf("🔎 Checking %d containers for updates...", len(containers))
 
 	updatedCount := 0
 	skippedCount := 0
@@ -113,12 +112,17 @@ func RunUpdateCycle(ctx context.Context, cfg config.Config, dockerClient docker.
 	// Phase 1: Check for updates in parallel
 	for _, container := range containers {
 		if err := ctx.Err(); err != nil {
-			log.Warn("Update cycle interrupted")
+			logger.Warn().Msg("Update cycle interrupted")
 			return err
 		}
 
 		// Create contextual logger for this container
-		containerLogger := log.WithContainer(shortID(container.ID), container.Name)
+		// We use the passed logger instead of creating new one from global so we keep the cycle_id
+		containerLogger := logger.With().
+			Str("container_id", shortID(container.ID)).
+			Str("container_name", container.Name).
+			Logger()
+		containerLoggerPtr := &containerLogger
 
 		// Determine eligibility
 		decision := DetermineEligibility(container, cfg.Updates)
@@ -151,7 +155,7 @@ func RunUpdateCycle(ctx context.Context, cfg config.Config, dockerClient docker.
 			} else {
 				l.Debug().Msg("Container is up to date")
 			}
-		}(container, containerLogger)
+		}(container, containerLoggerPtr)
 	}
 
 	wg.Wait()
@@ -159,7 +163,7 @@ func RunUpdateCycle(ctx context.Context, cfg config.Config, dockerClient docker.
 	// Phase 2: Apply updates sequentially
 	for _, candidate := range candidates {
 		if err := ctx.Err(); err != nil {
-			log.Warn("Update cycle interrupted during update phase")
+			logger.Warn().Msg("Update cycle interrupted during update phase")
 			return err
 		}
 
@@ -198,16 +202,26 @@ func RunUpdateCycle(ctx context.Context, cfg config.Config, dockerClient docker.
 				continue
 			}
 
-			containerLogger.Info().Msgf("Updating container with image %s", container.Image)
 			if err := updateContainer(ctx, cfg, dockerClient, container, containerLogger); err != nil {
 				containerLogger.Error().Err(err).Msg("Failed to update container")
 				continue
 			}
+
+			// Friendly update message
+			// We can get the new image ID from the container we just associated with the name,
+			// but we also have newID returned from CreateContainerLike.
+
+			// We want: "✅ Updated <container_name> to <new_image_short_sha>"
+			// Note: updateContainer doesn't return the new ID, so we can't easily print it here
+			// unless we refactor updateContainer or rely on updateContainer to log it.
+			// Actually, updateContainer DOES log the success message now (modified in previous step).
+			// So we can just rely on that, or log a high level one.
+			// Let's rely on updateContainer's message which we updated to be friendly.
 			updatedCount++
 		}
 	}
 
-	log.Infof("✨ Update cycle complete: %d updated, %d skipped, %d total",
+	logger.Info().Msgf("✨ Update cycle complete: %d updated, %d skipped, %d total",
 		updatedCount, skippedCount, len(containers))
 	return nil
 }
@@ -284,13 +298,13 @@ func checkForUpdate(ctx context.Context, dockerClient docker.Client, container d
 		return false, nil
 	}
 
-	logger.Info().Msgf("🚀 New version found: %s -> %s", shortID(currentImageID), shortID(newImage.ID))
+	logger.Info().Msgf("🚀 Update found for %s (%s): %s -> %s", container.Name, container.Image, shortID(currentImageID), shortID(newImage.ID))
 	return true, nil
 }
 
 // updateContainer updates a container with a new image
 func updateContainer(ctx context.Context, cfg config.Config, dockerClient docker.Client, container docker.ContainerInfo, logger *zerolog.Logger) error {
-	logger.Info().Msg("Stopping container")
+	logger.Info().Msgf("Stopping container %s", container.Name)
 
 	// Create new container with updated image
 	newID, err := dockerClient.CreateContainerLike(ctx, container, container.Image)
@@ -309,6 +323,6 @@ func updateContainer(ctx context.Context, cfg config.Config, dockerClient docker
 		return fmt.Errorf("failed to replace container: %w", err)
 	}
 
-	logger.Info().Msgf("✅  Container updated successfully (old: %s, new: %s)", shortID(container.ID), shortID(newID))
+	logger.Info().Msgf("✅  Container replacement successful (old: %s, new: %s)", shortID(container.ID), shortID(newID))
 	return nil
 }
