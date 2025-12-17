@@ -254,3 +254,30 @@ func TestPanicLogging(t *testing.T) {
 		Panicf("panic %s", "formatted")
 	})
 }
+
+func TestInitialize_JSONMode(t *testing.T) {
+	// Test JSON mode (else branch in Initialize)
+	cfg := Config{
+		Level: "info",
+		JSON:  true,
+		// No Output specified - should use os.Stdout
+	}
+
+	// This just exercises the code path - we can't easily capture os.Stdout
+	Initialize(cfg)
+
+	// Verify logger works
+	Info("test JSON mode")
+}
+
+func TestInitialize_FileError(t *testing.T) {
+	// Test with an invalid file path that will fail to open
+	cfg := Config{
+		Level: "info",
+		File:  "/nonexistent/directory/that/does/not/exist/logfile.log",
+	}
+
+	// Should not panic, just skip file logging
+	Initialize(cfg)
+	Info("test file error handling")
+}

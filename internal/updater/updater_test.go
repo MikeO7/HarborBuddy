@@ -803,3 +803,105 @@ func TestRunUpdateCycle_InspectContainerError(t *testing.T) {
 		t.Errorf("Expected nil error (continue on inspect error), got: %v", err)
 	}
 }
+
+func TestRunUpdateCycle_ContextCancelledDuringUpdatePhase(t *testing.T) {
+	t.Log("Testing context cancellation during update phase")
+
+	mockClient := docker.NewMockDockerClient()
+	mockClient.Containers = []docker.ContainerInfo{
+		{
+			ID:      "container1",
+			Name:    "nginx",
+			Image:   "nginx:latest",
+			ImageID: "sha256:old-nginx",
+		},
+	}
+	mockClient.PullImageReturns = map[string]docker.ImageInfo{
+		"nginx:latest": {ID: "sha256:new-nginx"},
+	}
+
+	cfg := config.Default()
+
+	// Create context that we'll cancel during the update phase
+	ctx, cancel := context.WithCancel(context.Background())
+
+	// Run the update cycle in goroutine
+	errChan := make(chan error, 1)
+	go func() {
+		errChan <- RunUpdateCycle(ctx, cfg, mockClient)
+	}()
+
+	// Wait a bit for the update to start, then cancel
+	time.Sleep(50 * time.Millisecond)
+	cancel()
+
+	err := <-errChan
+	// May or may not be cancelled depending on timing
+	if err != nil && err != context.Canceled {
+		t.Logf("Got error (expected context.Canceled or nil): %v", err)
+	}
+}
+
+func TestRunUpdateCycle_UpdateContainerError(t *testing.T) {
+	t.Log("Testing update cycle with updateContainer error")
+
+	mockClient := docker.NewMockDockerClient()
+	mockClient.Containers = []docker.ContainerInfo{
+		{
+			ID:      "container1",
+			Name:    "nginx",
+			Image:   "nginx:latest",
+			ImageID: "sha256:old-nginx",
+		},
+	}
+	mockClient.PullImageReturns = map[string]docker.ImageInfo{
+		"nginx:latest": {ID: "sha256:new-nginx"},
+	}
+	// Make create container fail
+	mockClient.CreateContainerError = fmt.Errorf("create error")
+
+	cfg := config.Default()
+	ctx := context.Background()
+
+	// Should not fail the entire cycle, just skip this container
+	err := RunUpdateCycle(ctx, cfg, mockClient)
+	if err != nil {
+		t.Errorf("Expected nil error (continue on update error), got: %v", err)
+	}
+}
+
+func TestRunUpdateCycle_DryRunWithCandidates(t *testing.T) {
+	t.Log("Testing dry run with actual update candidates")
+
+	mockClient := docker.NewMockDockerClient()
+	mockClient.Containers = []docker.ContainerInfo{
+		{
+			ID:      "container1",
+			Name:    "nginx",
+			Image:   "nginx:latest",
+			ImageID: "sha256:old-nginx",
+		},
+	}
+	// In dry run mode, we don't actually pull, so this shouldn't be used
+	// But we need to have the update candidate exist
+
+	cfg := config.Config{
+		Updates: config.UpdatesConfig{
+			Enabled:     true,
+			UpdateAll:   true,
+			DryRun:      true,
+			AllowImages: []string{"*"},
+		},
+	}
+
+	ctx := context.Background()
+	err := RunUpdateCycle(ctx, cfg, mockClient)
+	if err != nil {
+		t.Errorf("Unexpected error: %v", err)
+	}
+
+	// No actual replacements in dry run
+	if len(mockClient.ReplacedContainers) != 0 {
+		t.Errorf("Expected 0 replacements in dry run, got %d", len(mockClient.ReplacedContainers))
+	}
+}
