@@ -2,6 +2,7 @@ package scheduler
 
 import (
 	"context"
+	"fmt"
 	"testing"
 	"time"
 
@@ -433,4 +434,173 @@ func TestRunIntervalMode_Loop(t *testing.T) {
 	// Check coverage of the loop
 	// (This test mainly exercises the code path, exact cycle count isn't easily accessible
 	// without injecting a spy, but we know MockClient tracks pulls)
+}
+
+func TestRunCycle_UpdateError(t *testing.T) {
+	t.Log("Testing runCycle with update error")
+
+	mockClient := docker.NewMockDockerClient()
+	mockClient.ListContainersError = fmt.Errorf("docker error")
+
+	cfg := config.Config{
+		Updates: config.UpdatesConfig{
+			Enabled:       true,
+			CheckInterval: time.Minute,
+		},
+		Cleanup: config.CleanupConfig{
+			Enabled: true,
+		},
+	}
+
+	ctx := context.Background()
+	err := runCycle(ctx, cfg, mockClient)
+	if err == nil {
+		t.Error("Expected error from runCycle when update fails")
+	}
+}
+
+func TestRunCycle_CleanupError(t *testing.T) {
+	t.Log("Testing runCycle with cleanup error")
+
+	mockClient := docker.NewMockDockerClient()
+	mockClient.ListDanglingImagesError = fmt.Errorf("cleanup error")
+
+	cfg := config.Config{
+		Updates: config.UpdatesConfig{
+			Enabled: false, // Skip updates
+		},
+		Cleanup: config.CleanupConfig{
+			Enabled:      true,
+			DanglingOnly: true,
+		},
+	}
+
+	ctx := context.Background()
+	err := runCycle(ctx, cfg, mockClient)
+	if err == nil {
+		t.Error("Expected error from runCycle when cleanup fails")
+	}
+}
+
+func TestRunScheduledMode_InvalidTimezone(t *testing.T) {
+	cfg := config.Config{
+		Updates: config.UpdatesConfig{
+			ScheduleTime: "03:00",
+			Timezone:     "Invalid/Timezone",
+		},
+	}
+
+	mockClient := docker.NewMockDockerClient()
+	err := runScheduledMode(context.Background(), cfg, mockClient)
+	if err == nil {
+		t.Error("Expected error for invalid timezone")
+	}
+}
+
+func TestCalculateNextRun_EdgeCases(t *testing.T) {
+	loc, _ := time.LoadLocation("UTC")
+
+	tests := []struct {
+		name          string
+		now           time.Time
+		scheduleTime  string
+		expectSameDay bool
+	}{
+		{
+			name:          "schedule time in future today",
+			now:           time.Date(2024, 1, 15, 10, 0, 0, 0, loc),
+			scheduleTime:  "15:00",
+			expectSameDay: true,
+		},
+		{
+			name:          "schedule time in past today",
+			now:           time.Date(2024, 1, 15, 16, 0, 0, 0, loc),
+			scheduleTime:  "15:00",
+			expectSameDay: false, // Should be tomorrow
+		},
+		{
+			name:          "schedule time exactly now",
+			now:           time.Date(2024, 1, 15, 15, 0, 0, 0, loc),
+			scheduleTime:  "15:00",
+			expectSameDay: false, // Should be tomorrow
+		},
+		{
+			name:          "midnight crossing",
+			now:           time.Date(2024, 1, 15, 23, 59, 0, 0, loc),
+			scheduleTime:  "00:30",
+			expectSameDay: false, // Should be next day
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			nextRun := calculateNextRun(tt.now, tt.scheduleTime, loc)
+
+			if tt.expectSameDay {
+				if nextRun.Day() != tt.now.Day() {
+					t.Errorf("Expected same day, got next day: %v", nextRun)
+				}
+			} else {
+				if nextRun.Day() == tt.now.Day() {
+					t.Errorf("Expected next day, got same day: %v", nextRun)
+				}
+			}
+
+			// Verify it's always in the future
+			if !nextRun.After(tt.now) {
+				t.Errorf("Next run should be in the future: now=%v, nextRun=%v", tt.now, nextRun)
+			}
+		})
+	}
+}
+
+func TestRunIntervalMode_InitialCycleError(t *testing.T) {
+	t.Log("Testing runIntervalMode with initial cycle error")
+
+	mockClient := docker.NewMockDockerClient()
+	mockClient.ListContainersError = fmt.Errorf("docker error")
+
+	cfg := config.Config{
+		Updates: config.UpdatesConfig{
+			Enabled:       true,
+			CheckInterval: 10 * time.Millisecond,
+		},
+	}
+
+	ctx, cancel := context.WithTimeout(context.Background(), 30*time.Millisecond)
+	defer cancel()
+
+	// Should not return error - just log it and continue
+	err := runIntervalMode(ctx, cfg, mockClient)
+	if err != nil {
+		t.Errorf("runIntervalMode should not propagate initial cycle error: %v", err)
+	}
+}
+
+func TestRunScheduledMode_CycleError(t *testing.T) {
+	t.Log("Testing runScheduledMode with cycle error")
+
+	mockClient := docker.NewMockDockerClient()
+	mockClient.ListContainersError = fmt.Errorf("docker error")
+
+	// Use a schedule time 1 second in the future to trigger quickly
+	futureTime := time.Now().Add(100 * time.Millisecond)
+	scheduleStr := futureTime.Format("15:04")
+
+	cfg := config.Config{
+		Updates: config.UpdatesConfig{
+			Enabled:      true,
+			ScheduleTime: scheduleStr,
+			Timezone:     "UTC",
+		},
+	}
+
+	ctx, cancel := context.WithTimeout(context.Background(), 500*time.Millisecond)
+	defer cancel()
+
+	// Should not return error - just log it and continue
+	err := runScheduledMode(ctx, cfg, mockClient)
+	if err != nil {
+		t.Errorf("runScheduledMode should not propagate cycle error: %v", err)
+	}
 }

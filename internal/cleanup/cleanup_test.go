@@ -420,3 +420,119 @@ func TestIsEligibleForCleanup_EdgeCases(t *testing.T) {
 		}
 	})
 }
+
+func TestRunCleanup_ContextCancellation(t *testing.T) {
+	t.Log("Testing cleanup context cancellation")
+
+	yesterday := time.Now().Add(-25 * time.Hour)
+	mockClient := docker.NewMockDockerClient()
+
+	// Create many images so we have time to cancel
+	images := make([]docker.ImageInfo, 100)
+	for i := 0; i < 100; i++ {
+		images[i] = docker.ImageInfo{
+			ID:        fmt.Sprintf("sha256:image%d", i),
+			Dangling:  true,
+			CreatedAt: yesterday,
+		}
+	}
+	mockClient.Images = images
+
+	cfg := config.Config{
+		Cleanup: config.CleanupConfig{
+			Enabled:      true,
+			MinAgeHours:  24,
+			DanglingOnly: true,
+		},
+	}
+
+	// Create a cancelled context
+	ctx, cancel := context.WithCancel(context.Background())
+	cancel() // Cancel immediately
+
+	err := RunCleanup(ctx, cfg, mockClient)
+	if err == nil {
+		t.Error("Expected error when context is cancelled")
+	} else if err != context.Canceled {
+		t.Errorf("Expected context.Canceled, got: %v", err)
+	}
+}
+
+func TestShortID(t *testing.T) {
+	tests := []struct {
+		input    string
+		expected string
+	}{
+		{"sha256:1234567890abcdef", "sha256:12345"}, // 23 chars -> truncate to 12
+		{"short", "short"},
+		{"exactly12chs", "exactly12chs"},  // Exactly 12 chars
+		{"thirteenchars", "thirteenchar"}, // 13 chars -> truncate to 12
+		{"", ""},
+		{"abcdefghijkl", "abcdefghijkl"},  // 12 chars exactly
+		{"abcdefghijklm", "abcdefghijkl"}, // 13 chars -> truncate to 12
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.input, func(t *testing.T) {
+			result := shortID(tt.input)
+			if result != tt.expected {
+				t.Errorf("shortID(%q) = %q, want %q", tt.input, result, tt.expected)
+			}
+		})
+	}
+}
+
+func TestRunCleanup_WithRepoTags(t *testing.T) {
+	t.Log("Testing cleanup with images that have repo tags")
+
+	yesterday := time.Now().Add(-25 * time.Hour)
+	mockClient := docker.NewMockDockerClient()
+	mockClient.Images = []docker.ImageInfo{
+		{
+			ID:        "sha256:taggedimage",
+			RepoTags:  []string{"nginx:latest", "nginx:v1.0"},
+			Dangling:  false,
+			CreatedAt: yesterday,
+			Size:      100 * 1024 * 1024, // 100MB
+		},
+	}
+
+	cfg := config.Config{
+		Cleanup: config.CleanupConfig{
+			Enabled:      true,
+			MinAgeHours:  24,
+			DanglingOnly: false, // Remove all, not just dangling
+		},
+	}
+
+	ctx := context.Background()
+	err := RunCleanup(ctx, cfg, mockClient)
+	if err != nil {
+		t.Errorf("RunCleanup() error = %v", err)
+	}
+
+	if len(mockClient.RemovedImages) != 1 {
+		t.Errorf("Expected 1 image removed, got %d", len(mockClient.RemovedImages))
+	}
+}
+
+func TestRunCleanup_ListImagesError_NonDangling(t *testing.T) {
+	t.Log("Testing cleanup with ListImages error (non-dangling mode)")
+
+	mockClient := docker.NewMockDockerClient()
+	mockClient.ListImagesError = fmt.Errorf("docker error")
+
+	cfg := config.Config{
+		Cleanup: config.CleanupConfig{
+			Enabled:      true,
+			MinAgeHours:  24,
+			DanglingOnly: false, // Uses ListImages instead of ListDanglingImages
+		},
+	}
+
+	ctx := context.Background()
+	err := RunCleanup(ctx, cfg, mockClient)
+	if err == nil {
+		t.Error("Expected error from ListImages")
+	}
+}

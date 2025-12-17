@@ -570,3 +570,133 @@ func TestApplyLoggingCompatibility(t *testing.T) {
 		t.Errorf("ApplyLoggingCompatibility() MaxBackups should remain default 1, got %d", cfg.Log.MaxBackups)
 	}
 }
+
+func TestValidate_ScheduleTime(t *testing.T) {
+	tests := []struct {
+		name         string
+		scheduleTime string
+		timezone     string
+		wantError    bool
+	}{
+		{"valid schedule time", "03:00", "UTC", false},
+		{"valid schedule with timezone", "15:30", "America/New_York", false},
+		{"invalid schedule time - text", "invalid", "UTC", true},
+		{"invalid schedule time - wrong format", "3pm", "UTC", true},
+		{"invalid schedule time hour", "25:00", "UTC", true},
+		{"invalid schedule time minute", "03:60", "UTC", true},
+		{"empty schedule time (valid - uses interval)", "", "UTC", false},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			cfg := Default()
+			cfg.Updates.ScheduleTime = tt.scheduleTime
+			cfg.Updates.Timezone = tt.timezone
+
+			err := cfg.Validate()
+			if tt.wantError && err == nil {
+				t.Error("Expected validation error, got nil")
+			} else if !tt.wantError && err != nil {
+				t.Errorf("Unexpected validation error: %v", err)
+			}
+		})
+	}
+}
+
+func TestLoadFromFile_ReadError(t *testing.T) {
+	// Test with a directory path (can't read as file)
+	tmpDir := t.TempDir()
+
+	_, err := LoadFromFile(tmpDir)
+	if err == nil {
+		t.Error("Expected error when reading directory as file")
+	}
+}
+
+func TestApplyLoggingCompatibility_EdgeCases(t *testing.T) {
+	t.Run("nil options", func(t *testing.T) {
+		cfg := Default()
+		cfg.Logging.Options = nil
+		cfg.ApplyLoggingCompatibility() // Should not panic
+		if cfg.Log.MaxSize != 10 {
+			t.Errorf("MaxSize should remain default, got %d", cfg.Log.MaxSize)
+		}
+	})
+
+	t.Run("empty options map", func(t *testing.T) {
+		cfg := Default()
+		cfg.Logging.Options = map[string]string{}
+		cfg.ApplyLoggingCompatibility()
+		if cfg.Log.MaxSize != 10 {
+			t.Errorf("MaxSize should remain default, got %d", cfg.Log.MaxSize)
+		}
+	})
+
+	t.Run("invalid max-size format ignored", func(t *testing.T) {
+		cfg := Default()
+		cfg.Logging.Options = map[string]string{
+			"max-size": "invalid",
+		}
+		cfg.ApplyLoggingCompatibility()
+		if cfg.Log.MaxSize != 10 {
+			t.Errorf("MaxSize should remain default on parse error, got %d", cfg.Log.MaxSize)
+		}
+	})
+
+	t.Run("invalid max-file format ignored", func(t *testing.T) {
+		cfg := Default()
+		cfg.Logging.Options = map[string]string{
+			"max-file": "not-a-number",
+		}
+		cfg.ApplyLoggingCompatibility()
+		if cfg.Log.MaxBackups != 1 {
+			t.Errorf("MaxBackups should remain default on parse error, got %d", cfg.Log.MaxBackups)
+		}
+	})
+
+	t.Run("zero max-file ignored", func(t *testing.T) {
+		cfg := Default()
+		cfg.Logging.Options = map[string]string{
+			"max-file": "0",
+		}
+		cfg.ApplyLoggingCompatibility()
+		if cfg.Log.MaxBackups != 1 {
+			t.Errorf("MaxBackups should remain default when 0, got %d", cfg.Log.MaxBackups)
+		}
+	})
+
+	t.Run("negative max-file ignored", func(t *testing.T) {
+		cfg := Default()
+		cfg.Logging.Options = map[string]string{
+			"max-file": "-1",
+		}
+		cfg.ApplyLoggingCompatibility()
+		if cfg.Log.MaxBackups != 1 {
+			t.Errorf("MaxBackups should remain default when negative, got %d", cfg.Log.MaxBackups)
+		}
+	})
+}
+
+func TestValidate_AllLogLevels(t *testing.T) {
+	validLevels := []string{"debug", "info", "warn", "error"}
+	for _, level := range validLevels {
+		t.Run("valid level "+level, func(t *testing.T) {
+			cfg := Default()
+			cfg.Log.Level = level
+			if err := cfg.Validate(); err != nil {
+				t.Errorf("Level %s should be valid, got error: %v", level, err)
+			}
+		})
+	}
+
+	invalidLevels := []string{"DEBUG", "INFO", "WARNING", "fatal", "panic", "trace", ""}
+	for _, level := range invalidLevels {
+		t.Run("invalid level "+level, func(t *testing.T) {
+			cfg := Default()
+			cfg.Log.Level = level
+			if err := cfg.Validate(); err == nil {
+				t.Errorf("Level %q should be invalid", level)
+			}
+		})
+	}
+}
