@@ -15,7 +15,8 @@ COPY . .
 RUN go mod tidy
 
 ENV CGO_ENABLED=0 GOOS=linux GOARCH=amd64
-RUN go build -ldflags="-s -w" -o /harborbuddy ./cmd/harborbuddy
+ARG GIT_COMMIT=unknown
+RUN go build -ldflags="-s -w -X main.commit=${GIT_COMMIT}" -o /harborbuddy ./cmd/harborbuddy
 
 # --- Final image --------------------------------------------------
 FROM scratch
