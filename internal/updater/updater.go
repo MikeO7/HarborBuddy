@@ -102,7 +102,8 @@ func RunUpdateCycle(ctx context.Context, cfg config.Config, dockerClient docker.
 		NewImage  docker.ImageInfo
 		Logger    *zerolog.Logger
 	}
-	var updateCandidates []updateCandidate
+	// Pre-allocate to avoid resizing during concurrent append
+	updateCandidates := make([]updateCandidate, 0, len(containers))
 
 	skippedCount := 0
 	errorCount := 0
