@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"time"
 
+	"github.com/MikeO7/HarborBuddy/internal/config"
 	"github.com/docker/docker/client"
 )
 
@@ -34,10 +35,14 @@ type DockerClient struct {
 }
 
 // NewClient creates a new Docker client
-func NewClient(host string) (*DockerClient, error) {
+func NewClient(cfg config.DockerConfig) (*DockerClient, error) {
 	opts := []client.Opt{
-		client.WithHost(host),
+		client.WithHost(cfg.Host),
 		client.WithAPIVersionNegotiation(),
+	}
+
+	if cfg.TLSVerify || cfg.CertPath != "" {
+		opts = append(opts, client.WithTLSClientConfig(cfg.CAPath, cfg.CertPath, cfg.KeyPath))
 	}
 
 	cli, err := client.NewClientWithOpts(opts...)

@@ -25,8 +25,12 @@ type Config struct {
 
 // DockerConfig holds Docker connection settings
 type DockerConfig struct {
-	Host string `yaml:"host"`
-	TLS  bool   `yaml:"tls"`
+	Host      string `yaml:"host"`
+	TLS       bool   `yaml:"tls"` // Legacy flag, use TLSVerify
+	CertPath  string `yaml:"cert_path"`
+	KeyPath   string `yaml:"key_path"`
+	CAPath    string `yaml:"ca_path"`
+	TLSVerify bool   `yaml:"tls_verify"`
 }
 
 // UpdatesConfig holds update behavior settings
@@ -188,6 +192,24 @@ func (c *Config) ApplyEnvironmentOverrides() {
 		c.Docker.Host = val
 	}
 
+	if val := os.Getenv("HARBORBUDDY_DOCKER_TLS_VERIFY"); val != "" {
+		if tlsVerify, err := strconv.ParseBool(val); err == nil {
+			c.Docker.TLSVerify = tlsVerify
+		}
+	}
+
+	if val := os.Getenv("HARBORBUDDY_DOCKER_CERT_PATH"); val != "" {
+		c.Docker.CertPath = val
+	}
+
+	if val := os.Getenv("HARBORBUDDY_DOCKER_KEY_PATH"); val != "" {
+		c.Docker.KeyPath = val
+	}
+
+	if val := os.Getenv("HARBORBUDDY_DOCKER_CA_PATH"); val != "" {
+		c.Docker.CAPath = val
+	}
+
 	if val := os.Getenv("HARBORBUDDY_INTERVAL"); val != "" {
 		if duration, err := time.ParseDuration(val); err == nil {
 			c.Updates.CheckInterval = duration
@@ -261,6 +283,12 @@ func (c *Config) ApplyEnvironmentOverrides() {
 func (c *Config) Validate() error {
 	if c.Docker.Host == "" {
 		return fmt.Errorf("docker.host cannot be empty")
+	}
+
+	if c.Docker.TLSVerify {
+		if c.Docker.CertPath == "" || c.Docker.KeyPath == "" || c.Docker.CAPath == "" {
+			return fmt.Errorf("docker.tls_verify is true but cert_path, key_path, or ca_path is missing")
+		}
 	}
 
 	// If schedule_time is not set, check_interval must be positive
