@@ -26,18 +26,7 @@ func Run(cfg config.Config, dockerClient docker.Client) error {
 	sigChan := make(chan os.Signal, 1)
 	signal.Notify(sigChan, os.Interrupt, syscall.SIGTERM, syscall.SIGINT, syscall.SIGUSR1)
 
-	go func() {
-		for {
-			sig := <-sigChan
-			if sig == syscall.SIGUSR1 {
-				log.ToggleDebug()
-				continue
-			}
-			log.Infof("Received signal %v, shutting down gracefully...", sig)
-			cancel()
-			return
-		}
-	}()
+	go handleSignals(sigChan, cancel)
 
 	log.Info("HarborBuddy started")
 

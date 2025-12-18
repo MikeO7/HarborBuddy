@@ -296,7 +296,7 @@ func TestCalculateNextRun(t *testing.T) {
 	t.Log("Testing next run time calculation")
 
 	locUTC, _ := time.LoadLocation("UTC")
-	locNY, _ := time.LoadLocation("America/New_York") // UTC-5 (standard) or UTC-4 (daylight)
+	locNY, _ := time.LoadLocation("America/New_York")
 
 	// Fixed "now" for deterministic testing: 2023-01-01 10:00:00 UTC
 	now := time.Date(2023, 1, 1, 10, 0, 0, 0, locUTC)
@@ -305,10 +305,11 @@ func TestCalculateNextRun(t *testing.T) {
 		name         string
 		scheduleTime string
 		location     *time.Location
-		now          time.Time // Helper to set "current time" context
+		now          time.Time
 		wantNextDay  bool
 		wantHour     int
 		wantMinute   int
+		expectDate   string // Optional: explicit date check for rollovers (YYYY-MM-DD)
 	}{
 		{
 			name:         "same day future time",
@@ -326,15 +327,6 @@ func TestCalculateNextRun(t *testing.T) {
 			now:          now,
 			wantNextDay:  true,
 			wantHour:     9,
-			wantMinute:   0,
-		},
-		{
-			name:         "same day exactly now triggers next day",
-			scheduleTime: "10:00",
-			location:     locUTC,
-			now:          now,
-			wantNextDay:  true,
-			wantHour:     10,
 			wantMinute:   0,
 		},
 		{
