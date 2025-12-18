@@ -1,43 +1,70 @@
 # HarborBuddy ⚓️
 
+**Automatic Docker Container Updates Made Simple**
+
 [![CI](https://github.com/MikeO7/HarborBuddy/actions/workflows/ci.yml/badge.svg)](https://github.com/MikeO7/HarborBuddy/actions/workflows/ci.yml)
 [![Docker Build](https://github.com/MikeO7/HarborBuddy/actions/workflows/docker-build.yml/badge.svg)](https://github.com/MikeO7/HarborBuddy/actions/workflows/docker-build.yml)
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
 [![Go Version](https://img.shields.io/badge/Go-1.25-00ADD8?logo=go&logoColor=white)](https://go.dev/)
 
-**The easiest way to keep your Docker containers updated automatically.**
+HarborBuddy automatically keeps your Docker containers up-to-date. It monitors running containers, detects new image versions, and seamlessly updates them—including cleanup of old images.
 
-HarborBuddy acts as your automated DevOps assistant, ensuring your containers are always running the latest versions of their images. It watches your running containers, detects new images on the registry, and updates them seamlessly—cleanup included!
-
-Perfect for **Home Labs**, **Staging Environments**, and **Production** setups where you want "set and forget" maintenance. A modern, lightweight alternative to Watchtower.
+**Perfect for:**
+- 🏠 **Home Labs** — Keep Plex, Home Assistant, Pi-hole, and more updated automatically
+- 🧪 **Staging/Dev Environments** — Always run the latest versions
+- 🚀 **Production** — Scheduled updates during maintenance windows
 
 ---
 
-## 🚀 Why HarborBuddy?
+## Table of Contents
 
-- **Set and Forget**: Install it once, and your containers stay fresh automatically.
-- **Safe by Default**: Easily exclude critical services (like databases) using simple labels.
-- **Save Disk Space**: Automatically cleans up old, unused images after updates.
-- **Peace of Mind**: "Dry Run" mode lets you see exactly what *would* happen without making changes.
-- **Zero Config**: Works out of the box with sensible defaults. No complex setup required.
+1. [Quick Start (30 seconds)](#-quick-start-30-seconds)
+2. [Docker Compose Examples](#-docker-compose-examples)
+   - [Basic Setup](#1-basic-setup-update-every-30-minutes)
+   - [Daily Scheduled Updates](#2-scheduled-updates-daily-at-3am)
+   - [Home Lab Setup](#3-home-lab-setup)
+   - [Production Setup with Logging](#4-production-setup-with-file-logging)
+3. [How It Works](#-how-it-works)
+4. [Environment Variables Reference](#%EF%B8%8F-environment-variables-reference)
+5. [Container Labels](#-container-labels)
+6. [Configuration File (Advanced)](#-configuration-file-advanced)
+7. [Logging & Persistence](#-logging--persistence)
+8. [Private Registries](#-private-registries)
+9. [Self-Update Feature](#-self-update-feature)
+10. [FAQ](#-frequently-asked-questions)
+11. [Contributing](#-contributing)
 
-## ✨ Features
+---
 
-- [x] Automated Updates: Polls for new Docker images at your chosen interval.
-- [x] Scheduled Updates: Run daily at a specific time (e.g., "03:00").
-- [x] Smart Cleanup: Removes "dangling" and unused images to keep your host clean.
-- **Flexible Control**: Update everything by default, or opt-out specific containers.
-- **Pattern Filtering**: Allow or Deny updates based on image names (e.g., "never update `postgres:*`").
-- **Lightweight**: Written in Go, runs as a tiny container (~10MB) with minimal resource usage.
-- **Docker Native**: Uses the official Docker API for reliable operations.
+## 🚀 Quick Start (30 seconds)
 
-## ⚡️ Quick Start
+Add HarborBuddy to your `docker-compose.yml`:
 
-You can get running in seconds. HarborBuddy connects to your Docker socket to manage updates.
+```yaml
+services:
+  harborbuddy:
+    image: ghcr.io/mikeo7/harborbuddy:latest
+    container_name: harborbuddy
+    restart: unless-stopped
+    volumes:
+      - /var/run/docker.sock:/var/run/docker.sock
+```
 
-### 1. The "Zero-Config" Setup (Docker Compose)
+Run it:
 
-Add this service to your `docker-compose.yml` to start updating all your containers every 30 minutes.
+```bash
+docker compose up -d
+```
+
+**That's it!** HarborBuddy now checks for updates every 30 minutes and updates all your containers automatically.
+
+---
+
+## 📦 Docker Compose Examples
+
+### 1. Basic Setup (Update Every 30 Minutes)
+
+The simplest setup—checks for updates every 30 minutes:
 
 ```yaml
 services:
@@ -51,166 +78,503 @@ services:
       - HARBORBUDDY_INTERVAL=30m
 ```
 
-### 2. Docker CLI One-Liner
+---
 
-Prefer the command line? Run this:
+### 2. Scheduled Updates (Daily at 3AM)
 
-```bash
-docker run -d \
-  --name harborbuddy \
-  --restart unless-stopped \
-  -v /var/run/docker.sock:/var/run/docker.sock \
-  -e HARBORBUDDY_INTERVAL=1h \
-  ghcr.io/mikeo7/harborbuddy:latest
+**Recommended for most users.** Updates run once per day at a specific time:
+
+```yaml
+services:
+  harborbuddy:
+    image: ghcr.io/mikeo7/harborbuddy:latest
+    container_name: harborbuddy
+    restart: unless-stopped
+    volumes:
+      - /var/run/docker.sock:/var/run/docker.sock
+    environment:
+      # Set your timezone
+      - TZ=America/New_York
+      # Run updates daily at 3:00 AM
+      - HARBORBUDDY_SCHEDULE_TIME=03:00
 ```
 
-That's it! HarborBuddy is now monitoring your containers. check the logs with `docker logs -f harborbuddy` to see it in action.
+> **How Timezone Works:** Use standard IANA timezone names like `America/New_York`, `Europe/London`, `Asia/Tokyo`, or `UTC`. [Find your timezone →](https://en.wikipedia.org/wiki/List_of_tz_database_time_zones)
 
-## 🧠 How it Works
+---
 
-1.  **Check**: Every interval (default: 30m), HarborBuddy scans your running containers.
-2.  **Verify**: It checks the remote registry (Docker Hub, GHCR, etc.) for a newer image digest.
-3.  **Update**: If a new version exists, it pulls the image, stops the container, and recreates it with the same settings.
-4.  **Clean**: Finally, it removes the old image version to free up space.
+### 3. Home Lab Setup
 
-## 🛡️ Preventing Updates (Opt-Out)
+Common home lab configuration with protected databases:
 
-Sometimes you don't want a container to update automatically (e.g., a production database or a specific app version).
+```yaml
+services:
+  # HarborBuddy - manages all container updates
+  harborbuddy:
+    image: ghcr.io/mikeo7/harborbuddy:latest
+    container_name: harborbuddy
+    restart: unless-stopped
+    volumes:
+      - /var/run/docker.sock:/var/run/docker.sock
+    environment:
+      - TZ=America/Los_Angeles
+      - HARBORBUDDY_SCHEDULE_TIME=03:00
+      - HARBORBUDDY_LOG_LEVEL=info
+    labels:
+      # Prevent HarborBuddy from updating itself
+      com.harborbuddy.autoupdate: "false"
 
-**To ignore a container, add this label:**
+  # Plex - WILL be auto-updated
+  plex:
+    image: linuxserver/plex:latest
+    container_name: plex
+    restart: unless-stopped
+    # ... your plex config
+
+  # Home Assistant - WILL be auto-updated
+  homeassistant:
+    image: ghcr.io/home-assistant/home-assistant:stable
+    container_name: homeassistant
+    restart: unless-stopped
+    # ... your home assistant config
+
+  # PostgreSQL - Will NOT be updated (protected)
+  postgres:
+    image: postgres:15
+    container_name: postgres
+    restart: unless-stopped
+    labels:
+      com.harborbuddy.autoupdate: "false"
+    # ... your postgres config
+```
+
+---
+
+### 4. Production Setup with File Logging
+
+Enterprise-ready configuration with persistent logs:
+
+```yaml
+services:
+  harborbuddy:
+    image: ghcr.io/mikeo7/harborbuddy:latest
+    container_name: harborbuddy
+    restart: unless-stopped
+    volumes:
+      - /var/run/docker.sock:/var/run/docker.sock
+      # Persist logs to host
+      - ./logs:/logs
+      # Optional: Use a config file for advanced settings
+      - ./harborbuddy.yml:/config/harborbuddy.yml:ro
+    environment:
+      - TZ=UTC
+      - HARBORBUDDY_SCHEDULE_TIME=03:00
+      - HARBORBUDDY_LOG_LEVEL=info
+      - HARBORBUDDY_LOG_JSON=true
+    labels:
+      com.harborbuddy.autoupdate: "false"
+```
+
+---
+
+### 5. Test Mode (Dry Run)
+
+Preview what would be updated without making any changes:
+
+```yaml
+services:
+  harborbuddy:
+    image: ghcr.io/mikeo7/harborbuddy:latest
+    container_name: harborbuddy
+    restart: unless-stopped
+    volumes:
+      - /var/run/docker.sock:/var/run/docker.sock
+    environment:
+      - HARBORBUDDY_INTERVAL=5m
+      # Enable dry run - logs changes but doesn't apply them
+      - HARBORBUDDY_DRY_RUN=true
+      - HARBORBUDDY_LOG_LEVEL=debug
+```
+
+Check the logs to see what would happen:
+
+```bash
+docker logs -f harborbuddy
+```
+
+---
+
+## 🧠 How It Works
+
+```
+┌─────────────────────────────────────────────────────────────┐
+│                    HarborBuddy Update Cycle                 │
+└─────────────────────────────────────────────────────────────┘
+                              │
+                              ▼
+┌─────────────────────────────────────────────────────────────┐
+│  1. SCAN                                                    │
+│     Lists all running containers on the Docker host         │
+└─────────────────────────────────────────────────────────────┘
+                              │
+                              ▼
+┌─────────────────────────────────────────────────────────────┐
+│  2. CHECK                                                   │
+│     Compares local image digests with remote registry       │
+│     (Docker Hub, GHCR, private registries, etc.)            │
+└─────────────────────────────────────────────────────────────┘
+                              │
+                              ▼
+┌─────────────────────────────────────────────────────────────┐
+│  3. UPDATE                                                  │
+│     If newer version exists:                                │
+│     • Pull new image                                        │
+│     • Stop container gracefully                             │
+│     • Recreate with same settings                           │
+│     • Start new container                                   │
+└─────────────────────────────────────────────────────────────┘
+                              │
+                              ▼
+┌─────────────────────────────────────────────────────────────┐
+│  4. CLEANUP                                                 │
+│     Removes old/dangling images to save disk space          │
+└─────────────────────────────────────────────────────────────┘
+```
+
+---
+
+## ⚙️ Environment Variables Reference
+
+All configuration can be done via environment variables. These override any config file settings.
+
+### Scheduling
+
+| Variable | Default | Description |
+|----------|---------|-------------|
+| `HARBORBUDDY_INTERVAL` | `30m` | How often to check for updates. **Examples:** `15m`, `1h`, `6h`, `24h` |
+| `HARBORBUDDY_SCHEDULE_TIME` | *(empty)* | Run updates at a specific time daily (24-hour format). **Examples:** `03:00`, `14:30` |
+| `HARBORBUDDY_TIMEZONE` | `UTC` | Timezone for scheduled updates. Also supports standard `TZ` variable. **Examples:** `America/New_York`, `Europe/London`, `Asia/Tokyo` |
+| `TZ` | *(system)* | Standard Docker timezone variable. `HARBORBUDDY_TIMEZONE` takes priority if both are set. |
+
+> **Note:** If `HARBORBUDDY_SCHEDULE_TIME` is set, it overrides `HARBORBUDDY_INTERVAL`. The update will run once per day at the specified time.
+
+### Behavior
+
+| Variable | Default | Possible Values | Description |
+|----------|---------|-----------------|-------------|
+| `HARBORBUDDY_DRY_RUN` | `false` | `true`, `false` | Preview mode. Logs what would be updated without making changes. Great for testing! |
+| `HARBORBUDDY_UPDATES_ENABLED` | `true` | `true`, `false` | Enable/disable container updates. Set to `false` to only run cleanup. |
+| `HARBORBUDDY_CLEANUP_ENABLED` | `true` | `true`, `false` | Enable/disable automatic cleanup of old images. |
+| `HARBORBUDDY_STOP_TIMEOUT` | `10s` | Duration (e.g., `30s`, `1m`) | How long to wait for containers to stop gracefully before force-killing. |
+
+### Logging
+
+| Variable | Default | Possible Values | Description |
+|----------|---------|-----------------|-------------|
+| `HARBORBUDDY_LOG_LEVEL` | `info` | `debug`, `info`, `warn`, `error` | Verbosity of logs. Use `debug` for troubleshooting. |
+| `HARBORBUDDY_LOG_JSON` | `false` | `true`, `false` | Output logs in JSON format for log aggregators (ELK, Splunk, Loki). |
+| `HARBORBUDDY_LOG_FILE` | *(auto)* | Absolute path | Custom log file path. Default: `/logs/harborbuddy.log` if `/logs` is mounted. |
+| `HARBORBUDDY_LOG_MAX_SIZE` | `10` | Integer (MB) | Maximum log file size before rotation. |
+| `HARBORBUDDY_LOG_MAX_BACKUPS` | `1` | Integer | Number of rotated log files to keep. |
+
+### Docker Connection
+
+| Variable | Default | Description |
+|----------|---------|-------------|
+| `HARBORBUDDY_DOCKER_HOST` | `unix:///var/run/docker.sock` | Docker socket path. For remote Docker: `tcp://hostname:2376` |
+
+---
+
+## 🏷️ Container Labels
+
+Use Docker labels to control which containers get updated.
+
+### Exclude a Container from Updates
+
+Add this label to any container you don't want HarborBuddy to update:
 
 ```yaml
 labels:
   com.harborbuddy.autoupdate: "false"
 ```
 
-**Example:**
+### Full Example
 
 ```yaml
 services:
-  # This container will Auto-Update
-  my-app:
-    image: my-app:latest
+  # This container WILL be auto-updated (default behavior)
+  nginx:
+    image: nginx:latest
+    container_name: nginx
 
-  # This container will NEVER update
-  postgres:
-    image: postgres:15
+  # This container will NOT be auto-updated
+  mysql:
+    image: mysql:8
+    container_name: mysql
+    labels:
+      com.harborbuddy.autoupdate: "false"
+
+  # Protect HarborBuddy from updating itself
+  harborbuddy:
+    image: ghcr.io/mikeo7/harborbuddy:latest
+    container_name: harborbuddy
     labels:
       com.harborbuddy.autoupdate: "false"
 ```
 
-*Note: You should also add this label to HarborBuddy itself if you want to update it manually!*
+### What to Protect
 
-## 🔄 Self-Update
+We recommend adding the opt-out label to:
 
-HarborBuddy can update itself! If a new image version is detected, it will:
+| Container Type | Reason |
+|----------------|--------|
+| **Databases** (PostgreSQL, MySQL, MongoDB) | Major version updates may require data migration |
+| **HarborBuddy itself** | Update manually so you can review changelogs |
+| **Stateful applications** | May have upgrade procedures |
+| **Pinned versions** | Containers using specific version tags (e.g., `app:1.2.3`) |
 
-1.  Spawn a temporary helper container.
-2.  Gracefully stop the current HarborBuddy instance.
-3.  Replace it with the new version.
-4.  Remove the helper container.
+---
 
-This process is automatic and ensures zero conflict or "zombie" processes. It preserves your Docker Compose project names and labels, so your stack remains intact.
+## 📁 Configuration File (Advanced)
 
-## ⚙️ Configuration
+For complex setups, you can use a YAML configuration file instead of (or in addition to) environment variables.
 
-HarborBuddy is highly configurable via Environment Variables.
+### Create `harborbuddy.yml`:
 
-| Variable | Default | Description |
-|----------|---------|-------------|
-| `HARBORBUDDY_INTERVAL` | `30m` | How often to check for updates (e.g., `15m`, `1h`, `6h`, `24h`). |
-| `HARBORBUDDY_SCHEDULE_TIME` | `""` | Specific time to run daily (HH:MM, e.g., `03:00`). Overrides interval. |
-| `HARBORBUDDY_TIMEZONE` | `UTC` | Timezone for the schedule (e.g., `America/Los_Angeles`). |
-| `HARBORBUDDY_DRY_RUN` | `false` | If `true`, logs what *would* happen but makes no changes. Great for testing! |
-| `HARBORBUDDY_LOG_LEVEL` | `info` | Control log detail (`debug`, `info`, `warn`, `error`). |
-| `HARBORBUDDY_LOG_JSON` | `false` | Output logs in JSON format for tools like Splunk/ELK. |
+```yaml
+# Image filtering - control what gets updated
+updates:
+  # Never update these images (wildcards supported)
+  deny_images:
+    - "postgres:*"
+    - "mysql:*"
+    - "redis:*"
+  
+  # Only update these images (default: all)
+  # allow_images:
+  #   - "nginx:*"
+  #   - "my-app:*"
 
-### Advanced Configuration (File Based)
+# Cleanup settings
+cleanup:
+  enabled: true
+  min_age_hours: 24      # Only delete images older than 24 hours
+  dangling_only: true    # Only remove untagged images
 
-For complex setups (like "Update `nginx` but never `mysql`"), you can use a `harborbuddy.yml` file.
+# Logging
+log:
+  level: info
+  json: false
+```
 
-1. Create a config file `harborbuddy.yml`:
-   ```yaml
-   updates:
-     deny_images:
-       - "postgres:*"
-       - "mysql:*"
-   cleanup:
-     min_age_hours: 24  # Only delete images older than 24h
-   ```
+### Mount the config file:
 
-2. Mount it into the container:
-   ```yaml
-   volumes:
-     - ./harborbuddy.yml:/config/harborbuddy.yml:ro
-   ```
-   
-   ## 📝 Logs & Persistence
-   
-   HarborBuddy writes logs relative to the container. To persist logs, simply mount a volume to `/logs` OR `/config`:
-   
-   ```yaml
-   volumes:
-     - ./logs:/logs
-     # OR
-     - ./config:/config
-   ```
-   
-   **That's it!** HarborBuddy detects the volume and automatically:
-   1.  Writes logs to `/logs/harborbuddy.log` (or `/config/harborbuddy.log`).
-   2.  **Rotates** the log when it reaches 10MB.
-   3.  **Cleans up** old logs, keeping only 1 backup to save space.
-   
-   You can customize this behavior using environment variables:
-   -   `HARBORBUDDY_LOG_FILE`: Custom path (default: `/logs/harborbuddy.log` if volume exists)
-   -   `HARBORBUDDY_LOG_MAX_SIZE`: Max size in MB (default: 10)
+```yaml
+services:
+  harborbuddy:
+    image: ghcr.io/mikeo7/harborbuddy:latest
+    volumes:
+      - /var/run/docker.sock:/var/run/docker.sock
+      - ./harborbuddy.yml:/config/harborbuddy.yml:ro
+```
 
-   #### Docker-Style Config (Recommended)
-   You can also use the standard Docker `logging` format in `harborbuddy.yml`:
-   ```yaml
-   logging:
-     driver: json-file
-     options:
-       max-size: "50m"
-       max-file: "3"
-   ```
-   
-## ❓ FAQ
+> **Priority:** Environment variables always override config file settings.
 
-**Q: Will this restart my containers?**
-A: Yes. To apply a Docker image update, the container must be recreated. HarborBuddy does this quickly to minimize downtime.
+---
 
-**Q: Does it support private registries?**
-A: Yes! As long as the host machine has credentials (e.g., you ran `docker login`), HarborBuddy can pull the images.
+## 📝 Logging & Persistence
 
-**Q: Is it safe for production?**
-A: Yes, but for critical production databases, we strictly recommend using specific version tags (e.g., `postgres:14.5` instead of `latest`) and using the **Opt-Out label** described above.
+### Enable Persistent Logs
 
-**Q: How do I see what it's doing?**
-A: Check the logs! `docker logs -f harborbuddy`. We use clear visual indicators (🚀, ✅, 🗑️) to make it easy to see exactly what's happening at a glance.
+Mount a volume to save logs to your host system:
+
+```yaml
+volumes:
+  - ./logs:/logs
+```
+
+HarborBuddy will automatically:
+- Write logs to `/logs/harborbuddy.log`
+- Rotate logs when they reach 10MB
+- Keep 1 backup file
+
+### View Logs
+
+```bash
+# Stream live logs
+docker logs -f harborbuddy
+
+# View the log file (if volume mounted)
+tail -f ./logs/harborbuddy.log
+```
+
+### JSON Logs for Log Aggregators
+
+For Elasticsearch, Loki, Splunk, or other log aggregators:
+
+```yaml
+environment:
+  - HARBORBUDDY_LOG_JSON=true
+```
+
+Output format:
+
+```json
+{"level":"info","time":"2024-01-15T03:00:00Z","msg":"Update check starting","containers":12}
+{"level":"info","time":"2024-01-15T03:00:05Z","msg":"Updated container","container":"nginx","old_image":"abc123","new_image":"def456"}
+```
+
+---
+
+## 🔐 Private Registries
+
+HarborBuddy uses your Docker host's credentials to access private registries.
+
+### Setup
+
+1. Log in to your registry on the Docker host:
+
+```bash
+docker login ghcr.io
+docker login registry.example.com
+```
+
+2. HarborBuddy will automatically use these credentials when pulling images.
+
+### For Docker Compose
+
+If running HarborBuddy in Docker Compose, mount your Docker config:
+
+```yaml
+volumes:
+  - /var/run/docker.sock:/var/run/docker.sock
+  # Optional: Mount Docker config for private registry auth
+  - ~/.docker/config.json:/root/.docker/config.json:ro
+```
+
+---
+
+## 🔄 Self-Update Feature
+
+HarborBuddy can update itself! When a new version is detected, it:
+
+1. Creates a temporary helper container
+2. Gracefully stops the current HarborBuddy instance
+3. Replaces it with the new version
+4. Cleans up the helper container
+
+**To prevent self-updates** (recommended for production):
+
+```yaml
+labels:
+  com.harborbuddy.autoupdate: "false"
+```
+
+---
+
+## ❓ Frequently Asked Questions
+
+<details>
+<summary><b>Will this restart my containers?</b></summary>
+
+Yes. To apply a Docker image update, the container must be recreated. HarborBuddy does this quickly to minimize downtime. The container is stopped gracefully (respecting your `stop_grace_period`), then recreated with identical settings.
+
+</details>
+
+<details>
+<summary><b>Does it work with Docker Swarm or Kubernetes?</b></summary>
+
+HarborBuddy is designed for standalone Docker hosts. For Kubernetes, consider tools like [Renovate](https://github.com/renovatebot/renovate) or [Keel](https://keel.sh/). Docker Swarm support may come in future versions.
+
+</details>
+
+<details>
+<summary><b>Is it safe for production databases?</b></summary>
+
+We recommend **excluding databases** from auto-updates using the `com.harborbuddy.autoupdate: "false"` label. Database major version upgrades often require migration steps that HarborBuddy cannot handle.
+
+</details>
+
+<details>
+<summary><b>How do I check what HarborBuddy is doing?</b></summary>
+
+```bash
+docker logs -f harborbuddy
+```
+
+The logs use clear visual indicators:
+- 🔍 Checking for updates
+- 🚀 Updating a container
+- ✅ Update complete
+- 🗑️ Cleaning up old images
+
+</details>
+
+<details>
+<summary><b>What happens if an update fails?</b></summary>
+
+If HarborBuddy can't pull an image or start a container, it logs the error and continues with other containers. Your existing container remains running.
+
+</details>
+
+<details>
+<summary><b>Can I update containers on a remote Docker host?</b></summary>
+
+Yes! Use the `HARBORBUDDY_DOCKER_HOST` environment variable:
+
+```yaml
+environment:
+  - HARBORBUDDY_DOCKER_HOST=tcp://192.168.1.100:2376
+```
+
+</details>
+
+<details>
+<summary><b>How is this different from Watchtower?</b></summary>
+
+HarborBuddy is a modern, lightweight alternative to Watchtower with:
+- Smaller image size (~10MB)
+- Scheduled updates (not just intervals)
+- Built-in image cleanup
+- Self-update capability
+- Written in Go with extensive tests
+
+</details>
+
+---
 
 ## 🤝 Contributing
 
-We welcome contributions from everyone!
+We welcome contributions!
 
 - 🐛 [Report a Bug](https://github.com/MikeO7/HarborBuddy/issues)
 - 💡 [Request a Feature](https://github.com/MikeO7/HarborBuddy/issues)
 - 👩‍💻 [Submit a Pull Request](CONTRIBUTING.md)
 
-## 🛠️ Development & Testing
-
-HarborBuddy is built with robust testing in mind (>90% code coverage).
-
-### Running Tests
-To run the full test suite:
+### Development
 
 ```bash
+# Run tests
 make test
 # OR
 go test ./...
+
+# Build locally
+make build
 ```
 
+---
 
 ## 📄 License
 
 HarborBuddy is open-source software licensed under the [MIT License](LICENSE).
+
+---
+
+<p align="center">
+  <b>Keep your containers fresh with HarborBuddy ⚓️</b>
+  <br>
+  <a href="https://github.com/MikeO7/HarborBuddy">GitHub</a> •
+  <a href="https://github.com/MikeO7/HarborBuddy/issues">Issues</a> •
+  <a href="CHANGELOG.md">Changelog</a>
+</p>
