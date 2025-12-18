@@ -74,7 +74,7 @@ func Default() Config {
 		Updates: UpdatesConfig{
 			Enabled:       true,
 			UpdateAll:     true,
-			CheckInterval: 30 * time.Minute,
+			CheckInterval: 12 * time.Hour,
 			ScheduleTime:  "", // Empty means use CheckInterval
 			Timezone:      "UTC",
 			DryRun:        false,

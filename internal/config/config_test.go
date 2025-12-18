@@ -22,7 +22,7 @@ func TestDefault(t *testing.T) {
 		{"docker tls", cfg.Docker.TLS, false, "Docker.TLS"},
 		{"updates enabled", cfg.Updates.Enabled, true, "Updates.Enabled"},
 		{"update all", cfg.Updates.UpdateAll, true, "Updates.UpdateAll"},
-		{"check interval", cfg.Updates.CheckInterval, 30 * time.Minute, "Updates.CheckInterval"},
+		{"check interval", cfg.Updates.CheckInterval, 12 * time.Hour, "Updates.CheckInterval"},
 		{"dry run", cfg.Updates.DryRun, false, "Updates.DryRun"},
 		{"cleanup enabled", cfg.Cleanup.Enabled, true, "Cleanup.Enabled"},
 		{"min age hours", cfg.Cleanup.MinAgeHours, 24, "Cleanup.MinAgeHours"},

@@ -56,15 +56,15 @@ Run it:
 docker compose up -d
 ```
 
-**That's it!** HarborBuddy now checks for updates every 30 minutes and updates all your containers automatically.
+**That's it!** HarborBuddy now checks for updates every 12 hours and updates all your containers automatically.
 
 ---
 
 ## 📦 Docker Compose Examples
 
-### 1. Basic Setup (Update Every 30 Minutes)
+### 1. Basic Setup (Update Every 12 Hours)
 
-The simplest setup—checks for updates every 30 minutes:
+The simplest setup—checks for updates every 12 hours (default):
 
 ```yaml
 services:
@@ -75,7 +75,7 @@ services:
     volumes:
       - /var/run/docker.sock:/var/run/docker.sock
     environment:
-      - HARBORBUDDY_INTERVAL=30m
+      - HARBORBUDDY_INTERVAL=12h
 ```
 
 ---
@@ -120,9 +120,7 @@ services:
       - TZ=America/Los_Angeles
       - HARBORBUDDY_SCHEDULE_TIME=03:00
       - HARBORBUDDY_LOG_LEVEL=info
-    labels:
-      # Prevent HarborBuddy from updating itself
-      com.harborbuddy.autoupdate: "false"
+
 
   # Plex - WILL be auto-updated
   plex:
@@ -171,8 +169,7 @@ services:
       - HARBORBUDDY_SCHEDULE_TIME=03:00
       - HARBORBUDDY_LOG_LEVEL=info
       - HARBORBUDDY_LOG_JSON=true
-    labels:
-      com.harborbuddy.autoupdate: "false"
+
 ```
 
 ---
@@ -251,7 +248,7 @@ All configuration can be done via environment variables. These override any conf
 
 | Variable | Default | Description |
 |----------|---------|-------------|
-| `HARBORBUDDY_INTERVAL` | `30m` | How often to check for updates. **Examples:** `15m`, `1h`, `6h`, `24h` |
+| `HARBORBUDDY_INTERVAL` | `12h` | How often to check for updates. **Examples:** `1h`, `6h`, `12h`, `24h` |
 | `HARBORBUDDY_SCHEDULE_TIME` | *(empty)* | Run updates at a specific time daily (24-hour format). **Examples:** `03:00`, `14:30` |
 | `HARBORBUDDY_TIMEZONE` | `UTC` | Timezone for scheduled updates. Also supports standard `TZ` variable. **Examples:** `America/New_York`, `Europe/London`, `Asia/Tokyo` |
 | `TZ` | *(system)* | Standard Docker timezone variable. `HARBORBUDDY_TIMEZONE` takes priority if both are set. |
@@ -314,12 +311,10 @@ services:
     labels:
       com.harborbuddy.autoupdate: "false"
 
-  # Protect HarborBuddy from updating itself
+  # HarborBuddy updates itself by default!
   harborbuddy:
     image: ghcr.io/mikeo7/harborbuddy:latest
     container_name: harborbuddy
-    labels:
-      com.harborbuddy.autoupdate: "false"
 ```
 
 ### What to Protect
@@ -329,7 +324,6 @@ We recommend adding the opt-out label to:
 | Container Type | Reason |
 |----------------|--------|
 | **Databases** (PostgreSQL, MySQL, MongoDB) | Major version updates may require data migration |
-| **HarborBuddy itself** | Update manually so you can review changelogs |
 | **Stateful applications** | May have upgrade procedures |
 | **Pinned versions** | Containers using specific version tags (e.g., `app:1.2.3`) |
 
@@ -456,14 +450,16 @@ volumes:
 
 ## 🔄 Self-Update Feature
 
-HarborBuddy can update itself! When a new version is detected, it:
+HarborBuddy includes a robust **Self-Update** feature. When a new version of HarborBuddy is released, it detects the update and:
 
-1. Creates a temporary helper container
-2. Gracefully stops the current HarborBuddy instance
-3. Replaces it with the new version
-4. Cleans up the helper container
+1.  Spawns a temporary "updater" container.
+2.  Gracefully stops the running HarborBuddy instance.
+3.  Recreates HarborBuddy with the new image version.
+4.  Cleans up the temporary updater.
 
-**To prevent self-updates** (recommended for production):
+This ensures you're always running the latest version with new features and bug fixes without manual intervention 🚀.
+
+**If you prefer to update manually**, you can opt-out:
 
 ```yaml
 labels:

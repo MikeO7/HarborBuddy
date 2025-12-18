@@ -18,7 +18,7 @@ updates:
                                         # Note: TZ environment variable can also be used (Docker standard)
   
   # Alternative: Use interval-based updates instead of scheduled time
-  # check_interval: "30m"               # How often to check for updates (Go duration format: 30m, 1h, 6h)
+  # check_interval: "12h"               # How often to check for updates (Go duration format: 1h, 6h, 12h, 24h)
                                         # If schedule_time is set, it takes priority over check_interval
   
   dry_run: false                        # If true, only log what would be updated without making changes

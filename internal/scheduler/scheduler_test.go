@@ -29,7 +29,7 @@ func TestRunCycle(t *testing.T) {
 				Updates: config.UpdatesConfig{
 					Enabled:       true,
 					UpdateAll:     true,
-					CheckInterval: 30 * time.Minute,
+					CheckInterval: 12 * time.Hour,
 					DryRun:        false,
 					AllowImages:   []string{"*"},
 					DenyImages:    []string{},
@@ -62,7 +62,7 @@ func TestRunCycle(t *testing.T) {
 				Updates: config.UpdatesConfig{
 					Enabled:       true,
 					UpdateAll:     true,
-					CheckInterval: 30 * time.Minute,
+					CheckInterval: 12 * time.Hour,
 					DryRun:        false,
 					AllowImages:   []string{"*"},
 					DenyImages:    []string{},
