@@ -500,6 +500,7 @@ func TestUpdateContainer_Errors(t *testing.T) {
 
 	t.Run("CreateContainerLike error", func(t *testing.T) {
 		mockClient := docker.NewMockDockerClient()
+		mockClient.Containers = []docker.ContainerInfo{container}
 		mockClient.CreateContainerError = fmt.Errorf("name conflict")
 
 		err := updateContainer(ctx, cfg, mockClient, container, logger)
@@ -512,6 +513,7 @@ func TestUpdateContainer_Errors(t *testing.T) {
 
 	t.Run("ReplaceContainer error", func(t *testing.T) {
 		mockClient := docker.NewMockDockerClient()
+		mockClient.Containers = []docker.ContainerInfo{container}
 		mockClient.ReplaceContainerError = fmt.Errorf("network error")
 
 		err := updateContainer(ctx, cfg, mockClient, container, logger)
@@ -524,6 +526,7 @@ func TestUpdateContainer_Errors(t *testing.T) {
 
 	t.Run("ReplaceContainer warning (non-fatal)", func(t *testing.T) {
 		mockClient := docker.NewMockDockerClient()
+		mockClient.Containers = []docker.ContainerInfo{container}
 		// Mock a warning by returning an error starting with "warning"
 		// This simulates the behavior documented in internal/updater/updater.go:306
 		mockClient.ReplaceContainerError = fmt.Errorf("warning: could not remove old container")

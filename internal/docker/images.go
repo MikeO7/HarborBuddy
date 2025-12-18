@@ -6,6 +6,7 @@ import (
 	"io"
 	"time"
 
+	"github.com/docker/docker/api/types/container"
 	"github.com/docker/docker/api/types/filters"
 	"github.com/docker/docker/api/types/image"
 )
@@ -32,12 +33,61 @@ func (d *DockerClient) PullImage(ctx context.Context, imageName string) (ImageIn
 
 	createdAt, _ := time.Parse(time.RFC3339Nano, inspect.Created)
 
+	// Convert ImageConfig to container.Config
+	var imageConfig *container.Config
+	if inspect.Config != nil {
+		imageConfig = &container.Config{
+			User:       inspect.Config.User,
+			Env:        inspect.Config.Env,
+			Entrypoint: inspect.Config.Entrypoint,
+			Cmd:        inspect.Config.Cmd,
+			WorkingDir: inspect.Config.WorkingDir,
+			Labels:     inspect.Config.Labels,
+			StopSignal: inspect.Config.StopSignal,
+		}
+	}
+
 	return ImageInfo{
 		ID:        inspect.ID,
 		RepoTags:  inspect.RepoTags,
 		Dangling:  len(inspect.RepoTags) == 0,
 		CreatedAt: createdAt,
 		Size:      inspect.Size,
+		Config:    imageConfig,
+	}, nil
+}
+
+// InspectImage returns detailed information about an image
+// This is essentially same as PullImage's internal inspect but exposed directly
+func (d *DockerClient) InspectImage(ctx context.Context, imageName string) (ImageInfo, error) {
+	inspect, _, err := d.cli.ImageInspectWithRaw(ctx, imageName)
+	if err != nil {
+		return ImageInfo{}, fmt.Errorf("failed to inspect image %s: %w", imageName, err)
+	}
+
+	createdAt, _ := time.Parse(time.RFC3339Nano, inspect.Created)
+
+	// Convert ImageConfig to container.Config
+	var imageConfig *container.Config
+	if inspect.Config != nil {
+		imageConfig = &container.Config{
+			User:       inspect.Config.User,
+			Env:        inspect.Config.Env,
+			Entrypoint: inspect.Config.Entrypoint,
+			Cmd:        inspect.Config.Cmd,
+			WorkingDir: inspect.Config.WorkingDir,
+			Labels:     inspect.Config.Labels,
+			StopSignal: inspect.Config.StopSignal,
+		}
+	}
+
+	return ImageInfo{
+		ID:        inspect.ID,
+		RepoTags:  inspect.RepoTags,
+		Dangling:  len(inspect.RepoTags) == 0,
+		CreatedAt: createdAt,
+		Size:      inspect.Size,
+		Config:    imageConfig,
 	}, nil
 }
 

@@ -119,6 +119,27 @@ func (d *DockerClient) RemoveContainer(ctx context.Context, id string) error {
 
 // CreateContainerLike creates a new container with the same configuration as the old one but with a new image
 func (d *DockerClient) CreateContainerLike(ctx context.Context, old ContainerInfo, newImage string) (string, error) {
+	// Inspect the old image to detect default configuration
+	// We want to avoid "locking in" the old image's defaults if the user didn't explicitly set them.
+	// If the current config matches the old image's config, we assume it's a default and let the new image decide.
+	oldImage, err := d.InspectImage(ctx, old.ImageID)
+	// If we fail to inspect the old image (e.g. it was deleted), we fall back to blind copy (err is logged but ignored for flow)
+	// effectively preserving old behavior.
+
+	cmd := old.Config.Cmd
+	entrypoint := old.Config.Entrypoint
+
+	if err == nil && oldImage.Config != nil {
+		// Check Cmd
+		if slicesEqual(old.Config.Cmd, oldImage.Config.Cmd) {
+			cmd = nil // Reset to nil to use new image's default
+		}
+		// Check Entrypoint
+		if slicesEqual(old.Config.Entrypoint, oldImage.Config.Entrypoint) {
+			entrypoint = nil // Reset to nil to use new image's default
+		}
+	}
+
 	// Clone the config to avoid modifying the original
 	config := &container.Config{
 		Hostname:        old.Config.Hostname,
@@ -132,11 +153,11 @@ func (d *DockerClient) CreateContainerLike(ctx context.Context, old ContainerInf
 		OpenStdin:       old.Config.OpenStdin,
 		StdinOnce:       old.Config.StdinOnce,
 		Env:             old.Config.Env,
-		Cmd:             old.Config.Cmd,
+		Cmd:             cmd,
 		Image:           newImage, // Use the new image
 		Volumes:         old.Config.Volumes,
 		WorkingDir:      old.Config.WorkingDir,
-		Entrypoint:      old.Config.Entrypoint,
+		Entrypoint:      entrypoint,
 		NetworkDisabled: old.Config.NetworkDisabled,
 		MacAddress:      old.Config.MacAddress,
 		OnBuild:         old.Config.OnBuild,
@@ -259,4 +280,17 @@ func (d *DockerClient) CreateHelperContainer(ctx context.Context, original Conta
 	}
 
 	return resp.ID, nil
+}
+
+// slicesEqual compares two string slices for equality
+func slicesEqual(a, b []string) bool {
+	if len(a) != len(b) {
+		return false
+	}
+	for i := range a {
+		if a[i] != b[i] {
+			return false
+		}
+	}
+	return true
 }

@@ -311,10 +311,17 @@ func checkForUpdate(ctx context.Context, dockerClient docker.Client, container d
 
 // updateContainer updates a container with a new image
 func updateContainer(ctx context.Context, cfg config.Config, dockerClient docker.Client, container docker.ContainerInfo, logger *zerolog.Logger) error {
-	logger.Info().Msgf("Stopping container %s", container.Name)
+	// We need full container info (Config, HostConfig, etc.) which ListContainers doesn't provide
+	// So we inspect the container first
+	fullContainer, err := dockerClient.InspectContainer(ctx, container.ID)
+	if err != nil {
+		return fmt.Errorf("failed to inspect container for update: %w", err)
+	}
+
+	logger.Info().Msgf("Stopping container %s", fullContainer.Name)
 
 	// Create new container with updated image
-	newID, err := dockerClient.CreateContainerLike(ctx, container, container.Image)
+	newID, err := dockerClient.CreateContainerLike(ctx, fullContainer, fullContainer.Image)
 	if err != nil {
 		return fmt.Errorf("failed to create new container: %w", err)
 	}

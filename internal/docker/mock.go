@@ -135,6 +135,35 @@ func (m *MockDockerClient) PullImage(ctx context.Context, image string) (ImageIn
 	}, nil
 }
 
+// InspectImage simulates inspecting an image
+func (m *MockDockerClient) InspectImage(ctx context.Context, image string) (ImageInfo, error) {
+	m.mu.Lock()
+	defer m.mu.Unlock()
+
+	// Use standard pull logic to find/create the image
+	// Real implementation calls ImageInspectWithRaw
+	if img, ok := m.PullImageReturns[image]; ok {
+		return img, nil
+	}
+
+	// Iterate through Images slice ??
+	for _, img := range m.Images {
+		for _, tag := range img.RepoTags {
+			if tag == image {
+				return img, nil
+			}
+		}
+		if img.ID == image {
+			return img, nil
+		}
+	}
+
+	return ImageInfo{
+		ID:       "sha256:new-" + image,
+		RepoTags: []string{image},
+	}, nil
+}
+
 // ListImages returns the configured images
 func (m *MockDockerClient) ListImages(ctx context.Context) ([]ImageInfo, error) {
 	m.mu.Lock()

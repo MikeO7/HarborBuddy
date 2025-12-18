@@ -25,6 +25,7 @@ type Client interface {
 	CreateHelperContainer(ctx context.Context, original ContainerInfo, image, name string, cmd []string) (string, error)
 
 	// Image functions
+	InspectImage(ctx context.Context, image string) (ImageInfo, error)
 	ListDanglingImages(ctx context.Context) ([]ImageInfo, error)
 }
 

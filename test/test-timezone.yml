@@ -1,0 +1,17 @@
+services:
+  harborbuddy:
+    build:
+      context: ..
+      dockerfile: Dockerfile
+    container_name: harborbuddy-test
+    volumes:
+      - /var/run/docker.sock:/var/run/docker.sock:ro
+    environment:
+      - TZ=Europe/London
+      - HARBORBUDDY_SCHEDULE_TIME=09:00
+      - HARBORBUDDY_DRY_RUN=true
+      - HARBORBUDDY_LOG_LEVEL=info
+    labels:
+      com.harborbuddy.autoupdate: "false"
+      com.harborbuddy.test: "true"
+    command: ["--once", "--dry-run", "--log-level", "info"]
