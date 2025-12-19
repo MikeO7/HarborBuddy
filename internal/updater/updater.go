@@ -120,21 +120,25 @@ func RunUpdateCycle(ctx context.Context, cfg config.Config, dockerClient docker.
 			return err
 		}
 
+		// Determine eligibility
+		decision := DetermineEligibility(container, cfg.Updates)
+
+		if !decision.Eligible {
+			// Optimization: Avoid creating a child logger just to skip
+			logger.Debug().
+				Str("container_id", shortID(container.ID)).
+				Str("container_name", container.Name).
+				Msgf("Skipping container: %s", decision.Reason)
+			skippedCount++
+			continue
+		}
+
 		// Create contextual logger for this container
 		containerLogger := logger.With().
 			Str("container_id", shortID(container.ID)).
 			Str("container_name", container.Name).
 			Logger()
 		containerLoggerPtr := &containerLogger
-
-		// Determine eligibility
-		decision := DetermineEligibility(container, cfg.Updates)
-
-		if !decision.Eligible {
-			containerLogger.Debug().Msgf("Skipping container: %s", decision.Reason)
-			skippedCount++
-			continue
-		}
 
 		wg.Add(1)
 		go func(c docker.ContainerInfo, l *zerolog.Logger) {
