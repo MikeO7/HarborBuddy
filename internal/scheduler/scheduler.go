@@ -126,7 +126,11 @@ func calculateNextRun(now time.Time, scheduleTime string, location *time.Locatio
 
 	// If the scheduled time has already passed today, schedule for tomorrow
 	if nextRun.Before(now) || nextRun.Equal(now) {
-		nextRun = nextRun.Add(24 * time.Hour)
+		nextRun = time.Date(
+			now.Year(), now.Month(), now.Day()+1,
+			scheduledTime.Hour(), scheduledTime.Minute(), 0, 0,
+			location,
+		)
 	}
 
 	return nextRun
