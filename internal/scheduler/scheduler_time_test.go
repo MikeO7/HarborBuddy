@@ -20,12 +20,12 @@ func TestCalculateNextRun_ExtendedEdgeCases(t *testing.T) {
 	ny := loadLoc("America/New_York")
 
 	tests := []struct {
-		name          string
-		nowStr        string         // Format: "2006-01-02 15:04:05"
-		location      *time.Location
-		scheduleTime  string         // Format: "15:04"
-		wantNextStr   string         // Format: "2006-01-02 15:04:05" (in loc)
-		description   string
+		name         string
+		nowStr       string // Format: "2006-01-02 15:04:05"
+		location     *time.Location
+		scheduleTime string // Format: "15:04"
+		wantNextStr  string // Format: "2006-01-02 15:04:05" (in loc)
+		description  string
 	}{
 		// --- Leap Year Tests ---
 		{
@@ -96,8 +96,8 @@ func TestCalculateNextRun_ExtendedEdgeCases(t *testing.T) {
 			location:     ny,
 			scheduleTime: "01:30",
 			// Go usually picks the first one (EDT, offset -0400)
-			wantNextStr:  "2023-11-05 01:30:00",
-			description:  "Scheduling in the ambiguous hour (01:30) should pick a valid time",
+			wantNextStr: "2023-11-05 01:30:00",
+			description: "Scheduling in the ambiguous hour (01:30) should pick a valid time",
 		},
 	}
 
