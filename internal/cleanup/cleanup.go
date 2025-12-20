@@ -92,6 +92,11 @@ func RunCleanup(ctx context.Context, cfg config.Config, dockerClient docker.Clie
 		tagDisplay := "Dangling"
 		if len(image.RepoTags) > 0 {
 			tagDisplay = strings.Join(image.RepoTags, ", ")
+		} else {
+			// Try to get a friendly name from labels
+			if name := util.GetImageFriendlyName(image.Labels); name != "" {
+				tagDisplay = name
+			}
 		}
 		imageLogger.Info().Msgf("🗑️  Removed image %s (%s) | Reclaimed: %s", shortID(image.ID), tagDisplay, sizeStr)
 		removedCount++

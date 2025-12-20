@@ -33,5 +33,6 @@ type ImageInfo struct {
 	Dangling  bool
 	CreatedAt time.Time
 	Size      int64
+	Labels    map[string]string
 	Config    *container.Config // Config from image inspection
 }

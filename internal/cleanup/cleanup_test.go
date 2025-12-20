@@ -1,14 +1,17 @@
 package cleanup
 
 import (
+	"bytes"
 	"context"
 	"fmt"
+	"strings"
 	"testing"
 	"time"
 
 	"github.com/MikeO7/HarborBuddy/internal/config"
 	"github.com/MikeO7/HarborBuddy/internal/docker"
 	"github.com/MikeO7/HarborBuddy/pkg/log"
+	"github.com/MikeO7/HarborBuddy/pkg/util"
 	"github.com/rs/zerolog"
 )
 
@@ -541,5 +544,104 @@ func TestRunCleanup_ListImagesError_NonDangling(t *testing.T) {
 	err := RunCleanup(ctx, cfg, mockClient, &testLogger)
 	if err == nil {
 		t.Error("Expected error from ListImages")
+	}
+}
+
+func TestGetImageFriendlyName(t *testing.T) {
+	tests := []struct {
+		name     string
+		labels   map[string]string
+		expected string
+	}{
+		{
+			name:     "nil labels",
+			labels:   nil,
+			expected: "",
+		},
+		{
+			name:     "empty labels",
+			labels:   map[string]string{},
+			expected: "",
+		},
+		{
+			name: "opencontainers title",
+			labels: map[string]string{
+				"org.opencontainers.image.title": "my-app",
+			},
+			expected: "my-app",
+		},
+		{
+			name: "docker compose service",
+			labels: map[string]string{
+				"com.docker.compose.service": "web",
+			},
+			expected: "web",
+		},
+		{
+			name: "priority check",
+			labels: map[string]string{
+				"org.opencontainers.image.title": "primary",
+				"com.docker.compose.service":     "secondary",
+			},
+			expected: "primary",
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			if got := util.GetImageFriendlyName(tt.labels); got != tt.expected {
+				t.Errorf("GetImageFriendlyName() = %v, want %v", got, tt.expected)
+			}
+		})
+	}
+}
+
+func TestRunCleanup_FriendlyNames(t *testing.T) {
+	// Capture logs
+	var logBuf bytes.Buffer
+	log.Initialize(log.Config{
+		Level:  "info",
+		Output: &logBuf,
+	})
+
+	now := time.Now()
+	yesterday := now.Add(-25 * time.Hour)
+	mockClient := docker.NewMockDockerClient()
+
+	mockClient.Images = []docker.ImageInfo{
+		{
+			ID:        "sha256:dangling-friendly",
+			RepoTags:  []string{},
+			Dangling:  true,
+			CreatedAt: yesterday,
+			Labels: map[string]string{
+				"com.docker.compose.service": "my-service",
+			},
+		},
+	}
+
+	cfg := config.Config{
+		Cleanup: config.CleanupConfig{
+			Enabled:      true,
+			MinAgeHours:  24,
+			DanglingOnly: true,
+		},
+	}
+
+	testLogger := zerolog.New(&logBuf)
+	err := RunCleanup(context.Background(), cfg, mockClient, &testLogger)
+	if err != nil {
+		t.Fatalf("RunCleanup failed: %v", err)
+	}
+
+	logs := logBuf.String()
+	expected := "my-service"
+	if !strings.Contains(logs, expected) {
+		t.Errorf("Log missing friendly name: %q", expected)
+		t.Logf("Actual logs: %s", logs)
+	}
+	expectedID := shortID("sha256:dangling-friendly")
+	if !strings.Contains(logs, expectedID) {
+		t.Errorf("Log missing image ID: %q", expectedID)
 	}
 }

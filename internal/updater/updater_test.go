@@ -427,6 +427,59 @@ func TestCheckForUpdateLogging(t *testing.T) {
 	}
 }
 
+func TestCheckForUpdateLogging_FriendlyNames(t *testing.T) {
+	// Capture logs
+	var logBuf bytes.Buffer
+	log.Initialize(log.Config{
+		Level:  "info",
+		Output: &logBuf,
+	})
+
+	mockClient := docker.NewMockDockerClient()
+	ctx := context.Background()
+	cfg := config.Default()
+
+	// Setup: One container needs update
+	containerID := "container1"
+	mockClient.Containers = []docker.ContainerInfo{
+		{
+			ID:      containerID,
+			Name:    "my-container",
+			Image:   "private/image:latest",
+			ImageID: "sha256:old",
+		},
+	}
+	mockClient.PullImageReturns = map[string]docker.ImageInfo{
+		"private/image:latest": {
+			ID: "sha256:new",
+			Labels: map[string]string{
+				"org.opencontainers.image.title": "MyFriendlyApp",
+			},
+		},
+	}
+
+	// Run cycle
+	testLogger := zerolog.New(&logBuf)
+	_ = RunUpdateCycle(ctx, cfg, mockClient, &testLogger)
+
+	// Verify Log
+	logs := logBuf.String()
+	// Should see "Update found for my-container ... MyFriendlyApp"
+	// Expected format: 🚀 Update found for my-container (private/image:latest): sha256:old- -> MyFriendlyApp
+	expectedPart1 := "Update found for my-container"
+	expectedPart2 := "MyFriendlyApp"
+
+	if !strings.Contains(logs, expectedPart1) {
+		t.Errorf("Log missing container name: %q", expectedPart1)
+	}
+	if !strings.Contains(logs, expectedPart2) {
+		t.Errorf("Log missing friendly app name: %q", expectedPart2)
+	}
+	if t.Failed() {
+		t.Logf("Actual logs: %s", logs)
+	}
+}
+
 func TestIsSelf(t *testing.T) {
 	t.Log("Testing detecting self container")
 

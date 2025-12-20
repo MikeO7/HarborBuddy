@@ -53,6 +53,7 @@ func (d *DockerClient) PullImage(ctx context.Context, imageName string) (ImageIn
 		Dangling:  len(inspect.RepoTags) == 0,
 		CreatedAt: createdAt,
 		Size:      inspect.Size,
+		Labels:    inspect.Config.Labels,
 		Config:    imageConfig,
 	}, nil
 }
@@ -87,6 +88,7 @@ func (d *DockerClient) InspectImage(ctx context.Context, imageName string) (Imag
 		Dangling:  len(inspect.RepoTags) == 0,
 		CreatedAt: createdAt,
 		Size:      inspect.Size,
+		Labels:    inspect.Config.Labels,
 		Config:    imageConfig,
 	}, nil
 }
@@ -108,6 +110,7 @@ func (d *DockerClient) ListImages(ctx context.Context) ([]ImageInfo, error) {
 			Dangling:  len(img.RepoTags) == 0 || (len(img.RepoTags) == 1 && img.RepoTags[0] == "<none>:<none>"),
 			CreatedAt: time.Unix(img.Created, 0),
 			Size:      img.Size,
+			Labels:    img.Labels,
 		})
 	}
 
@@ -135,6 +138,7 @@ func (d *DockerClient) ListDanglingImages(ctx context.Context) ([]ImageInfo, err
 			Dangling:  true,
 			CreatedAt: time.Unix(img.Created, 0),
 			Size:      img.Size,
+			Labels:    img.Labels,
 		})
 	}
 

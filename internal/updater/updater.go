@@ -12,6 +12,7 @@ import (
 	"github.com/MikeO7/HarborBuddy/internal/docker"
 	"github.com/MikeO7/HarborBuddy/internal/selfupdate"
 	"github.com/MikeO7/HarborBuddy/pkg/log"
+	"github.com/MikeO7/HarborBuddy/pkg/util"
 	"github.com/rs/zerolog"
 )
 
@@ -310,7 +311,17 @@ func checkForUpdate(ctx context.Context, dockerClient docker.Client, container d
 		return false, nil
 	}
 
-	logger.Info().Msgf("🚀 Update found for %s (%s): %s -> %s", container.Name, container.Image, shortID(currentImageID), shortID(newImage.ID))
+	friendlyName := util.GetImageFriendlyName(newImage.Labels)
+	displayImg := newImage.ID
+	if friendlyName != "" {
+		displayImg = friendlyName
+	}
+	// Fallback to shortID if no friendly name but keep ID for ref
+	if friendlyName == "" {
+		displayImg = shortID(newImage.ID)
+	}
+
+	logger.Info().Msgf("🚀 Update found for %s (%s): %s -> %s", container.Name, container.Image, shortID(currentImageID), displayImg)
 	return true, nil
 }
 
@@ -342,6 +353,6 @@ func updateContainer(ctx context.Context, cfg config.Config, dockerClient docker
 		return fmt.Errorf("failed to replace container: %w", err)
 	}
 
-	logger.Info().Msgf("✅  Container replacement successful (old: %s, new: %s)", shortID(container.ID), shortID(newID))
+	logger.Info().Msgf("✅  Container replacement successful for %s (old: %s, new: %s)", container.Name, shortID(container.ID), shortID(newID))
 	return nil
 }
