@@ -420,9 +420,15 @@ func TestCheckForUpdateLogging(t *testing.T) {
 
 	// Verify Log
 	logs := logBuf.String()
-	expected := "🚀 Update found for nginx"
-	if !strings.Contains(logs, expected) {
-		t.Errorf("Log missing expected string: %q", expected)
+	// New structured format:
+	// {"level":"info","container_name":"nginx","image":"nginx:latest","current_id":"sha256:old","new_id":"sha256:new","message":"🚀 Update found"}
+	if !strings.Contains(logs, "🚀 Update found") {
+		t.Errorf("Log missing expected message: '🚀 Update found'")
+	}
+	if !strings.Contains(logs, "\"container_name\":\"nginx\"") {
+		t.Errorf("Log missing container_name field")
+	}
+	if t.Failed() {
 		t.Logf("Actual logs: %s", logs)
 	}
 }
@@ -464,16 +470,16 @@ func TestCheckForUpdateLogging_FriendlyNames(t *testing.T) {
 
 	// Verify Log
 	logs := logBuf.String()
-	// Should see "Update found for my-container ... MyFriendlyApp"
-	// Expected format: 🚀 Update found for my-container (private/image:latest): sha256:old- -> MyFriendlyApp
-	expectedPart1 := "Update found for my-container"
-	expectedPart2 := "MyFriendlyApp"
+	// Should see "Update found" and structured fields
 
-	if !strings.Contains(logs, expectedPart1) {
-		t.Errorf("Log missing container name: %q", expectedPart1)
+	if !strings.Contains(logs, "🚀 Update found") {
+		t.Errorf("Log missing message '🚀 Update found'")
 	}
-	if !strings.Contains(logs, expectedPart2) {
-		t.Errorf("Log missing friendly app name: %q", expectedPart2)
+	if !strings.Contains(logs, "\"container_name\":\"my-container\"") {
+		t.Errorf("Log missing container_name field")
+	}
+	if !strings.Contains(logs, "\"new_id\":\"MyFriendlyApp\"") {
+		t.Errorf("Log missing new_id field with friendly name")
 	}
 	if t.Failed() {
 		t.Logf("Actual logs: %s", logs)
