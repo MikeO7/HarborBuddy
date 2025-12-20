@@ -321,7 +321,12 @@ func checkForUpdate(ctx context.Context, dockerClient docker.Client, container d
 		displayImg = shortID(newImage.ID)
 	}
 
-	logger.Info().Msgf("🚀 Update found for %s (%s): %s -> %s", container.Name, container.Image, shortID(currentImageID), displayImg)
+	logger.Info().
+		Str("container_name", container.Name).
+		Str("image", container.Image).
+		Str("current_id", shortID(currentImageID)).
+		Str("new_id", displayImg).
+		Msg("🚀 Update found")
 	return true, nil
 }
 
@@ -334,7 +339,9 @@ func updateContainer(ctx context.Context, cfg config.Config, dockerClient docker
 		return fmt.Errorf("failed to inspect container for update: %w", err)
 	}
 
-	logger.Info().Msgf("Stopping container %s", fullContainer.Name)
+	logger.Info().
+		Str("container", fullContainer.Name).
+		Msg("Stopping container")
 
 	// Create new container with updated image
 	newID, err := dockerClient.CreateContainerLike(ctx, fullContainer, fullContainer.Image)
@@ -353,6 +360,10 @@ func updateContainer(ctx context.Context, cfg config.Config, dockerClient docker
 		return fmt.Errorf("failed to replace container: %w", err)
 	}
 
-	logger.Info().Msgf("✅  Container replacement successful for %s (old: %s, new: %s)", container.Name, shortID(container.ID), shortID(newID))
+	logger.Info().
+		Str("container_name", container.Name).
+		Str("old_id", shortID(container.ID)).
+		Str("new_id", shortID(newID)).
+		Msg("✅  Container replacement successful")
 	return nil
 }
