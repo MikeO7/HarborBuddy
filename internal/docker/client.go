@@ -38,6 +38,7 @@ type DockerClient struct {
 func NewClient(host string) (*DockerClient, error) {
 	opts := []client.Opt{
 		client.WithHost(host),
+		client.WithTLSClientConfigFromEnv(),
 		client.WithAPIVersionNegotiation(),
 	}
 

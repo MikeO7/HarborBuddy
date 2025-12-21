@@ -526,6 +526,23 @@ environment:
 </details>
 
 <details>
+<summary><b>Can I use a secure connection (TLS)?</b></summary>
+
+Yes! HarborBuddy respects standard Docker environment variables for TLS.
+
+```bash
+docker run -d \
+  --name harborbuddy \
+  -e HARBORBUDDY_DOCKER_HOST=tcp://192.168.1.100:2376 \
+  -e DOCKER_TLS_VERIFY=1 \
+  -e DOCKER_CERT_PATH=/certs \
+  -v /path/to/certs:/certs:ro \
+  ghcr.io/mikeo7/harborbuddy:latest
+```
+
+</details>
+
+<details>
 <summary><b>How is this different from Watchtower?</b></summary>
 
 HarborBuddy is a modern, lightweight alternative to Watchtower with:
