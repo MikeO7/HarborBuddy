@@ -245,22 +245,34 @@ func RunUpdateCycle(ctx context.Context, cfg config.Config, dockerClient docker.
 	return nil
 }
 
+var (
+	selfCheckOnce   sync.Once
+	cachedHostname  string
+	cachedCgroup    string
+	selfCheckError  error
+)
+
 // isSelf checks if the given container ID matches the current container's ID
 func isSelf(id string) (bool, error) {
-	// Try to read /etc/hostname
-	hostname, err := os.Hostname()
-	if err != nil {
-		return false, err
+	selfCheckOnce.Do(func() {
+		// Try to read /etc/hostname
+		cachedHostname, selfCheckError = os.Hostname()
+		if selfCheckError != nil {
+			return
+		}
+
+		// Try to read /proc/self/cgroup
+		data, err := os.ReadFile("/proc/self/cgroup")
+		if err == nil {
+			cachedCgroup = string(data)
+		}
+	})
+
+	if selfCheckError != nil {
+		return false, selfCheckError
 	}
 
-	// Try to read /proc/self/cgroup
-	cgroupContent := ""
-	data, err := os.ReadFile("/proc/self/cgroup")
-	if err == nil {
-		cgroupContent = string(data)
-	}
-
-	return checkIsSelf(id, hostname, cgroupContent), nil
+	return checkIsSelf(id, cachedHostname, cachedCgroup), nil
 }
 
 // checkIsSelf is the core logic for checking if we are running in the target container
