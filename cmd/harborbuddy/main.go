@@ -1,12 +1,13 @@
 package main
 
 import (
+	"context"
 	"fmt"
+	"io"
 	"os"
 	"runtime"
 	"runtime/debug"
-
-	"context"
+	"time"
 
 	"github.com/MikeO7/HarborBuddy/internal/config"
 	"github.com/MikeO7/HarborBuddy/internal/docker"
@@ -24,46 +25,82 @@ var (
 )
 
 func main() {
+	os.Exit(run(context.Background(), os.Args[1:], os.Stdout, os.Stderr))
+}
+
+type appConfig struct {
+	configPath   string
+	interval     time.Duration
+	scheduleTime string
+	timezone     string
+	once         bool
+	dryRun       bool
+	logLevel     string
+	cleanupOnly  bool
+	showVersion  bool
+	updaterMode  bool
+	targetID     string
+	newImage     string
+}
+
+func parseFlags(args []string) (*appConfig, error) {
+	fs := flag.NewFlagSet("harborbuddy", flag.ContinueOnError)
+	c := &appConfig{}
+
+	fs.StringVar(&c.configPath, "config", "/config/harborbuddy.yml", "Path to config file")
+	fs.DurationVar(&c.interval, "interval", 0, "Override update check interval (e.g., 15m, 1h)")
+	fs.StringVar(&c.scheduleTime, "schedule-time", "", "Run at specific time daily (e.g., '03:00')")
+	fs.StringVar(&c.timezone, "timezone", "", "Timezone for schedule (e.g., 'America/Los_Angeles', 'UTC')")
+	fs.BoolVar(&c.once, "once", false, "Run a single update cycle and exit")
+	fs.BoolVar(&c.dryRun, "dry-run", false, "Enable dry-run mode (no actual updates)")
+	fs.StringVar(&c.logLevel, "log-level", "", "Logging level (debug, info, warn, error)")
+	fs.BoolVar(&c.cleanupOnly, "cleanup-only", false, "Run only cleanup logic and exit")
+	fs.BoolVar(&c.showVersion, "version", false, "Show version and exit")
+
+	// Internal flags for self-update mechanism
+	fs.BoolVar(&c.updaterMode, "updater-mode", false, "Internal: Run in updater helper mode")
+	fs.StringVar(&c.targetID, "target-container-id", "", "Internal: ID of the container to update")
+	fs.StringVar(&c.newImage, "new-image-id", "", "Internal: ID/Name of the new image")
+
+	// Don't silence usage entirely, but let main print the error
+	fs.Usage = func() {
+		// Use standard usage printer but to the output set in fs (stderr by default)
+		fmt.Fprintf(os.Stderr, "Usage of harborbuddy:\n")
+		fs.PrintDefaults()
+	}
+
+	if err := fs.Parse(args); err != nil {
+		return nil, err
+	}
+	return c, nil
+}
+
+func run(ctx context.Context, args []string, stdout, stderr io.Writer) int {
 	// Panic recovery to ensure logs are flushed and errors captured
 	defer func() {
 		if r := recover(); r != nil {
 			log.Error(fmt.Sprintf("PANIC: %v\nStack Trace:\n%s", r, debug.Stack()))
-			os.Exit(1)
 		}
 	}()
 
-	// Define CLI flags
-	configPath := flag.String("config", "/config/harborbuddy.yml", "Path to config file")
-	interval := flag.Duration("interval", 0, "Override update check interval (e.g., 15m, 1h)")
-	scheduleTime := flag.String("schedule-time", "", "Run at specific time daily (e.g., '03:00')")
-	timezone := flag.String("timezone", "", "Timezone for schedule (e.g., 'America/Los_Angeles', 'UTC')")
-	once := flag.Bool("once", false, "Run a single update cycle and exit")
-	dryRun := flag.Bool("dry-run", false, "Enable dry-run mode (no actual updates)")
-	logLevel := flag.String("log-level", "", "Logging level (debug, info, warn, error)")
-	cleanupOnly := flag.Bool("cleanup-only", false, "Run only cleanup logic and exit")
-	showVersion := flag.Bool("version", false, "Show version and exit")
+	opts, err := parseFlags(args)
+	if err != nil {
+		fmt.Fprintf(stderr, "Error parsing flags: %v\n", err)
+		return 1
+	}
 
-	// Internal flags for self-update mechanism
-	updaterMode := flag.Bool("updater-mode", false, "Internal: Run in updater helper mode")
-	targetID := flag.String("target-container-id", "", "Internal: ID of the container to update")
-	newImage := flag.String("new-image-id", "", "Internal: ID/Name of the new image")
-
-	flag.Parse()
-
-	flag.Parse()
-
-	if *showVersion {
-		fmt.Printf("HarborBuddy version %s (commit: %s, %s/%s)\n", version, commit, runtime.GOOS, runtime.GOARCH)
-		os.Exit(0)
+	if opts.showVersion {
+		fmt.Fprintf(stdout, "HarborBuddy version %s (commit: %s, %s/%s)\n", version, commit, runtime.GOOS, runtime.GOARCH)
+		return 0
 	}
 
 	// If running in updater mode, we skip normal configuration loading
-	if *updaterMode {
+	if opts.updaterMode {
 		log.Initialize(log.Config{Level: "info"}) // Basic logging for helper
 
-		if *targetID == "" || *newImage == "" {
+		if opts.targetID == "" || opts.newImage == "" {
 			log.Error("Updater mode requires --target-container-id and --new-image-id")
-			os.Exit(1)
+			return 1
 		}
 
 		// Create Docker client (check env first, default to socket)
@@ -75,61 +112,61 @@ func main() {
 		dockerClient, err := docker.NewClient(dockerHost)
 		if err != nil {
 			log.ErrorErr("Failed to create Docker client for updater", err)
-			os.Exit(1)
+			return 1
 		}
 		defer dockerClient.Close()
 
-		if err := selfupdate.RunUpdater(context.Background(), dockerClient, *targetID, *newImage); err != nil {
+		if err := selfupdate.RunUpdater(ctx, dockerClient, opts.targetID, opts.newImage); err != nil {
 			log.ErrorErr("Updater failed", err)
-			os.Exit(1)
+			return 1
 		}
-		return
+		return 0
 	}
 
 	// Load configuration
-	cfg, err := loadConfig(*configPath)
+	cfg, err := loadConfig(opts.configPath)
 	if err != nil {
-		fmt.Fprintf(os.Stderr, "Failed to load configuration: %v\n", err)
-		os.Exit(1)
+		fmt.Fprintf(stderr, "Failed to load configuration: %v\n", err)
+		return 1
 	}
 
 	// Apply CLI flag overrides
-	if *interval > 0 {
-		cfg.Updates.CheckInterval = *interval
+	if opts.interval > 0 {
+		cfg.Updates.CheckInterval = opts.interval
 	}
-	if *scheduleTime != "" {
-		cfg.Updates.ScheduleTime = *scheduleTime
+	if opts.scheduleTime != "" {
+		cfg.Updates.ScheduleTime = opts.scheduleTime
 	}
-	if *timezone != "" {
-		cfg.Updates.Timezone = *timezone
+	if opts.timezone != "" {
+		cfg.Updates.Timezone = opts.timezone
 	}
-	if *once {
+	if opts.once {
 		cfg.RunOnce = true
 	}
-	if *dryRun {
+	if opts.dryRun {
 		cfg.Updates.DryRun = true
 	}
-	if *logLevel != "" {
-		cfg.Log.Level = *logLevel
+	if opts.logLevel != "" {
+		cfg.Log.Level = opts.logLevel
 	}
-	if *cleanupOnly {
+	if opts.cleanupOnly {
 		cfg.CleanupOnly = true
 	}
 
 	// Validate configuration
 	if err := cfg.Validate(); err != nil {
-		fmt.Fprintf(os.Stderr, "Invalid configuration: %v\n", err)
-		os.Exit(1)
+		fmt.Fprintf(stderr, "Invalid configuration: %v\n", err)
+		return 1
 	}
 
 	// Auto-detect log volume if not explicitly configured
 	if cfg.Log.File == "" {
 		if info, err := os.Stat("/logs"); err == nil && info.IsDir() {
 			cfg.Log.File = "/logs/harborbuddy.log"
-			fmt.Printf("Detected /logs volume, enabling file logging to %s\n", cfg.Log.File)
+			fmt.Fprintf(stdout, "Detected /logs volume, enabling file logging to %s\n", cfg.Log.File)
 		} else if info, err := os.Stat("/config"); err == nil && info.IsDir() {
 			cfg.Log.File = "/config/harborbuddy.log"
-			fmt.Printf("Detected /config volume, enabling file logging to %s\n", cfg.Log.File)
+			fmt.Fprintf(stdout, "Detected /config volume, enabling file logging to %s\n", cfg.Log.File)
 		}
 	}
 
@@ -158,7 +195,7 @@ func main() {
 	dockerClient, err := docker.NewClient(cfg.Docker.Host)
 	if err != nil {
 		log.ErrorErr("Failed to create Docker client", err)
-		os.Exit(1)
+		return 1
 	}
 	defer dockerClient.Close()
 
@@ -167,10 +204,11 @@ func main() {
 	// Start scheduler
 	if err := scheduler.Run(cfg, dockerClient); err != nil {
 		log.ErrorErr("Scheduler error", err)
-		os.Exit(1)
+		return 1
 	}
 
 	log.Info("HarborBuddy stopped")
+	return 0
 }
 
 // loadConfig loads and merges configuration from file and environment
