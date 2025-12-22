@@ -213,7 +213,7 @@ func RunUpdateCycle(ctx context.Context, cfg config.Config, dockerClient docker.
 
 			// Double check if it's a self-update situation
 			// Note: isSelf is likely a helper in this package
-			isSelf, err := isSelf(container.ID)
+			isSelf, err := isSelfFunc(container.ID)
 			if err != nil {
 				containerLogger.Warn().Err(err).Msg("Failed to check if container is self")
 				errorCount++
@@ -221,7 +221,20 @@ func RunUpdateCycle(ctx context.Context, cfg config.Config, dockerClient docker.
 
 			if isSelf {
 				containerLogger.Info().Msg("Self-update detected! Triggering helper...")
-				if err := selfupdate.Trigger(ctx, dockerClient, container, container.Image); err != nil {
+
+				// CRITICAL FIX: The 'container' struct here comes from ListContainers,
+				// so it is "shallow" (Config field is nil).
+				// We MUST inspect the container to get the full configuration (Env, Mounts, etc.)
+				// before passing it to Trigger, otherwise CreateHelperContainer will panic
+				// when trying to access Config.Env.
+				fullSelfContainer, err := dockerClient.InspectContainer(ctx, container.ID)
+				if err != nil {
+					containerLogger.Error().Err(err).Msg("Failed to inspect self container for update")
+					errorCount++
+					continue
+				}
+
+				if err := selfupdate.Trigger(ctx, dockerClient, fullSelfContainer, container.Image); err != nil {
 					containerLogger.Error().Err(err).Msg("Failed to trigger self-update")
 					errorCount++
 				}
@@ -244,6 +257,9 @@ func RunUpdateCycle(ctx context.Context, cfg config.Config, dockerClient docker.
 		updatedCount, skippedCount, errorCount, len(containers), time.Since(startTime).Round(time.Millisecond))
 	return nil
 }
+
+// isSelfFunc is a variable to allow mocking in tests
+var isSelfFunc = isSelf
 
 // isSelf checks if the given container ID matches the current container's ID
 func isSelf(id string) (bool, error) {

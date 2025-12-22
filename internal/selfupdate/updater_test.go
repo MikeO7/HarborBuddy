@@ -332,12 +332,12 @@ func TestTrigger_Success(t *testing.T) {
 	// Track exit call
 	exitCalled := false
 	exitCode := -1
-	originalExitFunc := exitFunc
-	exitFunc = func(code int) {
+	originalExitFunc := ExitFunc
+	ExitFunc = func(code int) {
 		exitCalled = true
 		exitCode = code
 	}
-	defer func() { exitFunc = originalExitFunc }()
+	defer func() { ExitFunc = originalExitFunc }()
 
 	err := Trigger(ctx, mockClient, myContainer, newImage)
 	// Trigger returns nil after calling exitFunc (which we mocked)
@@ -410,11 +410,11 @@ func TestTrigger_CreateHelperFails(t *testing.T) {
 
 	// Should NOT call exit if helper creation fails
 	exitCalled := false
-	originalExitFunc := exitFunc
-	exitFunc = func(code int) {
+	originalExitFunc := ExitFunc
+	ExitFunc = func(code int) {
 		exitCalled = true
 	}
-	defer func() { exitFunc = originalExitFunc }()
+	defer func() { ExitFunc = originalExitFunc }()
 
 	err := Trigger(ctx, mockClient, myContainer, "harborbuddy:latest")
 	if err == nil {
@@ -446,11 +446,11 @@ func TestTrigger_StartHelperFails(t *testing.T) {
 
 	// Should NOT call exit if helper start fails
 	exitCalled := false
-	originalExitFunc := exitFunc
-	exitFunc = func(code int) {
+	originalExitFunc := ExitFunc
+	ExitFunc = func(code int) {
 		exitCalled = true
 	}
-	defer func() { exitFunc = originalExitFunc }()
+	defer func() { ExitFunc = originalExitFunc }()
 
 	err := Trigger(ctx, mockClient, myContainer, "harborbuddy:latest")
 	if err == nil {
