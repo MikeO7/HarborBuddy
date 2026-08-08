@@ -1,0 +1,11 @@
+# Package coverage floors. Raise these values as coverage improves; never lower them without review.
+github.com/MikeO7/HarborBuddy/cmd/harborbuddy 0.0
+github.com/MikeO7/HarborBuddy/internal/app 78.0
+github.com/MikeO7/HarborBuddy/internal/buildinfo 100.0
+github.com/MikeO7/HarborBuddy/internal/cleanup 80.0
+github.com/MikeO7/HarborBuddy/internal/config 88.1
+github.com/MikeO7/HarborBuddy/internal/docker 67.6
+github.com/MikeO7/HarborBuddy/internal/logging 73.1
+github.com/MikeO7/HarborBuddy/internal/scheduler 78.9
+github.com/MikeO7/HarborBuddy/internal/selfupdate 78.2
+github.com/MikeO7/HarborBuddy/internal/updater 82.5

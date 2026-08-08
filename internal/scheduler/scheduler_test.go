@@ -2,597 +2,295 @@ package scheduler
 
 import (
 	"context"
-	"fmt"
+	"errors"
+	"sync"
 	"testing"
 	"time"
 
 	"github.com/MikeO7/HarborBuddy/internal/config"
 	"github.com/MikeO7/HarborBuddy/internal/docker"
-	"github.com/MikeO7/HarborBuddy/pkg/log"
+	"github.com/MikeO7/HarborBuddy/internal/selfupdate"
+	"github.com/rs/zerolog"
 )
 
-func init() {
-	log.Initialize(log.Config{Level: "debug"})
-}
-
-func TestRunCycle(t *testing.T) {
-	t.Log("Testing single cycle execution")
-
-	tests := []struct {
-		name        string
-		config      config.Config
-		description string
-	}{
-		{
-			name: "both updates and cleanup enabled",
-			config: config.Config{
-				Updates: config.UpdatesConfig{
-					Enabled:       true,
-					UpdateAll:     true,
-					CheckInterval: 12 * time.Hour,
-					DryRun:        false,
-					AllowImages:   []string{"*"},
-					DenyImages:    []string{},
-				},
-				Cleanup: config.CleanupConfig{
-					Enabled:      true,
-					MinAgeHours:  24,
-					DanglingOnly: true,
-				},
-			},
-			description: "Should run both update and cleanup phases",
-		},
-		{
-			name: "updates disabled",
-			config: config.Config{
-				Updates: config.UpdatesConfig{
-					Enabled: false,
-				},
-				Cleanup: config.CleanupConfig{
-					Enabled:      true,
-					MinAgeHours:  24,
-					DanglingOnly: true,
-				},
-			},
-			description: "Should skip updates and run cleanup only",
-		},
-		{
-			name: "cleanup disabled",
-			config: config.Config{
-				Updates: config.UpdatesConfig{
-					Enabled:       true,
-					UpdateAll:     true,
-					CheckInterval: 12 * time.Hour,
-					DryRun:        false,
-					AllowImages:   []string{"*"},
-					DenyImages:    []string{},
-				},
-				Cleanup: config.CleanupConfig{
-					Enabled: false,
-				},
-			},
-			description: "Should run updates and skip cleanup",
-		},
-		{
-			name: "both disabled",
-			config: config.Config{
-				Updates: config.UpdatesConfig{
-					Enabled: false,
-				},
-				Cleanup: config.CleanupConfig{
-					Enabled: false,
-				},
-			},
-			description: "Should complete without running either phase",
-		},
+func TestRunCycleRunsUpdateAndCleanupIndependently(t *testing.T) {
+	updateErr := errors.New("update failed")
+	cleanupErr := errors.New("cleanup failed")
+	var calls []string
+	s := newScheduler(fixedClock{now: time.Now()})
+	s.runUpdate = func(context.Context, config.Config, docker.Client, zerolog.Logger) error {
+		calls = append(calls, "update")
+		return updateErr
+	}
+	s.runCleanup = func(context.Context, config.Config, docker.Client, zerolog.Logger) error {
+		calls = append(calls, "cleanup")
+		return cleanupErr
 	}
 
-	for _, tt := range tests {
-		t.Run(tt.name, func(t *testing.T) {
-			t.Logf("  Test: %s", tt.description)
-			t.Logf("  Updates enabled: %v", tt.config.Updates.Enabled)
-			t.Logf("  Cleanup enabled: %v", tt.config.Cleanup.Enabled)
+	cfg := config.Default()
+	err := s.runCycle(context.Background(), cfg, nil, zerolog.Nop())
+	if len(calls) != 2 || calls[0] != "update" || calls[1] != "cleanup" {
+		t.Fatalf("calls = %v, want update then cleanup", calls)
+	}
+	if !errors.Is(err, updateErr) || !errors.Is(err, cleanupErr) {
+		t.Fatalf("runCycle() error = %v, want both errors", err)
+	}
+}
 
-			mockClient := docker.NewMockDockerClient()
-			ctx := context.Background()
+func TestRunPropagatesSelfUpdateSignalWithoutCleanup(t *testing.T) {
+	s := newScheduler(fixedClock{now: time.Now()})
+	cleanupCalled := false
+	s.runUpdate = func(context.Context, config.Config, docker.Client, zerolog.Logger) error {
+		return &selfupdate.ShutdownRequiredError{TargetContainerID: "target", HelperContainerID: "helper"}
+	}
+	s.runCleanup = func(context.Context, config.Config, docker.Client, zerolog.Logger) error {
+		cleanupCalled = true
+		return nil
+	}
+	cfg := config.Default()
+	cfg.RunOnce = true
 
-			err := runCycle(ctx, tt.config, mockClient)
-			if err != nil {
-				t.Errorf("runCycle() error = %v, want nil", err)
-				t.Log("  Cycle should complete without errors")
-			} else {
-				t.Log("✓ Cycle completed successfully")
+	if err := s.run(context.Background(), cfg, nil, zerolog.Nop()); err == nil {
+		t.Fatal("run() error = nil, want typed self-update shutdown signal")
+	} else if _, ok := selfupdate.AsShutdownRequired(err); !ok {
+		t.Fatalf("run() error = %v, want typed self-update shutdown signal", err)
+	}
+	if cleanupCalled {
+		t.Fatal("cleanup ran after self-update helper started; shutdown must begin immediately")
+	}
+}
+
+func TestRunOnceReturnsOrdinaryCycleError(t *testing.T) {
+	want := errors.New("update failed")
+	s := newScheduler(fixedClock{now: time.Now()})
+	s.runUpdate = func(context.Context, config.Config, docker.Client, zerolog.Logger) error { return want }
+	s.runCleanup = func(context.Context, config.Config, docker.Client, zerolog.Logger) error { return nil }
+	cfg := config.Default()
+	cfg.RunOnce = true
+
+	if err := s.run(context.Background(), cfg, nil, zerolog.Nop()); !errors.Is(err, want) {
+		t.Fatalf("run() error = %v, want %v", err, want)
+	}
+}
+
+func TestContinuousCycleClassifiesErrors(t *testing.T) {
+	ordinaryErr := errors.New("update failed")
+	shutdownErr := &selfupdate.ShutdownRequiredError{TargetContainerID: "target", HelperContainerID: "helper"}
+
+	for _, test := range []struct {
+		name     string
+		ctx      context.Context
+		cycleErr error
+		wantStop bool
+		wantErr  error
+	}{
+		{name: "ordinary failure continues", ctx: context.Background(), cycleErr: ordinaryErr},
+		{name: "self-update stops and propagates", ctx: context.Background(), cycleErr: shutdownErr, wantStop: true, wantErr: shutdownErr},
+		{name: "cancellation stops cleanly", ctx: canceledContext(), cycleErr: context.Canceled, wantStop: true},
+	} {
+		t.Run(test.name, func(t *testing.T) {
+			s := newScheduler(fixedClock{now: time.Now()})
+			s.runUpdate = func(context.Context, config.Config, docker.Client, zerolog.Logger) error { return test.cycleErr }
+			s.runCleanup = func(context.Context, config.Config, docker.Client, zerolog.Logger) error { return nil }
+			cfg := config.Default()
+			cfg.Cleanup.Enabled = false
+
+			stop, err := s.runContinuousCycle(test.ctx, cfg, nil, zerolog.Nop())
+			if stop != test.wantStop || !errors.Is(err, test.wantErr) {
+				t.Fatalf("runContinuousCycle() = stop %v, error %v; want stop %v, error %v", stop, err, test.wantStop, test.wantErr)
 			}
 		})
 	}
 }
 
-func TestSchedulerModes(t *testing.T) {
-	t.Log("Testing scheduler execution modes")
-
-	t.Run("once mode completes immediately", func(t *testing.T) {
-		t.Log("  Testing --once mode (single execution)")
-
-		cfg := config.Config{
-			RunOnce: true,
-			Updates: config.UpdatesConfig{
-				Enabled:       true,
-				CheckInterval: 1 * time.Second,
-				AllowImages:   []string{"*"},
-			},
-			Cleanup: config.CleanupConfig{
-				Enabled: false,
-			},
-		}
-
-		mockClient := docker.NewMockDockerClient()
-
-		// Run should complete immediately in once mode
-		done := make(chan error, 1)
-		go func() {
-			done <- Run(cfg, mockClient)
-		}()
-
-		select {
-		case err := <-done:
-			if err != nil {
-				t.Errorf("Run() in once mode error = %v, want nil", err)
-			} else {
-				t.Log("✓ Once mode completed immediately")
-			}
-		case <-time.After(5 * time.Second):
-			t.Error("Run() in once mode did not complete within 5 seconds")
-			t.Log("  Once mode should complete a single cycle and exit")
-		}
-	})
-
-	t.Run("cleanup only mode", func(t *testing.T) {
-		t.Log("  Testing --cleanup-only mode")
-
-		cfg := config.Config{
-			CleanupOnly: true,
-			Updates: config.UpdatesConfig{
-				Enabled: true, // Should be ignored
-			},
-			Cleanup: config.CleanupConfig{
-				Enabled:      true,
-				MinAgeHours:  24,
-				DanglingOnly: true,
-			},
-		}
-
-		mockClient := docker.NewMockDockerClient()
-		mockClient.Images = []docker.ImageInfo{
-			{
-				ID:        "sha256:dangling",
-				Dangling:  true,
-				CreatedAt: time.Now().Add(-48 * time.Hour),
-			},
-		}
-
-		done := make(chan error, 1)
-		go func() {
-			done <- Run(cfg, mockClient)
-		}()
-
-		select {
-		case err := <-done:
-			if err != nil {
-				t.Errorf("Run() in cleanup-only mode error = %v, want nil", err)
-			}
-			// Verify cleanup ran
-			if len(mockClient.RemovedImages) == 0 {
-				t.Error("Cleanup did not run in cleanup-only mode")
-				t.Log("  Expected at least one image removal attempt")
-			} else {
-				t.Logf("✓ Cleanup-only mode executed: %d images removed", len(mockClient.RemovedImages))
-			}
-		case <-time.After(5 * time.Second):
-			t.Error("Run() in cleanup-only mode did not complete within 5 seconds")
-		}
-	})
-
-	t.Run("continuous mode runs multiple cycles", func(t *testing.T) {
-		t.Log("  Testing continuous mode with short interval")
-
-		cfg := config.Config{
-			RunOnce:     false,
-			CleanupOnly: false,
-			Updates: config.UpdatesConfig{
-				Enabled:       true,
-				CheckInterval: 100 * time.Millisecond,
-				AllowImages:   []string{"*"},
-			},
-			Cleanup: config.CleanupConfig{
-				Enabled: false,
-			},
-		}
-
-		mockClient := docker.NewMockDockerClient()
-		ctx, cancel := context.WithTimeout(context.Background(), 500*time.Millisecond)
-		defer cancel()
-
-		// Override the scheduler to use our context
-		done := make(chan bool)
-		go func() {
-			// This simulates what Run() does but with our timeout
-			ticker := time.NewTicker(cfg.Updates.CheckInterval)
-			defer ticker.Stop()
-
-			cycleCount := 0
-			for {
-				select {
-				case <-ctx.Done():
-					t.Logf("  Completed %d cycles", cycleCount)
-					done <- true
-					return
-				case <-ticker.C:
-					cycleCount++
-					runCycle(ctx, cfg, mockClient)
-				}
-			}
-		}()
-
-		<-done
-		// We should have run at least 3 cycles in 500ms with 100ms interval
-		if len(mockClient.PulledImages) >= 0 { // Mock tracks all pulls
-			t.Log("✓ Continuous mode executed multiple cycles")
-		}
-	})
-}
-
-func TestSchedulerCancellation(t *testing.T) {
-	t.Log("Testing graceful scheduler cancellation")
-
-	t.Run("context cancellation stops scheduler", func(t *testing.T) {
-		t.Log("  Testing that cancelled context stops execution")
-
-		cfg := config.Config{
-			RunOnce: false,
-			Updates: config.UpdatesConfig{
-				Enabled:       true,
-				CheckInterval: 1 * time.Second,
-				AllowImages:   []string{"*"},
-			},
-		}
-
-		mockClient := docker.NewMockDockerClient()
-
-		// Create a context that we'll cancel
-		ctx, cancel := context.WithCancel(context.Background())
-
-		done := make(chan bool)
-		go func() {
-			// Simulate Run with cancellable context
-			ticker := time.NewTicker(cfg.Updates.CheckInterval)
-			defer ticker.Stop()
-
-			for {
-				select {
-				case <-ctx.Done():
-					done <- true
-					return
-				case <-ticker.C:
-					runCycle(ctx, cfg, mockClient)
-				}
-			}
-		}()
-
-		// Cancel after a short delay
-		time.Sleep(100 * time.Millisecond)
-		cancel()
-
-		select {
-		case <-done:
-			t.Log("✓ Scheduler stopped gracefully on cancellation")
-		case <-time.After(2 * time.Second):
-			t.Error("Scheduler did not stop within 2 seconds of cancellation")
-			t.Log("  Graceful shutdown failed")
-		}
-	})
-}
-
-func TestCalculateNextRun(t *testing.T) {
-	t.Log("Testing next run time calculation")
-
-	locUTC, _ := time.LoadLocation("UTC")
-	locNY, _ := time.LoadLocation("America/New_York")
-
-	// Fixed "now" for deterministic testing: 2023-01-01 10:00:00 UTC
-	now := time.Date(2023, 1, 1, 10, 0, 0, 0, locUTC)
-
-	tests := []struct {
-		name         string
-		scheduleTime string
-		location     *time.Location
-		now          time.Time
-		wantNextDay  bool
-		wantHour     int
-		wantMinute   int
-		expectDate   string // Optional: explicit date check for rollovers (YYYY-MM-DD)
-	}{
-		{
-			name:         "same day future time",
-			scheduleTime: "15:00",
-			location:     locUTC,
-			now:          now,
-			wantNextDay:  false,
-			wantHour:     15,
-			wantMinute:   0,
-		},
-		{
-			name:         "same day past time triggers next day",
-			scheduleTime: "09:00",
-			location:     locUTC,
-			now:          now,
-			wantNextDay:  true,
-			wantHour:     9,
-			wantMinute:   0,
-		},
-		{
-			name:         "timezone difference (NY is 05:00 when UTC is 10:00)",
-			scheduleTime: "12:00", // 12:00 NY is 17:00 UTC
-			location:     locNY,
-			now:          now,   // 05:00 in NY
-			wantNextDay:  false, // 12:00 NY is still in future for today
-			wantHour:     12,
-			wantMinute:   0,
-		},
-	}
-
-	for _, tt := range tests {
-		t.Run(tt.name, func(t *testing.T) {
-			// Use a fixed time to avoid midnight flakiness
-			// 2023-01-01 12:00:00
-			realNow := time.Date(2023, 1, 1, 12, 0, 0, 0, tt.location)
-
-			// Construct a schedule time 1 hour in the future (13:00)
-			future := realNow.Add(time.Hour)
-			futureTimeStr := future.Format("15:04")
-
-			nextRunFuture := calculateNextRun(realNow, futureTimeStr, tt.location)
-			// Should be same day
-			if nextRunFuture.Day() != realNow.Day() {
-				t.Errorf("Expected future time to be today (%d), got day %d. NextRun: %v", realNow.Day(), nextRunFuture.Day(), nextRunFuture)
-			}
-			if nextRunFuture.Hour() != future.Hour() || nextRunFuture.Minute() != future.Minute() {
-				t.Errorf("Expected time %s, got %s", futureTimeStr, nextRunFuture.Format("15:04"))
-			}
-
-			// Construct a schedule time 1 hour in the past (11:00)
-			past := realNow.Add(-time.Hour)
-			pastTimeStr := past.Format("15:04")
-
-			nextRunPast := calculateNextRun(realNow, pastTimeStr, tt.location)
-			// Should be tomorrow
-			expectedTomorrow := realNow.Add(24 * time.Hour)
-			if nextRunPast.Day() != expectedTomorrow.Day() {
-				t.Errorf("Expected past time to be tomorrow (%d), got day %d. NextRun: %v", expectedTomorrow.Day(), nextRunPast.Day(), nextRunPast)
-			}
-		})
-	}
-}
-
-func TestRunScheduledMode_Cancellation(t *testing.T) {
-	// We want to verify it waits and then cancels
-	cfg := config.Config{
-		Updates: config.UpdatesConfig{
-			Enabled:      true,
-			ScheduleTime: "00:00", // Likely far away
-			Timezone:     "UTC",
-		},
-	}
-
-	mockClient := docker.NewMockDockerClient()
+func canceledContext() context.Context {
 	ctx, cancel := context.WithCancel(context.Background())
-
-	done := make(chan error)
-	go func() {
-		done <- runScheduledMode(ctx, cfg, mockClient)
-	}()
-
-	// Cancel immediately to test graceful exit from the "wait" state
-	time.Sleep(10 * time.Millisecond)
 	cancel()
+	return ctx
+}
+
+func TestCleanupOnlySkipsUpdate(t *testing.T) {
+	s := newScheduler(fixedClock{now: time.Now()})
+	updateCalled := false
+	cleanupCalled := false
+	s.runUpdate = func(context.Context, config.Config, docker.Client, zerolog.Logger) error {
+		updateCalled = true
+		return nil
+	}
+	s.runCleanup = func(context.Context, config.Config, docker.Client, zerolog.Logger) error {
+		cleanupCalled = true
+		return nil
+	}
+	cfg := config.Default()
+	cfg.CleanupOnly = true
+	cfg.RunOnce = true
+	cfg.Cleanup.Enabled = false
+
+	if err := s.run(context.Background(), cfg, nil, zerolog.Nop()); err != nil {
+		t.Fatal(err)
+	}
+	if updateCalled || !cleanupCalled {
+		t.Fatalf("updateCalled=%v cleanupCalled=%v", updateCalled, cleanupCalled)
+	}
+}
+
+func TestIntervalRunsImmediatelyThenOnTicker(t *testing.T) {
+	tickerChannel := make(chan time.Time, 1)
+	clock := fixedClock{now: time.Date(2026, 1, 2, 3, 4, 0, 0, time.UTC), ticker: &fakeTicker{channel: tickerChannel}}
+	s := newScheduler(clock)
+	ctx, cancel := context.WithCancel(context.Background())
+	defer cancel()
+
+	var mu sync.Mutex
+	calls := 0
+	second := make(chan struct{})
+	s.runUpdate = func(context.Context, config.Config, docker.Client, zerolog.Logger) error {
+		mu.Lock()
+		calls++
+		current := calls
+		mu.Unlock()
+		if current == 2 {
+			close(second)
+			cancel()
+		}
+		return nil
+	}
+	s.runCleanup = func(context.Context, config.Config, docker.Client, zerolog.Logger) error { return nil }
+	cfg := config.Default()
+	cfg.Cleanup.Enabled = false
+
+	done := make(chan error, 1)
+	go func() { done <- s.run(ctx, cfg, nil, zerolog.Nop()) }()
+	waitForCalls(t, &mu, &calls, 1)
+	tickerChannel <- clock.now.Add(cfg.Updates.CheckInterval)
 
 	select {
-	case err := <-done:
-		if err != nil {
-			t.Errorf("runScheduledMode returned error on cancellation: %v", err)
-		}
-	case <-time.After(1 * time.Second):
-		t.Error("runScheduledMode did not exit on cancellation")
+	case <-second:
+	case <-time.After(time.Second):
+		t.Fatal("ticker cycle did not run")
+	}
+	if err := <-done; err != nil {
+		t.Fatal(err)
 	}
 }
 
-func TestRunIntervalMode_Loop(t *testing.T) {
-	// Test that it runs multiple cycles
-	cfg := config.Config{
-		Updates: config.UpdatesConfig{
-			Enabled:       true,
-			CheckInterval: 10 * time.Millisecond,
-		},
-	}
-
-	mockClient := docker.NewMockDockerClient()
-	ctx, cancel := context.WithTimeout(context.Background(), 50*time.Millisecond)
+func TestScheduledModeWaitsBeforeFirstCycle(t *testing.T) {
+	timerChannel := make(chan time.Time, 1)
+	now := time.Date(2026, 6, 1, 10, 0, 0, 0, time.UTC)
+	clock := fixedClock{now: now, timer: &fakeTimer{channel: timerChannel}}
+	s := newScheduler(clock)
+	ctx, cancel := context.WithCancel(context.Background())
 	defer cancel()
 
-	err := runIntervalMode(ctx, cfg, mockClient)
+	called := make(chan struct{})
+	s.runUpdate = func(context.Context, config.Config, docker.Client, zerolog.Logger) error {
+		close(called)
+		cancel()
+		return nil
+	}
+	s.runCleanup = func(context.Context, config.Config, docker.Client, zerolog.Logger) error { return nil }
+	cfg := config.Default()
+	cfg.Cleanup.Enabled = false
+	cfg.Updates.ScheduleTime = "11:00"
+	cfg.Updates.Timezone = "UTC"
+
+	done := make(chan error, 1)
+	go func() { done <- s.run(ctx, cfg, nil, zerolog.Nop()) }()
+	select {
+	case <-called:
+		t.Fatal("daily scheduler ran before timer fired")
+	case <-time.After(20 * time.Millisecond):
+	}
+	timerChannel <- now.Add(time.Hour)
+	select {
+	case <-called:
+	case <-time.After(time.Second):
+		t.Fatal("daily scheduler did not run after timer")
+	}
+	if err := <-done; err != nil {
+		t.Fatal(err)
+	}
+}
+
+func TestCalculateNextRunPreservesDailyWallClockAcrossDST(t *testing.T) {
+	location, err := time.LoadLocation("America/New_York")
 	if err != nil {
-		t.Errorf("runIntervalMode returned error: %v", err)
+		t.Fatal(err)
 	}
-
-	// Check coverage of the loop
-	// (This test mainly exercises the code path, exact cycle count isn't easily accessible
-	// without injecting a spy, but we know MockClient tracks pulls)
-}
-
-func TestRunCycle_UpdateError(t *testing.T) {
-	t.Log("Testing runCycle with update error")
-
-	mockClient := docker.NewMockDockerClient()
-	mockClient.ListContainersError = fmt.Errorf("docker error")
-
-	cfg := config.Config{
-		Updates: config.UpdatesConfig{
-			Enabled:       true,
-			CheckInterval: time.Minute,
-		},
-		Cleanup: config.CleanupConfig{
-			Enabled: true,
-		},
-	}
-
-	ctx := context.Background()
-	err := runCycle(ctx, cfg, mockClient)
-	if err == nil {
-		t.Error("Expected error from runCycle when update fails")
-	}
-}
-
-func TestRunCycle_CleanupError(t *testing.T) {
-	t.Log("Testing runCycle with cleanup error")
-
-	mockClient := docker.NewMockDockerClient()
-	mockClient.ListDanglingImagesError = fmt.Errorf("cleanup error")
-
-	cfg := config.Config{
-		Updates: config.UpdatesConfig{
-			Enabled: false, // Skip updates
-		},
-		Cleanup: config.CleanupConfig{
-			Enabled:      true,
-			DanglingOnly: true,
-		},
-	}
-
-	ctx := context.Background()
-	err := runCycle(ctx, cfg, mockClient)
-	if err == nil {
-		t.Error("Expected error from runCycle when cleanup fails")
-	}
-}
-
-func TestRunScheduledMode_InvalidTimezone(t *testing.T) {
-	cfg := config.Config{
-		Updates: config.UpdatesConfig{
-			ScheduleTime: "03:00",
-			Timezone:     "Invalid/Timezone",
-		},
-	}
-
-	mockClient := docker.NewMockDockerClient()
-	err := runScheduledMode(context.Background(), cfg, mockClient)
-	if err == nil {
-		t.Error("Expected error for invalid timezone")
-	}
-}
-
-func TestCalculateNextRun_EdgeCases(t *testing.T) {
-	loc, _ := time.LoadLocation("UTC")
-
-	tests := []struct {
-		name          string
-		now           time.Time
-		scheduleTime  string
-		expectSameDay bool
+	for _, test := range []struct {
+		name string
+		now  time.Time
+		want time.Time
 	}{
 		{
-			name:          "schedule time in future today",
-			now:           time.Date(2024, 1, 15, 10, 0, 0, 0, loc),
-			scheduleTime:  "15:00",
-			expectSameDay: true,
+			name: "spring forward",
+			now:  time.Date(2026, 3, 7, 13, 0, 0, 0, location),
+			want: time.Date(2026, 3, 8, 12, 0, 0, 0, location),
 		},
 		{
-			name:          "schedule time in past today",
-			now:           time.Date(2024, 1, 15, 16, 0, 0, 0, loc),
-			scheduleTime:  "15:00",
-			expectSameDay: false, // Should be tomorrow
+			name: "fall back",
+			now:  time.Date(2026, 10, 31, 13, 0, 0, 0, location),
+			want: time.Date(2026, 11, 1, 12, 0, 0, 0, location),
 		},
-		{
-			name:          "schedule time exactly now",
-			now:           time.Date(2024, 1, 15, 15, 0, 0, 0, loc),
-			scheduleTime:  "15:00",
-			expectSameDay: false, // Should be tomorrow
-		},
-		{
-			name:          "midnight crossing",
-			now:           time.Date(2024, 1, 15, 23, 59, 0, 0, loc),
-			scheduleTime:  "00:30",
-			expectSameDay: false, // Should be next day
-		},
-	}
-
-	for _, tt := range tests {
-		t.Run(tt.name, func(t *testing.T) {
-			nextRun := calculateNextRun(tt.now, tt.scheduleTime, loc)
-
-			if tt.expectSameDay {
-				if nextRun.Day() != tt.now.Day() {
-					t.Errorf("Expected same day, got next day: %v", nextRun)
-				}
-			} else {
-				if nextRun.Day() == tt.now.Day() {
-					t.Errorf("Expected next day, got same day: %v", nextRun)
-				}
-			}
-
-			// Verify it's always in the future
-			if !nextRun.After(tt.now) {
-				t.Errorf("Next run should be in the future: now=%v, nextRun=%v", tt.now, nextRun)
+	} {
+		t.Run(test.name, func(t *testing.T) {
+			if got := calculateNextRun(test.now, "12:00", location); !got.Equal(test.want) {
+				t.Fatalf("calculateNextRun() = %v, want %v", got, test.want)
 			}
 		})
 	}
 }
 
-func TestRunIntervalMode_InitialCycleError(t *testing.T) {
-	t.Log("Testing runIntervalMode with initial cycle error")
-
-	mockClient := docker.NewMockDockerClient()
-	mockClient.ListContainersError = fmt.Errorf("docker error")
-
-	cfg := config.Config{
-		Updates: config.UpdatesConfig{
-			Enabled:       true,
-			CheckInterval: 10 * time.Millisecond,
-		},
-	}
-
-	ctx, cancel := context.WithTimeout(context.Background(), 30*time.Millisecond)
-	defer cancel()
-
-	// Should not return error - just log it and continue
-	err := runIntervalMode(ctx, cfg, mockClient)
-	if err != nil {
-		t.Errorf("runIntervalMode should not propagate initial cycle error: %v", err)
+func TestCalculateNextRunUsesTomorrowWhenExactlyScheduled(t *testing.T) {
+	location := time.UTC
+	now := time.Date(2026, 1, 31, 3, 0, 0, 0, location)
+	want := time.Date(2026, 2, 1, 3, 0, 0, 0, location)
+	if got := calculateNextRun(now, "03:00", location); !got.Equal(want) {
+		t.Fatalf("calculateNextRun() = %v, want %v", got, want)
 	}
 }
 
-func TestRunScheduledMode_CycleError(t *testing.T) {
-	t.Log("Testing runScheduledMode with cycle error")
-
-	mockClient := docker.NewMockDockerClient()
-	mockClient.ListContainersError = fmt.Errorf("docker error")
-
-	// Use a schedule time 1 second in the future to trigger quickly
-	futureTime := time.Now().Add(100 * time.Millisecond)
-	scheduleStr := futureTime.Format("15:04")
-
-	cfg := config.Config{
-		Updates: config.UpdatesConfig{
-			Enabled:      true,
-			ScheduleTime: scheduleStr,
-			Timezone:     "UTC",
-		},
+func waitForCalls(t *testing.T, mu *sync.Mutex, calls *int, want int) {
+	t.Helper()
+	deadline := time.Now().Add(time.Second)
+	for time.Now().Before(deadline) {
+		mu.Lock()
+		got := *calls
+		mu.Unlock()
+		if got >= want {
+			return
+		}
+		time.Sleep(time.Millisecond)
 	}
-
-	ctx, cancel := context.WithTimeout(context.Background(), 500*time.Millisecond)
-	defer cancel()
-
-	// Should not return error - just log it and continue
-	err := runScheduledMode(ctx, cfg, mockClient)
-	if err != nil {
-		t.Errorf("runScheduledMode should not propagate cycle error: %v", err)
-	}
+	t.Fatalf("calls did not reach %d", want)
 }
+
+type fixedClock struct {
+	now    time.Time
+	timer  timer
+	ticker ticker
+}
+
+func (c fixedClock) Now() time.Time { return c.now }
+func (c fixedClock) NewTimer(time.Duration) timer {
+	if c.timer != nil {
+		return c.timer
+	}
+	return &fakeTimer{channel: make(chan time.Time)}
+}
+func (c fixedClock) NewTicker(time.Duration) ticker {
+	if c.ticker != nil {
+		return c.ticker
+	}
+	return &fakeTicker{channel: make(chan time.Time)}
+}
+
+type fakeTimer struct{ channel chan time.Time }
+
+func (t *fakeTimer) C() <-chan time.Time { return t.channel }
+func (t *fakeTimer) Stop() bool          { return true }
+
+type fakeTicker struct{ channel chan time.Time }
+
+func (t *fakeTicker) C() <-chan time.Time { return t.channel }
+func (t *fakeTicker) Stop()               {}

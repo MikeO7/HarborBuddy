@@ -3,87 +3,45 @@ services:
     image: ghcr.io/mikeo7/harborbuddy:latest
     container_name: harborbuddy
     restart: unless-stopped
-
-    # Mount Docker socket to allow container management
     volumes:
-      - /var/run/docker.sock:/var/run/docker.sock:ro
+      # HarborBuddy requires read/write Docker API access.
+      - /var/run/docker.sock:/var/run/docker.sock
       - ./harborbuddy.yml:/config/harborbuddy.yml:ro
-
-    # Environment variables override config file settings
+      # Optional persistent rotating logs:
+      # - ./logs:/logs
     environment:
-      # Standard Docker timezone variable (affects scheduled times)
-      - TZ=America/Los_Angeles # Timezone (IANA format: America/Los_Angeles, Europe/London, etc.)
-
-      # Optional: User/Group ID for file permissions (HarborBuddy runs as non-root)
-      # - PUID=1000
-      # - PGID=1000
-
-      # Scheduling - Run daily at 3:00 AM (your local timezone)
-      - HARBORBUDDY_SCHEDULE_TIME=03:00 # Daily update at 3:00 AM (24-hour format)
-
-      # Alternative: Use interval-based updates instead of scheduled time
-      # - HARBORBUDDY_INTERVAL=12h      # Check for updates every 12 hours (default)
-
-      - HARBORBUDDY_DRY_RUN=false # Set to "true" to preview changes without applying
-      - HARBORBUDDY_LOG_LEVEL=info # debug, info, warn, or error
-      - HARBORBUDDY_LOG_JSON=false # Set to "true" for JSON log output
-
-    # IMPORTANT: Prevent HarborBuddy from updating itself
+      TZ: America/Los_Angeles
+      HARBORBUDDY_SCHEDULE_TIME: "03:00"
+      HARBORBUDDY_LOG_LEVEL: info
+      HARBORBUDDY_LOG_JSON: "false"
+      # Stable identity for self-update, especially when hostname is customized:
+      HARBORBUDDY_CONTAINER_NAME: harborbuddy
+      # Set this when the optional ./logs mount above is enabled:
+      # HARBORBUDDY_LOG_FILE: /logs/harborbuddy.log
+      # Self-update is enabled by default. Uncomment to manage it manually:
+      # HARBORBUDDY_SELF_UPDATE_ENABLED: "false"
+      # Preview pulls and decisions without recreation or deletion:
+      # HARBORBUDDY_DRY_RUN: "true"
     labels:
-      com.harborbuddy.autoupdate: "false"
+      # Identifies the daemon; self-update itself uses exact runtime identity.
+      com.harborbuddy.role: daemon
 
-  # Example: A container that WILL be auto-updated (no label needed)
   nginx:
-    image: nginx:latest
-    container_name: nginx
+    image: nginx:stable-alpine
+    container_name: example-nginx
     restart: unless-stopped
-    ports:
-      - "80:80"
-    # No com.harborbuddy.autoupdate label = managed by default
 
-    # Example: A container that will NOT be auto-updated (opt-out)
   postgres:
-    image: postgres:15
-    container_name: postgres
+    image: postgres:17
+    container_name: example-postgres
     restart: unless-stopped
     environment:
-      POSTGRES_PASSWORD: example
+      POSTGRES_PASSWORD: change-me
     volumes:
       - postgres_data:/var/lib/postgresql/data
-    # Opt out of auto-updates for database
     labels:
+      # Stateful services with manual migrations should usually opt out.
       com.harborbuddy.autoupdate: "false"
 
 volumes:
   postgres_data:
-
-    # ============================================================================
-    # ALTERNATIVE EXAMPLE: HarborBuddy with Scheduled Daily Updates at 3am
-    # ============================================================================
-    # Uncomment this service to run updates at a specific time instead of intervals
-
-    #  harborbuddy-scheduled:
-    #    image: ghcr.io/mikeo7/harborbuddy:latest
-    #    container_name: harborbuddy
-    #    restart: unless-stopped
-    #    
-    #    volumes:
-    #      - /var/run/docker.sock:/var/run/docker.sock:ro
-    #      - ./harborbuddy.yml:/config/harborbuddy.yml:ro
-    #    
-    #    environment:
-    #      # Set your timezone (IANA format)
-    #      - TZ=America/Los_Angeles          # Pacific Time
-    #      # - TZ=America/New_York           # Eastern Time
-    #      # - TZ=Europe/London              # UK Time
-    #      # - TZ=Asia/Tokyo                 # Japan Time
-    #      
-    #      # Schedule daily updates at 3:00 AM
-    #      - HARBORBUDDY_SCHEDULE_TIME=03:00
-    #      
-    #      - HARBORBUDDY_DRY_RUN=false
-    #      - HARBORBUDDY_LOG_LEVEL=info
-    #    
-    #    labels:
-    #      com.harborbuddy.autoupdate: "false"
-

@@ -1,106 +1,239 @@
-name: Docker Build and Push
+name: Container Image
 
 on:
   push:
     branches:
       - main
     tags:
-      - 'v*'
+      - "v*"
   pull_request:
     branches:
       - main
 
+permissions:
+  contents: read
+
+concurrency:
+  group: image-${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
 env:
   REGISTRY: ghcr.io
-  IMAGE_NAME: ${{ github.repository }}
+  IMAGE_NAME: mikeo7/harborbuddy
 
 jobs:
-  build-and-push:
-    name: Build and Push Multi-Arch Images
+  validate:
+    name: Validate image
     runs-on: ubuntu-latest
+    timeout-minutes: 30
+    permissions:
+      contents: read
+    steps:
+      - name: Check out code
+        uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4.4.0
+        with:
+          fetch-depth: 1
+          persist-credentials: false
+
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@8d2750c68a42422c14e847fe6c8ac0403b4cbd6f # v3.12.0
+
+      - name: Prepare validation metadata
+        id: build
+        shell: bash
+        run: |
+          {
+            printf 'version=0.0.0-validate.%s\n' "${GITHUB_SHA::12}"
+            printf 'date=%s\n' "$(git show -s --format=%cI HEAD)"
+          } >> "$GITHUB_OUTPUT"
+
+      - name: Build validation image
+        uses: docker/build-push-action@10e90e3645eae34f1e60eeb005ba3a3d33f178e8 # v6.19.2
+        with:
+          context: .
+          platforms: linux/amd64
+          load: true
+          tags: harborbuddy:validate
+          build-args: |
+            VERSION=${{ steps.build.outputs.version }}
+            COMMIT=${{ github.sha }}
+            DATE=${{ steps.build.outputs.date }}
+          cache-from: type=gha,scope=validate-amd64
+          cache-to: type=gha,mode=max,scope=validate-amd64
+
+      - name: Smoke test validation image
+        run: |
+          docker run --rm harborbuddy:validate --version
+          test "$(docker image inspect harborbuddy:validate --format '{{ index .Config.Labels "com.harborbuddy.role" }}')" = daemon
+
+      - name: Block fixed high and critical vulnerabilities
+        uses: aquasecurity/trivy-action@ed142fd0673e97e23eac54620cfb913e5ce36c25 # v0.36.0
+        with:
+          version: v0.72.0
+          image-ref: harborbuddy:validate
+          format: table
+          severity: HIGH,CRITICAL
+          ignore-unfixed: true
+          exit-code: "1"
+
+      - name: Produce SARIF report
+        if: always()
+        uses: aquasecurity/trivy-action@ed142fd0673e97e23eac54620cfb913e5ce36c25 # v0.36.0
+        with:
+          version: v0.72.0
+          image-ref: harborbuddy:validate
+          format: sarif
+          output: trivy-results.sarif
+          severity: HIGH,CRITICAL
+          ignore-unfixed: true
+          limit-severities-for-sarif: true
+          exit-code: "0"
+
+      - name: Upload SARIF report as artifact
+        if: always() && hashFiles('trivy-results.sarif') != ''
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
+        with:
+          name: trivy-sarif-${{ github.run_id }}
+          path: trivy-results.sarif
+          retention-days: 14
+
+  publish:
+    name: Publish multi-platform image
+    if: github.event_name == 'push'
+    needs: validate
+    runs-on: ubuntu-latest
+    timeout-minutes: 45
     permissions:
       contents: read
       packages: write
-    
+      id-token: write
+    outputs:
+      version: ${{ steps.build.outputs.version }}
+      stable: ${{ steps.build.outputs.stable }}
+      digest: ${{ steps.image.outputs.digest }}
     steps:
-    - name: Check out code
-      uses: actions/checkout@v4
+      - name: Check out code
+        uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4.4.0
+        with:
+          fetch-depth: 1
+          persist-credentials: false
 
-    - name: Set up QEMU
-      uses: docker/setup-qemu-action@v3
-      with:
-        platforms: linux/amd64,linux/arm64
+      - name: Set up QEMU
+        uses: docker/setup-qemu-action@c7c53464625b32c7a7e944ae62b3e17d2b600130 # v3.7.0
+        with:
+          platforms: arm64,arm
 
-    - name: Set up Docker Buildx
-      uses: docker/setup-buildx-action@v3
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@8d2750c68a42422c14e847fe6c8ac0403b4cbd6f # v3.12.0
 
-    - name: Log in to GitHub Container Registry
-      if: github.event_name != 'pull_request'
-      uses: docker/login-action@v3
-      with:
-        registry: ${{ env.REGISTRY }}
-        username: ${{ github.actor }}
-        password: ${{ secrets.GITHUB_TOKEN }}
+      - name: Log in to GitHub Container Registry
+        uses: docker/login-action@c94ce9fb468520275223c153574b00df6fe4bcc9 # v3.7.0
+        with:
+          registry: ${{ env.REGISTRY }}
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
 
-    - name: Extract metadata (tags, labels)
-      id: meta
-      uses: docker/metadata-action@v5
-      with:
-        images: ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}
-        tags: |
-          # Tag with version for releases (e.g., v1.0.0 -> 1.0.0)
-          type=semver,pattern={{version}}
-          # Tag with major.minor (e.g., v1.0.0 -> 1.0)
-          type=semver,pattern={{major}}.{{minor}}
-          # Tag with major version (e.g., v1.0.0 -> 1)
-          type=semver,pattern={{major}}
-          # Tag latest for any release
-          type=semver,pattern=latest
-          # Tag latest for main branch pushes
-          type=raw,value=latest,enable={{is_default_branch}}
-          # Tag with branch name for main branch
-          type=ref,event=branch
-          # Tag with short SHA for every commit
-          type=sha,prefix={{branch}}-,format=short,enable=${{ github.ref_type != 'tag' && github.event_name != 'pull_request' }}
-          # Tag PR number for pull requests
-          type=ref,event=pr
-        labels: |
-          org.opencontainers.image.title=HarborBuddy
-          org.opencontainers.image.description=Docker container auto-updater
-          org.opencontainers.image.vendor=HarborBuddy
+      - name: Prepare build metadata
+        id: build
+        shell: bash
+        run: |
+          stable=false
+          if [[ "$GITHUB_REF" == refs/tags/* ]]; then
+            semver='^v(0|[1-9][0-9]*)\.(0|[1-9][0-9]*)\.(0|[1-9][0-9]*)(-[0-9A-Za-z-]+(\.[0-9A-Za-z-]+)*)?(\+[0-9A-Za-z-]+(\.[0-9A-Za-z-]+)*)?$'
+            [[ "$GITHUB_REF_NAME" =~ $semver ]] || { printf 'Invalid release tag: %s\n' "$GITHUB_REF_NAME" >&2; exit 1; }
+            version="${GITHUB_REF_NAME#v}"
+            [[ "$version" != *-* ]] && stable=true
+          else
+            version="0.0.0-dev.${GITHUB_SHA::12}"
+          fi
+          {
+            printf 'version=%s\n' "$version"
+            printf 'stable=%s\n' "$stable"
+            printf 'date=%s\n' "$(git show -s --format=%cI HEAD)"
+          } >> "$GITHUB_OUTPUT"
 
-    - name: Build and push Docker image
-      uses: docker/build-push-action@v5
-      with:
-        context: .
-        # Build for multiple architectures
-        platforms: linux/amd64,linux/arm64
-        # Push to registry (except for PRs)
-        push: ${{ github.event_name != 'pull_request' }}
-        tags: ${{ steps.meta.outputs.tags }}
-        labels: ${{ steps.meta.outputs.labels }}
-        build-args: |
-          GIT_COMMIT=${{ github.sha }}
-        # Use cache for faster builds
-        cache-from: type=gha
-        cache-to: type=gha,mode=max
-        # Optimize build
-        provenance: false
-        sbom: false
+      - name: Generate image metadata
+        id: meta
+        uses: docker/metadata-action@c299e40c65443455700f0fdfc63efafe5b349051 # v5.10.0
+        with:
+          images: ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}
+          flavor: latest=false
+          tags: |
+            type=semver,pattern={{version}}
+            type=semver,pattern={{major}}.{{minor}}
+            type=semver,pattern={{major}}
+            type=raw,value=latest,enable=${{ steps.build.outputs.stable == 'true' }}
+            type=raw,value=edge,enable={{is_default_branch}}
+            type=sha,prefix=sha-,format=short
+          labels: |
+            org.opencontainers.image.title=HarborBuddy
+            org.opencontainers.image.description=Transactional Docker container updater
+            org.opencontainers.image.vendor=HarborBuddy
+            org.opencontainers.image.version=${{ steps.build.outputs.version }}
+            org.opencontainers.image.revision=${{ github.sha }}
+            org.opencontainers.image.created=${{ steps.build.outputs.date }}
 
-    - name: Output image information
-      run: |
-        echo "## 🐳 Docker Image Built Successfully!" >> $GITHUB_STEP_SUMMARY
-        echo "" >> $GITHUB_STEP_SUMMARY
-        echo "**Architectures**: linux/amd64, linux/arm64" >> $GITHUB_STEP_SUMMARY
-        echo "" >> $GITHUB_STEP_SUMMARY
-        echo "**Tags**:" >> $GITHUB_STEP_SUMMARY
-        echo '```' >> $GITHUB_STEP_SUMMARY
-        echo "${{ steps.meta.outputs.tags }}" >> $GITHUB_STEP_SUMMARY
-        echo '```' >> $GITHUB_STEP_SUMMARY
-        echo "" >> $GITHUB_STEP_SUMMARY
-        echo "**Pull command**:" >> $GITHUB_STEP_SUMMARY
-        echo '```bash' >> $GITHUB_STEP_SUMMARY
-        echo "docker pull ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}:$(echo ${{ steps.meta.outputs.tags }} | cut -d: -f2 | head -1)" >> $GITHUB_STEP_SUMMARY
-        echo '```' >> $GITHUB_STEP_SUMMARY
+      - name: Build and publish image
+        id: image
+        uses: docker/build-push-action@10e90e3645eae34f1e60eeb005ba3a3d33f178e8 # v6.19.2
+        with:
+          context: .
+          platforms: linux/amd64,linux/arm64,linux/arm/v7
+          push: true
+          tags: ${{ steps.meta.outputs.tags }}
+          labels: ${{ steps.meta.outputs.labels }}
+          build-args: |
+            VERSION=${{ steps.build.outputs.version }}
+            COMMIT=${{ github.sha }}
+            DATE=${{ steps.build.outputs.date }}
+          cache-from: type=gha,scope=release
+          cache-to: type=gha,mode=max,scope=release
+          provenance: mode=max
+          sbom: true
 
+      - name: Summarize publication
+        env:
+          VERSION: ${{ steps.build.outputs.version }}
+          DIGEST: ${{ steps.image.outputs.digest }}
+        run: |
+          {
+            printf '## Published image\n\n'
+            printf -- '- Image: %s/%s\n' "$REGISTRY" "$IMAGE_NAME"
+            printf -- '- Version: %s\n' "$VERSION"
+            printf -- '- Digest: %s\n' "$DIGEST"
+            printf -- '- Platforms: linux/amd64, linux/arm64, linux/arm/v7\n'
+            printf -- '- SBOM and provenance: enabled\n'
+          } >> "$GITHUB_STEP_SUMMARY"
+
+  release:
+    name: Publish GitHub release
+    if: startsWith(github.ref, 'refs/tags/v')
+    needs: publish
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    permissions:
+      contents: write
+    steps:
+      - name: Create GitHub release after image publication
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          VERSION: ${{ needs.publish.outputs.version }}
+          STABLE: ${{ needs.publish.outputs.stable }}
+        shell: bash
+        run: |
+          if gh release view "$GITHUB_REF_NAME" >/dev/null 2>&1; then
+            printf 'Release %s already exists\n' "$GITHUB_REF_NAME"
+            exit 0
+          fi
+          release_args=(
+            "$GITHUB_REF_NAME"
+            --title "HarborBuddy $VERSION"
+            --generate-notes
+            --verify-tag
+          )
+          if [[ "$STABLE" == "true" ]]; then
+            release_args+=(--latest)
+          else
+            release_args+=(--prerelease --latest=false)
+          fi
+          gh release create "${release_args[@]}"

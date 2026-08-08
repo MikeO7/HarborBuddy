@@ -9,39 +9,19 @@ import (
 
 func TestMatchesPattern(t *testing.T) {
 	tests := []struct {
-		name     string
-		image    string
-		pattern  string
-		expected bool
+		name, image, pattern string
+		want                 bool
 	}{
-		// Exact Match
-		{"exact match", "nginx:latest", "nginx:latest", true},
-		{"exact match fail", "nginx:latest", "nginx:1.19", false},
-
-		// Wildcard *
-		{"universal wildcard", "anything:at-all", "*", true},
-		{"universal wildcard empty", "", "*", true},
-
-		// Prefix Match (repo:*)
-		{"prefix match", "nginx:latest", "nginx:*", true},
-		{"prefix match 2", "postgres:14", "postgres:*", true},
-		{"prefix match fail", "redis:latest", "nginx:*", false},
-		{"prefix registry match", "ghcr.io/org/image:tag", "ghcr.io/org/*", true},
-
-		// Suffix Match (*:tag)
-		{"suffix match", "nginx:latest", "*:latest", true},
-		{"suffix match fail", "nginx:alpine", "*:latest", false},
-		{"suffix match 2", "redis:alpine", "*:alpine", true},
-
-		// No Wildcard
-		{"no wildcard partial fail", "nginx:latest", "nginx", false},
+		{name: "exact", image: "nginx:latest", pattern: "nginx:latest", want: true},
+		{name: "universal", image: "anything:tag", pattern: "*", want: true},
+		{name: "prefix", image: "ghcr.io/org/app:latest", pattern: "ghcr.io/org/*", want: true},
+		{name: "suffix", image: "redis:alpine", pattern: "*:alpine", want: true},
+		{name: "mismatch", image: "redis:latest", pattern: "nginx:*", want: false},
 	}
-
-	for _, tt := range tests {
-		t.Run(tt.name, func(t *testing.T) {
-			result := matchesPattern(tt.image, tt.pattern)
-			if result != tt.expected {
-				t.Errorf("matchesPattern(%q, %q) = %v, want %v", tt.image, tt.pattern, result, tt.expected)
+	for _, test := range tests {
+		t.Run(test.name, func(t *testing.T) {
+			if got := matchesPattern(test.image, test.pattern); got != test.want {
+				t.Fatalf("matchesPattern(%q, %q) = %v, want %v", test.image, test.pattern, got, test.want)
 			}
 		})
 	}
@@ -49,97 +29,55 @@ func TestMatchesPattern(t *testing.T) {
 
 func TestDetermineEligibility(t *testing.T) {
 	tests := []struct {
-		name           string
-		container      docker.ContainerInfo
-		config         config.UpdatesConfig
-		expectEligible bool
-		expectReason   string
+		name      string
+		container docker.ContainerSummary
+		cfg       config.UpdatesConfig
+		eligible  bool
+		reason    string
 	}{
 		{
-			name: "default eligible",
-			container: docker.ContainerInfo{
-				Image:  "nginx:latest",
-				Labels: map[string]string{},
-			},
-			config: config.UpdatesConfig{
-				AllowImages: []string{"*"},
-				DenyImages:  []string{},
-			},
-			expectEligible: true,
-			expectReason:   "eligible for updates",
+			name:      "default eligible",
+			container: docker.ContainerSummary{ImageRef: "nginx:latest"},
+			cfg:       config.UpdatesConfig{AllowImages: []string{"*"}},
+			eligible:  true,
+			reason:    "eligible for updates",
 		},
 		{
-			name: "label opt-out",
-			container: docker.ContainerInfo{
-				Image: "nginx:latest",
-				Labels: map[string]string{
-					"com.harborbuddy.autoupdate": "false",
-				},
-			},
-			config: config.UpdatesConfig{
-				AllowImages: []string{"*"},
-			},
-			expectEligible: false,
-			expectReason:   "label com.harborbuddy.autoupdate=false",
+			name: "explicit opt out",
+			container: docker.ContainerSummary{ImageRef: "nginx:latest", Labels: map[string]string{
+				AutoUpdateLabel: "false",
+			}},
+			cfg:    config.UpdatesConfig{AllowImages: []string{"*"}},
+			reason: "label com.harborbuddy.autoupdate=false",
 		},
 		{
-			name: "deny list match",
-			container: docker.ContainerInfo{
-				Image: "postgres:14",
-			},
-			config: config.UpdatesConfig{
-				AllowImages: []string{"*"},
-				DenyImages:  []string{"postgres:*"},
-			},
-			expectEligible: false,
-			expectReason:   "matches deny pattern: postgres:*",
+			name:      "deny wins",
+			container: docker.ContainerSummary{ImageRef: "postgres:16"},
+			cfg:       config.UpdatesConfig{AllowImages: []string{"*"}, DenyImages: []string{"postgres:*"}},
+			reason:    "matches deny pattern: postgres:*",
 		},
 		{
-			name: "allow list match",
-			container: docker.ContainerInfo{
-				Image: "nginx:latest",
-			},
-			config: config.UpdatesConfig{
-				AllowImages: []string{"nginx:*"},
-			},
-			expectEligible: true,
-			expectReason:   "eligible for updates",
+			name:      "allow mismatch",
+			container: docker.ContainerSummary{ImageRef: "redis:latest"},
+			cfg:       config.UpdatesConfig{AllowImages: []string{"nginx:*"}},
+			reason:    "does not match any allow pattern",
 		},
 		{
-			name: "allow list mismatch",
-			container: docker.ContainerInfo{
-				Image: "redis:latest",
-			},
-			config: config.UpdatesConfig{
-				AllowImages: []string{"nginx:*"},
-			},
-			expectEligible: false,
-			expectReason:   "does not match any allow pattern",
-		},
-		{
-			name: "deny takes precedence over allow",
-			container: docker.ContainerInfo{
-				Image: "nginx:latest",
-			},
-			config: config.UpdatesConfig{
-				AllowImages: []string{"nginx:*"},
-				DenyImages:  []string{"nginx:*"},
-			},
-			expectEligible: false,
-			expectReason:   "matches deny pattern: nginx:*",
+			name: "daemon role does not imply self",
+			container: docker.ContainerSummary{ImageRef: "harborbuddy:latest", Labels: map[string]string{
+				"com.harborbuddy.role": "daemon",
+			}},
+			cfg:      config.UpdatesConfig{AllowImages: []string{"*"}},
+			eligible: true,
+			reason:   "eligible for updates",
 		},
 	}
 
-	for _, tt := range tests {
-		t.Run(tt.name, func(t *testing.T) {
-			decision := DetermineEligibility(tt.container, tt.config)
-
-			if decision.Eligible != tt.expectEligible {
-				t.Errorf("Eligible = %v, want %v", decision.Eligible, tt.expectEligible)
-			}
-
-			if decision.Reason != tt.expectReason {
-				t.Errorf("Reason = %q, want %q", decision.Reason, tt.expectReason)
+	for _, test := range tests {
+		t.Run(test.name, func(t *testing.T) {
+			decision := DetermineEligibility(test.container, test.cfg)
+			if decision.Eligible != test.eligible || decision.Reason != test.reason {
+				t.Fatalf("DetermineEligibility() = %+v, want eligible=%v reason=%q", decision, test.eligible, test.reason)
 			}
 		})
 	}

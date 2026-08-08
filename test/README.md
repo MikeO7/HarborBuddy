@@ -1,203 +1,99 @@
-# HarborBuddy Testing Guide
+# Local verification and integration tests
 
-This directory contains all testing resources for HarborBuddy to help contributors and users test the application.
+`make verify-local` is the comprehensive developer suite. It combines the Go and repository-policy checks with `test/integration.sh`, the disposable Docker-compatible runtime test.
 
-## Test Files
+## Requirements
 
-### Unit Tests
-Unit tests are located throughout the codebase in `*_test.go` files:
-- `internal/config/config_test.go` - Configuration loading and validation tests
-- `internal/updater/updater_test.go` - Container update logic tests
-- `internal/cleanup/cleanup_test.go` - Image cleanup tests
-- `internal/scheduler/scheduler_test.go` - Scheduler tests
+- A Unix-like shell with Bash
+- A running local Docker Engine or Podman machine
+- Network access to pull the temporary `registry:2` and `busybox:1.36` test dependencies
 
-**Run unit tests:**
+The integration script requires read/write engine access. Do not run it against a shared or production engine.
+
+## Run it
+
+From the repository root:
+
 ```bash
-# Run all tests
-go test ./...
-
-# Run tests with coverage
-go test -cover ./...
-
-# Run tests with race detection
-go test -race ./...
-
-# Run tests with verbose output
-go test -v ./...
+make verify-local
 ```
 
-### Local Testing (`test-local.sh`)
-Tests HarborBuddy binary locally with Docker Desktop/Docker Engine.
+To run only the runtime integration scenarios:
 
-**Requirements:**
-- Docker running locally
-- Go installed
-- Unix-like environment (macOS/Linux)
-
-**Usage:**
 ```bash
-cd test/
-./test-local.sh
+make test-integration
 ```
 
-**What it tests:**
-- Builds the HarborBuddy binary
-- Creates test containers (nginx, redis)
-- Runs HarborBuddy in dry-run mode
-- Validates behavior with different container scenarios
-- Cleans up test containers
+The Makefile auto-detects Docker, a `podman` on `PATH`, or the standard macOS package path `/opt/podman/bin/podman`. Override it explicitly when needed:
 
-### Docker Compose Integration Tests (`test-docker-compose.sh`)
-Complete integration testing using Docker Compose to test HarborBuddy as a containerized application.
-
-**Requirements:**
-- Docker with Compose support
-- Unix-like environment (macOS/Linux)
-
-**Usage:**
 ```bash
-cd test/
-./test-docker-compose.sh
+make verify-local CONTAINER_ENGINE=/opt/podman/bin/podman
+ENGINE_SOCKET=/run/user/501/podman/podman.sock make test-integration CONTAINER_ENGINE=podman
 ```
 
-**What it tests:**
-- Builds HarborBuddy Docker image
-- Starts multiple test containers with different configurations
-- Runs HarborBuddy in a container with Docker socket mount
-- Validates container discovery and exclusion logic
-- Tests scheduled time and timezone configuration
-- Verifies dry-run mode prevents modifications
-- Confirms update and cleanup cycles complete successfully
-- Automatically cleans up after testing
+## What it verifies
 
-**Test containers created:**
-- `test-nginx` - Should be managed (no exclusion label)
-- `test-redis` - Should be excluded (has `com.harborbuddy.autoupdate=false`)
-- `test-alpine` - Should be managed with older version
-- `test-postgres` - Should be excluded (database with exclusion label)
-- `test-busybox` - Should be managed
+The script:
 
-### Docker Compose Test Configuration (`docker-compose.test.yml`)
-Docker Compose file used by `test-docker-compose.sh` for integration testing.
+1. Builds the HarborBuddy image with deterministic version, commit, and date arguments.
+2. Runs `/harborbuddy --version` from the scratch image.
+3. Verifies the image carries `com.harborbuddy.role=daemon`.
+4. Starts an isolated local registry and publishes an initial and healthy replacement revision under one mutable test tag.
+5. Starts a target container from the initial revision.
+6. Runs one HarborBuddy dry-run cycle with `HARBORBUDDY_SELF_UPDATE_ENABLED=false` and an allow-list containing only the target image.
+7. Confirms HarborBuddy reports the healthy replacement while leaving the target container ID, image ID, running state, and old image unchanged.
+8. Runs a real update and confirms the target is replaced under its original name, remains running, and uses the healthy replacement image.
+9. Publishes an unhealthy revision with a failing Docker health check.
+10. Confirms readiness failure is reported, the healthy container and image are restored, and the failed replacement is removed.
+11. Publishes two HarborBuddy revisions under one mutable tag and starts the first with an `unless-stopped` restart policy.
+12. Confirms the daemon launches its helper, replaces itself with the second image, remains running under the original name, preserves its restart policy, and removes helper/backup containers.
+13. Removes its uniquely named containers and generated fixture/HarborBuddy images. Pulled dependency images may remain in the engine cache.
 
-**Features:**
-- Builds HarborBuddy from source
-- Configures test environment with TZ and scheduled time
-- Creates diverse test container scenarios
-- All test containers labeled with `com.harborbuddy.test=true`
+This is an end-to-end test for the image, Docker-compatible connection, discovery, dry-run non-mutation, successful ordinary replacement, readiness failure, rollback, and automatic self-update. Focused Go tests cover remote TLS, scheduler timing, identity ambiguity, and individual rollback boundaries.
 
-## Running Tests in CI/CD
+## Other checks
 
-The `.github/workflows/ci.yml` workflow runs automated tests on every push and PR:
-- Go unit tests
-- Race detection
-- Code coverage
-- Linting (go vet, go fmt)
+```bash
+make fmt-check source-limits
+make vet lint vuln
+make test-cover test-race test-fuzz build
+make lint-nongo
+```
 
-## Test Coverage Goals
-
-Current coverage (as of v0.1.0):
-- `internal/config`: 81.8%
-- `internal/cleanup`: 95.8%
-- `internal/updater`: 86.5%
-- `internal/scheduler`: 36.7%
-
-## Adding New Tests
-
-When adding new features:
-
-1. **Add unit tests** in the same package as your code:
-   ```go
-   func TestMyFeature(t *testing.T) {
-       // Test implementation
-   }
-   ```
-
-2. **Update integration tests** if your feature affects:
-   - Container discovery
-   - Update logic
-   - Cleanup behavior
-   - Configuration loading
-   - Scheduling
-
-3. **Document test scenarios** in this README
+CI also builds and runs the scratch image for `linux/amd64`. The scheduled multi-platform workflow builds and runs it under QEMU for `linux/amd64`, `linux/arm64`, and `linux/arm/v7`.
 
 ## Troubleshooting
 
-### Docker Socket Permission Issues
-If you get permission errors accessing `/var/run/docker.sock`:
-```bash
-# Add your user to the docker group (Linux)
-sudo usermod -aG docker $USER
-newgrp docker
+### Engine unavailable
 
-# Or run tests with sudo (not recommended)
-sudo ./test-docker-compose.sh
+For Docker, start Docker Engine or Docker Desktop and verify:
+
+```bash
+docker info
+docker version
 ```
 
-### Test Containers Still Running
-If test containers aren't cleaned up automatically:
-```bash
-# Clean up test containers
-docker ps -a --filter "label=com.harborbuddy.test=true" -q | xargs docker rm -f
+For Podman on macOS, a desktop installation alone is not enough; initialize and start a machine, then verify it:
 
-# Clean up test networks
-docker network prune -f
+```bash
+/opt/podman/bin/podman machine init  # first use only
+/opt/podman/bin/podman machine start
+/opt/podman/bin/podman info
 ```
 
-### Timezone Test Failures
-If timezone tests fail, ensure your Docker image includes timezone data:
-- The Dockerfile should copy `/usr/share/zoneinfo` from the builder stage
-- Verify with: `docker run --rm harborbuddy ls /usr/share/zoneinfo`
+The script obtains Podman's Docker-compatible socket from `podman info`. Set `ENGINE_SOCKET` when using a nonstandard socket.
 
-## Manual Testing Scenarios
+### Local registry pull fails
 
-### Test 1: Scheduled Updates
+The test publishes to a loopback registry on a random port. Docker and Podman normally permit insecure loopback registries. If your engine policy disables them, run the test in a disposable environment where a loopback registry is allowed.
+
+### Cleanup after interruption
+
+The script installs an exit trap and uses unique names. If the process is killed before the trap runs, list resources with:
+
 ```bash
-# Run HarborBuddy with scheduled time
-docker run --rm \
-  -v /var/run/docker.sock:/var/run/docker.sock:ro \
-  -e TZ=America/Los_Angeles \
-  -e HARBORBUDDY_SCHEDULE_TIME=03:00 \
-  -e HARBORBUDDY_DRY_RUN=true \
-  harborbuddy-harborbuddy --once
+docker ps -a --filter label=com.harborbuddy.integration=true
+docker image ls --filter label=com.harborbuddy.integration=true
 ```
 
-### Test 2: Interval-Based Updates
-```bash
-# Run HarborBuddy with 5-minute interval
-docker run --rm \
-  -v /var/run/docker.sock:/var/run/docker.sock:ro \
-  -e HARBORBUDDY_INTERVAL=5m \
-  -e HARBORBUDDY_DRY_RUN=true \
-  harborbuddy-harborbuddy --once
-```
-
-### Test 3: Exclusion Labels
-```bash
-# Start a container that should be excluded
-docker run -d --name excluded-test \
-  --label com.harborbuddy.autoupdate=false \
-  nginx:latest
-
-# Run HarborBuddy and verify it skips the excluded container
-docker run --rm \
-  -v /var/run/docker.sock:/var/run/docker.sock:ro \
-  harborbuddy-harborbuddy --once --dry-run
-```
-
-## Contributing Tests
-
-When contributing:
-1. Ensure all existing tests pass
-2. Add tests for new features
-3. Update this README with new test scenarios
-4. Follow the existing test patterns and structure
-
-## Questions or Issues?
-
-If you encounter testing issues:
-1. Check the [CONTRIBUTING.md](../CONTRIBUTING.md) guide
-2. Review existing test files for examples
-3. Open an issue on GitHub with test output
-
+Remove only resources carrying that test label; the script never calls a global prune command.

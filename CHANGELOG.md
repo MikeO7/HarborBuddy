@@ -1,117 +1,73 @@
 # Changelog
 
-All notable changes to HarborBuddy will be documented in this file.
+All notable changes to HarborBuddy are documented here. The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and releases use [Semantic Versioning](https://semver.org/).
 
-The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
-and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
+## [Unreleased]
+
+### Added
+
+- Transactional container replacement with readiness checks and automatic rollback.
+- `updates.startup_timeout` and `HARBORBUDDY_STARTUP_TIMEOUT` for replacement readiness.
+- Dedicated daemon role label, `com.harborbuddy.role=daemon`, for the helper-based self-update path.
+- `HARBORBUDDY_SELF_UPDATE_ENABLED=false` as an explicit opt-out from self-update, which remains enabled by default.
+- Reproducible build metadata for version, commit, and build date.
+- Runtime smoke tests for `linux/amd64`, `linux/arm64`, and `linux/arm/v7`.
+- SBOM and provenance attestations for published container images.
+- A strict Docker/Podman-compatible integration test covering dry-run non-mutation, healthy replacement, readiness failure, rollback, and end-to-end automatic self-update.
+- A comprehensive `make verify-local` target with coverage ratchets, race detection, bounded fuzzing, repository linters, and disposable runtime tests.
+- Pinned golangci-lint, govulncheck, Gitleaks, Trivy, Actionlint, ShellCheck, Hadolint, and yamllint quality gates.
+- Function-complexity and source-size limits, aggregate coverage enforcement, and per-package coverage ratchets.
+- Dependabot configuration, CODEOWNERS, a pull-request template, and documented repository policy.
+
+### Changed
+
+- Automatic self-update is enabled by default, uses a temporary helper container, and preserves the old daemon for rollback until the replacement is ready.
+- Self-update helpers inherit the configured stop and startup timeouts, and propagate their typed shutdown result through the scheduler to the application lifecycle.
+- Update checks pull eligible image references concurrently, deduplicate pulls, and re-inspect containers before replacement.
+- Dry-run pulls images for accurate comparison but never recreates containers or deletes images.
+- Docker connections use the Docker SDK's standard `DOCKER_HOST`, `DOCKER_TLS_VERIFY`, `DOCKER_CERT_PATH`, and `DOCKER_API_VERSION` variables when no HarborBuddy-specific host is configured.
+- Container builds use BuildKit target platform arguments, a scratch runtime, and `/harborbuddy` as the executable path.
+- Image validation, multi-platform publication, and GitHub release creation are sequenced in the container workflow with least-privilege job permissions.
+- Container builds use an allow-listed context, explicit source copies, and digest-pinned Dockerfile and Go builder images.
+- Go was updated to 1.26.5 to include current standard-library security fixes.
+- Stable releases use semantic-version tags and `latest`; the default branch publishes `edge` and immutable SHA tags.
+- Configuration loading is strict and rejects unknown fields or multiple YAML documents.
+
+### Removed
+
+- `docker.tls`; use standard Docker TLS environment variables instead.
+- `updates.update_all`; updates remain opt-out by default and can be narrowed with allow/deny lists.
+- The legacy top-level `logging` block; use `log`.
+- Documentation for unsupported runtime user/group overrides and automatic registry credential handling.
+- Duplicate and obsolete integration scripts and Compose fixtures.
 
 ## [0.2.0] - 2025-12-15
 
 ### Added
-- **Log Persistence**: Logs can now be rotated and saved to a file (`/logs/harborbuddy.log`).
-- **Auto-Detection**: Automatically detects mounted `/logs` or `/config` directories to enable file logging.
-- **Docker-Style Config**: Support for the `logging` block in `harborbuddy.yml` (compatible with `docker-compose` logging config).
-- **Log Rotation**: Built-in log rotation (defaults to 10MB file size, 1 backup).
-- **Improved Logging**: Enhanced log readability with visual icons and clearer status messages.
-- **Scheduled Updates**: Support for running at a specific daily time (e.g., "03:00") via `HARBORBUDDY_SCHEDULE_TIME`.
+
+- Rotating file logs with automatic `/logs` or `/config` path detection.
+- Daily scheduled updates through `HARBORBUDDY_SCHEDULE_TIME` and timezone configuration.
+- Environment overrides for update and cleanup enablement.
 
 ### Fixed
-- **Exclusion Logic**: Fixed bug where excluded containers were not correctly skipped in logs.
-- **Config**: Added missing checks for negative stop timeout and invalid timezones.
-- **Environment Support**: Added `HARBORBUDDY_UPDATES_ENABLED` and `HARBORBUDDY_CLEANUP_ENABLED` variables.
+
+- Excluded-container reporting.
+- Validation for stop timeouts and scheduled-update timezones.
 
 ### Changed
-- **Defaults**: Simplified log rotation defaults (MaxBackups=1, Compress=false).
-- **CLI**: Removed verbose log rotation flags in favor of config/env variables.
+
+- Simplified log rotation defaults to 10 MiB and one backup.
 
 ## [0.1.0] - 2024-12-03
 
 ### Added
 
-#### Core Features
-- Automatic container updates by checking for newer images
-- Update all containers by default (opt-out model)
-- Label-based exclusion with `com.harborbuddy.autoupdate="false"`
-- Configurable update check intervals
-- Dry-run mode for previewing changes
-- Image cleanup with configurable policies
-- Pattern-based image filtering (allow/deny lists)
+- Automatic image pulls and container recreation for standalone Docker Engine.
+- Opt-out label `com.harborbuddy.autoupdate=false`.
+- Interval scheduling, dry-run mode, image cleanup, and allow/deny image filters.
+- YAML, environment, and CLI configuration layers.
+- Structured logging and graceful signal handling.
+- Scratch container image and initial multi-architecture delivery workflows.
 
-#### Configuration
-- Three-tier configuration system (CLI flags > env vars > YAML file)
-- YAML configuration file support
-- Environment variable overrides
-- CLI flag overrides
-- Default configuration values
-
-#### Docker Integration
-- Docker socket support (`unix:///var/run/docker.sock`)
-- Remote Docker host support (tcp://)
-- Container inspection and recreation
-- Image pulling and management
-- Graceful container stop/start/replace
-
-#### CLI
-- `--config` - Specify config file path
-- `--interval` - Override check interval
-- `--once` - Single run mode
-- `--dry-run` - Preview mode
-- `--log-level` - Set logging level
-- `--cleanup-only` - Cleanup-only mode
-- `--version` - Show version
-
-#### Logging
-- Structured logging with zerolog
-- Multiple log levels (debug, info, warn, error)
-- JSON output support
-- Context-aware logging for containers and images
-
-#### Scheduler
-- Configurable interval-based updates
-- Graceful shutdown on SIGTERM/SIGINT
-- Single-run mode support
-- Cleanup-only mode support
-
-#### Cleanup
-- Dangling image removal
-- Unused image removal
-- Age-based filtering
-- Configurable minimum age threshold
-
-#### Development
-- Comprehensive test suite
-- GitHub Actions CI/CD workflows
-- Multi-stage Dockerfile
-- Example configurations
-- Development documentation
-
-### Documentation
-- Complete README with usage examples
-- Quick start guide
-- Contributing guidelines
-- Example docker-compose.yml
-- Example configuration file
-- Troubleshooting guide
-
-### Technical Details
-- Written in Go 1.23
-- Uses official Docker SDK
-- Runs as lightweight container (FROM scratch)
-- Multi-architecture support (amd64, arm64)
-
-## [Unreleased]
-
-### Planned for Future Releases
-- Semantic version comparison and policies
-- Health checks and automatic rollback
-- Prometheus metrics endpoint
-- Web UI for monitoring and control
-- Multi-host support
-- Kubernetes integration
-- Per-container update schedules (cron-like)
-- Webhook notifications
-
----
-
+[0.2.0]: https://github.com/MikeO7/HarborBuddy/compare/v0.1.0...v0.2.0
 [0.1.0]: https://github.com/MikeO7/HarborBuddy/releases/tag/v0.1.0
-

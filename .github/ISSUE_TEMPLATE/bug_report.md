@@ -25,8 +25,11 @@ A clear description of what you expected to happen.
 - Architecture: [e.g., amd64, arm64]
 
 ## Logs
+
+Redact registry credentials, Docker authorization data, client certificates, tokens, private endpoints, and unrelated environment variables. Do not attach complete environment dumps.
+
 ```
-Paste relevant logs here (use --log-level debug for more details)
+Paste relevant sanitized logs here (use --log-level debug for more details)
 ```
 
 ## Additional context

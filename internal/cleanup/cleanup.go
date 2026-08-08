@@ -2,127 +2,122 @@ package cleanup
 
 import (
 	"context"
+	"fmt"
+	"sort"
 	"strings"
 	"time"
 
 	"github.com/MikeO7/HarborBuddy/internal/config"
 	"github.com/MikeO7/HarborBuddy/internal/docker"
-	"github.com/MikeO7/HarborBuddy/pkg/util"
 	"github.com/rs/zerolog"
 )
 
-// shortID returns a shortened version of a Docker ID, safe for any length
+type ImageResult struct {
+	Image       docker.ImageInfo
+	Eligible    bool
+	Removed     bool
+	WouldRemove bool
+	Reason      string
+	Err         error
+}
+
+type Report struct {
+	Results        []ImageResult
+	ReclaimedBytes int64
+}
+
+func RunCleanup(ctx context.Context, cfg config.Config, client docker.Client, logger zerolog.Logger) (Report, error) {
+	return runCleanupAt(ctx, cfg, client, logger, time.Now())
+}
+
+func runCleanupAt(ctx context.Context, cfg config.Config, client docker.Client, logger zerolog.Logger, now time.Time) (Report, error) {
+	var images []docker.ImageInfo
+	var err error
+	if cfg.Cleanup.DanglingOnly {
+		images, err = client.ListDanglingImages(ctx)
+	} else {
+		images, err = client.ListImages(ctx)
+	}
+	if err != nil {
+		return Report{}, fmt.Errorf("list images for cleanup: %w", err)
+	}
+	sort.Slice(images, func(i, j int) bool {
+		if images[i].CreatedAt.Equal(images[j].CreatedAt) {
+			return images[i].ID < images[j].ID
+		}
+		return images[i].CreatedAt.Before(images[j].CreatedAt)
+	})
+
+	minimumAge := time.Duration(cfg.Cleanup.MinAgeHours) * time.Hour
+	report := Report{Results: make([]ImageResult, 0, len(images))}
+	for _, image := range images {
+		if err := ctx.Err(); err != nil {
+			return report, err
+		}
+		result := ImageResult{Image: image}
+		switch {
+		case now.Sub(image.CreatedAt) < minimumAge:
+			result.Reason = "image is newer than the minimum age"
+		case cfg.Cleanup.DanglingOnly && !image.Dangling:
+			result.Reason = "image is not dangling"
+		default:
+			result.Eligible = true
+			if cfg.Updates.DryRun {
+				result.WouldRemove = true
+			} else if removeErr := client.RemoveImage(ctx, image.ID); removeErr != nil {
+				result.Err = removeErr
+			} else {
+				result.Removed = true
+				report.ReclaimedBytes += image.Size
+			}
+		}
+		report.Results = append(report.Results, result)
+		logImageResult(logger, result)
+	}
+
+	logger.Info().
+		Int("images", len(report.Results)).
+		Int64("reclaimed_bytes", report.ReclaimedBytes).
+		Str("reclaimed", formatBytes(report.ReclaimedBytes)).
+		Bool("dry_run", cfg.Updates.DryRun).
+		Msg("Image cleanup complete")
+	return report, nil
+}
+
+func logImageResult(logger zerolog.Logger, result ImageResult) {
+	event := logger.Info().
+		Str("image_id", shortID(result.Image.ID)).
+		Str("image_tags", strings.Join(result.Image.RepoTags, ",")).
+		Int64("image_size", result.Image.Size)
+	switch {
+	case result.Err != nil:
+		event.Err(result.Err).Str("result", "failed").Msg("Image cleanup failed")
+	case result.Removed:
+		event.Str("result", "removed").Msg("Image removed")
+	case result.WouldRemove:
+		event.Str("result", "would_remove").Msg("Image would be removed")
+	default:
+		event.Str("result", "skipped").Str("reason", result.Reason).Msg("Image cleanup skipped")
+	}
+}
+
+func formatBytes(bytes int64) string {
+	const unit = 1024
+	if bytes < unit {
+		return fmt.Sprintf("%d B", bytes)
+	}
+	divisor, exponent := int64(unit), 0
+	for value := bytes / unit; value >= unit; value /= unit {
+		divisor *= unit
+		exponent++
+	}
+	return fmt.Sprintf("%.1f %ciB", float64(bytes)/float64(divisor), "KMGTPE"[exponent])
+}
+
 func shortID(id string) string {
+	id = strings.TrimPrefix(id, "sha256:")
 	if len(id) > 12 {
 		return id[:12]
 	}
 	return id
-}
-
-// RunCleanup performs image cleanup based on configuration
-func RunCleanup(ctx context.Context, cfg config.Config, dockerClient docker.Client, logger *zerolog.Logger) error {
-	if !cfg.Cleanup.Enabled {
-		logger.Debug().Msg("Cleanup is disabled")
-		return nil
-	}
-
-	logger.Info().Msg("Starting image cleanup")
-
-	// List images
-	listStart := time.Now()
-	var images []docker.ImageInfo
-	var err error
-
-	if cfg.Cleanup.DanglingOnly {
-		logger.Debug().Msg("Listing only dangling images")
-		images, err = dockerClient.ListDanglingImages(ctx)
-	} else {
-		logger.Debug().Msg("Listing all images")
-		images, err = dockerClient.ListImages(ctx)
-	}
-
-	if err != nil {
-		logger.Error().Err(err).Msg("Failed to list images")
-		return err
-	}
-
-	logger.Info().Int64("duration_ms", time.Since(listStart).Milliseconds()).Msgf("Found %d images (in %v)", len(images), time.Since(listStart))
-
-	minAge := time.Duration(cfg.Cleanup.MinAgeHours) * time.Hour
-	removedCount := 0
-	skippedCount := 0
-	var totalReclaimed int64
-
-	for _, image := range images {
-		if err := ctx.Err(); err != nil {
-			logger.Warn().Msg("Cleanup interrupted")
-			return err
-		}
-
-		// Create contextual logger for this image
-		imageTag := "none"
-		if len(image.RepoTags) > 0 {
-			imageTag = strings.Join(image.RepoTags, ",")
-		}
-
-		// Derive from parent logger to keep cycle_id
-		imageLogger := logger.With().
-			Str("image_id", shortID(image.ID)).
-			Str("image_tag", imageTag).
-			Logger()
-		imageLoggerPtr := &imageLogger
-
-		// Check if image is eligible for cleanup
-		if !isEligibleForCleanup(image, cfg.Cleanup, minAge, imageLoggerPtr) {
-			skippedCount++
-			continue
-		}
-
-		sizeStr := util.FormatBytes(image.Size)
-		// Log attempt at Debug level to reduce noise
-		imageLogger.Debug().Msgf("Attempting to remove image (tags: %v, size: %s)", image.RepoTags, sizeStr)
-
-		if err := dockerClient.RemoveImage(ctx, image.ID); err != nil {
-			imageLogger.Error().Err(err).Msg("Failed to remove image")
-			skippedCount++
-			continue
-		}
-
-		// Friendly "Removed" message
-		tagDisplay := "Dangling"
-		if len(image.RepoTags) > 0 {
-			tagDisplay = strings.Join(image.RepoTags, ", ")
-		} else {
-			// Try to get a friendly name from labels
-			if name := util.GetImageFriendlyName(image.Labels); name != "" {
-				tagDisplay = name
-			}
-		}
-		imageLogger.Info().Msgf("🗑️  Removed image %s (%s) | Reclaimed: %s", shortID(image.ID), tagDisplay, sizeStr)
-		removedCount++
-		totalReclaimed += image.Size
-	}
-
-	logger.Info().Msgf("✨ Cleanup complete: %d removed. Space Reclaimed: %s", removedCount, util.FormatBytes(totalReclaimed))
-	return nil
-}
-
-// isEligibleForCleanup determines if an image is eligible for cleanup
-func isEligibleForCleanup(image docker.ImageInfo, cfg config.CleanupConfig, minAge time.Duration, logger *zerolog.Logger) bool {
-	// Check if image is old enough
-	age := time.Since(image.CreatedAt)
-	if age < minAge {
-		logger.Debug().Msgf("Image is too new (age: %v, min: %v)", age, minAge)
-		return false
-	}
-
-	// If dangling_only mode, only consider dangling images
-	if cfg.DanglingOnly {
-		if !image.Dangling {
-			logger.Debug().Msg("Image is not dangling")
-			return false
-		}
-	}
-
-	return true
 }

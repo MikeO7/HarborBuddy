@@ -1,465 +1,171 @@
 package selfupdate
 
 import (
-	"bytes"
 	"context"
-	"fmt"
+	"errors"
 	"strings"
 	"testing"
 	"time"
 
 	"github.com/MikeO7/HarborBuddy/internal/docker"
-	"github.com/MikeO7/HarborBuddy/pkg/log"
-	"github.com/docker/docker/api/types"
-	"github.com/docker/docker/api/types/container"
+	containertypes "github.com/docker/docker/api/types/container"
 )
 
-func TestRunUpdater(t *testing.T) {
-	// Capture logs
-	var logBuf bytes.Buffer
-	log.Initialize(log.Config{
-		Level:  "info",
-		Output: &logBuf,
+type fakeClient struct {
+	containers    []docker.ContainerSummary
+	details       docker.ContainerDetails
+	helperID      string
+	helperErr     error
+	helperRequest docker.SelfUpdateHelperRequest
+	waitedFor     string
+	replaced      bool
+	replaceTarget docker.ImageInfo
+	replaceOpts   docker.ReplaceOptions
+}
+
+func (f *fakeClient) ListContainers(context.Context) ([]docker.ContainerSummary, error) {
+	return f.containers, nil
+}
+func (f *fakeClient) InspectContainer(context.Context, string) (docker.ContainerDetails, error) {
+	return f.details, nil
+}
+func (f *fakeClient) PullImage(context.Context, string) (docker.ImageInfo, error) {
+	return docker.ImageInfo{}, nil
+}
+func (f *fakeClient) CheckReplacement(docker.ContainerDetails, docker.ImageInfo) error { return nil }
+func (f *fakeClient) ReplaceContainer(_ context.Context, _ docker.ContainerDetails, target docker.ImageInfo, options docker.ReplaceOptions) (docker.ReplaceResult, error) {
+	f.replaced = true
+	f.replaceTarget = target
+	f.replaceOpts = options
+	return docker.ReplaceResult{}, nil
+}
+func (f *fakeClient) ListImages(context.Context) ([]docker.ImageInfo, error) { return nil, nil }
+func (f *fakeClient) ListDanglingImages(context.Context) ([]docker.ImageInfo, error) {
+	return nil, nil
+}
+func (f *fakeClient) RemoveImage(context.Context, string) error { return nil }
+func (f *fakeClient) StartSelfUpdateHelper(_ context.Context, _ docker.ContainerDetails, request docker.SelfUpdateHelperRequest) (string, error) {
+	f.helperRequest = request
+	return f.helperID, f.helperErr
+}
+func (f *fakeClient) WaitContainerExit(_ context.Context, id string) error {
+	f.waitedFor = id
+	return nil
+}
+
+func TestDetectCurrentContainer(t *testing.T) {
+	containers := []docker.ContainerSummary{
+		{ID: strings.Repeat("a", 64)},
+		{ID: strings.Repeat("b", 64)},
+	}
+
+	t.Run("cgroup takes precedence", func(t *testing.T) {
+		cgroup := []byte("0::/system.slice/docker-" + containers[1].ID + ".scope\n")
+		if got := detectCurrentContainer(containers, containers[0].ID[:12], cgroup); got != containers[1].ID {
+			t.Fatalf("detected %q, want cgroup container %q", got, containers[1].ID)
+		}
 	})
 
-	mockClient := docker.NewMockDockerClient()
-	ctx := context.Background()
-
-	targetID := "target-123"
-	targetName := "harborbuddy"
-	newImage := "harborbuddy:latest"
-
-	// Setup initial state: Target running
-	mockClient.Containers = []docker.ContainerInfo{
-		{
-			ID:    targetID,
-			Name:  targetName,
-			State: &types.ContainerState{Running: true},
-			Config: &container.Config{
-				Image: "harborbuddy:old",
-			},
-		},
-	}
-
-	// We need to simulate the target stopping asynchronously
-	go func() {
-		time.Sleep(100 * time.Millisecond)
-		// Update the container state safely using the new method
-		mockClient.SetContainerState(targetID, false)
-	}()
-
-	err := RunUpdater(ctx, mockClient, targetID, newImage)
-	if err != nil {
-		t.Fatalf("RunUpdater failed: %v", err)
-	}
-
-	// Verify actions
-	// 1. Target removed
-	if len(mockClient.RemovedContainers) != 1 || mockClient.RemovedContainers[0] != targetID {
-		t.Errorf("Expected target container %s to be removed, got %v", targetID, mockClient.RemovedContainers)
-	}
-
-	// 2. New container created
-	if len(mockClient.CreatedContainers) != 1 {
-		t.Fatalf("Expected 1 container creation, got %d", len(mockClient.CreatedContainers))
-	}
-	creation := mockClient.CreatedContainers[0]
-	if creation.NewImage != newImage {
-		t.Errorf("Expected new container image %s, got %s", newImage, creation.NewImage)
-	}
-
-	// 3. Renamed
-	if len(mockClient.RenamedContainers) != 1 {
-		t.Errorf("Expected 1 rename operation, got %d", len(mockClient.RenamedContainers))
-	} else {
-		if mockClient.RenamedContainers[0].NewName != targetName {
-			t.Errorf("Expected rename to %s, got %s", targetName, mockClient.RenamedContainers[0].NewName)
+	t.Run("Docker hostname prefix", func(t *testing.T) {
+		if got := detectCurrentContainer(containers, containers[0].ID[:12], nil); got != containers[0].ID {
+			t.Fatalf("detected %q, want hostname container %q", got, containers[0].ID)
 		}
-	}
+	})
 
-	// 4. Started
-	if len(mockClient.StartedContainers) != 1 {
-		t.Errorf("Expected 1 start operation, got %d", len(mockClient.StartedContainers))
-	}
-
-	// 5. Verify Logs
-	logs := logBuf.String()
-	expectedSubstrings := []string{
-		"Updater: 🔄 Started",
-		"Updater: 🚀 Starting new container",
-		"Updater: ✅ Update complete",
-	}
-
-	for _, s := range expectedSubstrings {
-		if !strings.Contains(logs, s) {
-			t.Errorf("Log output missing expected string: %q", s)
+	t.Run("ambiguous identity is rejected", func(t *testing.T) {
+		ambiguous := []docker.ContainerSummary{{ID: "abcdef123456" + strings.Repeat("0", 52)}, {ID: "abcdef123456" + strings.Repeat("1", 52)}}
+		if got := detectCurrentContainer(ambiguous, "abcdef123456", nil); got != "" {
+			t.Fatalf("detected ambiguous container %q", got)
 		}
+	})
+
+	t.Run("role label is not positive identity", func(t *testing.T) {
+		withRole := append([]docker.ContainerSummary(nil), containers...)
+		withRole[1].Labels = map[string]string{"com.harborbuddy.role": "daemon"}
+		if got := detectCurrentContainer(withRole, "custom-hostname", nil); got != "" {
+			t.Fatalf("detected role-labeled remote container %q", got)
+		}
+	})
+}
+
+func TestDetectCurrentContainerExplicitID(t *testing.T) {
+	container := docker.ContainerSummary{ID: strings.Repeat("c", 64)}
+	t.Setenv("HARBORBUDDY_CONTAINER_ID", container.ID[:12])
+	if got := DetectCurrentContainer([]docker.ContainerSummary{container}); got != container.ID {
+		t.Fatalf("DetectCurrentContainer() = %q, want %q", got, container.ID)
 	}
 }
 
-func TestRunUpdaterTimeout(t *testing.T) {
-	var logBuf bytes.Buffer
-	log.Initialize(log.Config{
-		Level:  "info",
-		Output: &logBuf,
+func TestDetectCurrentContainerExplicitName(t *testing.T) {
+	container := docker.ContainerSummary{ID: strings.Repeat("d", 64), Name: "harborbuddy"}
+	t.Setenv("HARBORBUDDY_CONTAINER_NAME", "harborbuddy")
+	if got := DetectCurrentContainer([]docker.ContainerSummary{container}); got != container.ID {
+		t.Fatalf("DetectCurrentContainer() = %q, want %q", got, container.ID)
+	}
+}
+
+func TestTriggerReturnsShutdownSignal(t *testing.T) {
+	client := &fakeClient{helperID: "helper-123"}
+	current := docker.ContainerDetails{Summary: docker.ContainerSummary{ID: "self-123", Name: "harborbuddy"}}
+	err := Trigger(context.Background(), client, current, docker.ImageInfo{ID: "sha256:new"}, TriggerOptions{
+		DockerHost:     "tcp://docker:2376",
+		StopTimeout:    7 * time.Second,
+		StartupTimeout: 19 * time.Second,
 	})
 
-	mockClient := docker.NewMockDockerClient()
-	ctx := context.Background()
-
-	targetID := "target-never-stops"
-	newImage := "harborbuddy:latest"
-
-	// Setup container that never stops
-	mockClient.Containers = []docker.ContainerInfo{
-		{
-			ID:    targetID,
-			Name:  "stuck-container",
-			State: &types.ContainerState{Running: true},
-			Config: &container.Config{
-				Image: "harborbuddy:old",
-			},
-		},
+	signal, ok := AsShutdownRequired(err)
+	if !ok {
+		t.Fatalf("Trigger() error = %v, want ShutdownRequiredError", err)
 	}
+	if signal.HelperContainerID != "helper-123" || signal.TargetContainerID != "self-123" {
+		t.Fatalf("unexpected signal: %+v", signal)
+	}
+	if client.helperRequest.TargetImageID != "sha256:new" || client.helperRequest.DockerHost != "tcp://docker:2376" || client.helperRequest.StopTimeout != 7*time.Second || client.helperRequest.StartupTimeout != 19*time.Second {
+		t.Fatalf("unexpected helper request: %+v", client.helperRequest)
+	}
+}
 
-	// Use a very short timeout for quick test
-	shortCtx, cancel := context.WithTimeout(ctx, 100*time.Millisecond)
+func TestTriggerReportsHelperStartFailure(t *testing.T) {
+	client := &fakeClient{helperErr: errors.New("permission denied")}
+	current := docker.ContainerDetails{Summary: docker.ContainerSummary{ID: "self-123", Name: "harborbuddy"}}
+	err := Trigger(context.Background(), client, current, docker.ImageInfo{ID: "sha256:new"}, TriggerOptions{})
+	if err == nil || !strings.Contains(err.Error(), "start self-update helper for self-123") || !strings.Contains(err.Error(), "permission denied") {
+		t.Fatalf("Trigger() error = %v, want clear helper start error", err)
+	}
+	if _, ok := AsShutdownRequired(err); ok {
+		t.Fatal("helper start failure must not request shutdown")
+	}
+}
+
+func TestRunUpdaterUsesTransactionalReplacement(t *testing.T) {
+	client := &fakeClient{details: docker.ContainerDetails{
+		Summary: docker.ContainerSummary{ID: "self-123", Name: "harborbuddy", ImageRef: "harborbuddy:latest", ImageID: "sha256:old"},
+		Config:  &containertypes.Config{},
+		Host:    &containertypes.HostConfig{},
+		State:   &containertypes.State{Running: false},
+	}}
+	ctx, cancel := context.WithTimeout(context.Background(), time.Second)
 	defer cancel()
 
-	err := RunUpdater(shortCtx, mockClient, targetID, newImage)
-	if err == nil {
-		t.Error("Expected timeout error, got nil")
+	request := UpdaterRequest{
+		TargetContainerID: "self-123",
+		TargetImageID:     "sha256:new",
+		StopTimeout:       6 * time.Second,
+		StartupTimeout:    17 * time.Second,
 	}
-	if !strings.Contains(err.Error(), "timeout") {
-		t.Errorf("Expected timeout error, got: %v", err)
+	if err := RunUpdater(ctx, client, request); err != nil {
+		t.Fatalf("RunUpdater() error = %v", err)
 	}
-}
-
-func TestRunUpdaterInspectFails(t *testing.T) {
-	var logBuf bytes.Buffer
-	log.Initialize(log.Config{
-		Level:  "debug",
-		Output: &logBuf,
-	})
-
-	mockClient := docker.NewMockDockerClient()
-	ctx := context.Background()
-
-	targetID := "missing-target"
-	newImage := "harborbuddy:latest"
-
-	// Container doesn't exist
-	mockClient.Containers = []docker.ContainerInfo{}
-
-	err := RunUpdater(ctx, mockClient, targetID, newImage)
-	if err == nil {
-		t.Error("Expected error when inspecting non-existent container, got nil")
+	if client.waitedFor != "self-123" {
+		t.Fatalf("waited for %q, want self-123", client.waitedFor)
 	}
-}
-
-func TestRunUpdaterRemoveFails(t *testing.T) {
-	var logBuf bytes.Buffer
-	log.Initialize(log.Config{
-		Level:  "info",
-		Output: &logBuf,
-	})
-
-	mockClient := docker.NewMockDockerClient()
-	ctx := context.Background()
-
-	targetID := "target-123"
-	newImage := "harborbuddy:latest"
-
-	// Setup container that stops immediately but removal fails
-	mockClient.Containers = []docker.ContainerInfo{
-		{
-			ID:    targetID,
-			Name:  "test-container",
-			State: &types.ContainerState{Running: false}, // Already stopped
-			Config: &container.Config{
-				Image: "harborbuddy:old",
-			},
-		},
+	if !client.replaced || client.replaceTarget.ID != "sha256:new" {
+		t.Fatalf("transactional replacement not called with target: %+v", client.replaceTarget)
 	}
-
-	// Make removal fail
-	mockClient.RemoveContainerError = fmt.Errorf("removal failed")
-
-	err := RunUpdater(ctx, mockClient, targetID, newImage)
-	if err == nil {
-		t.Error("Expected error when removal fails, got nil")
+	if !client.replaceOpts.CurrentAlreadyStopped {
+		t.Fatal("stopped target must use CurrentAlreadyStopped transaction mode")
 	}
-	if !strings.Contains(err.Error(), "failed to remove old container") {
-		t.Errorf("Expected removal error, got: %v", err)
-	}
-}
-
-func TestRunUpdaterCreateFails(t *testing.T) {
-	var logBuf bytes.Buffer
-	log.Initialize(log.Config{
-		Level:  "info",
-		Output: &logBuf,
-	})
-
-	mockClient := docker.NewMockDockerClient()
-	ctx := context.Background()
-
-	targetID := "target-123"
-	newImage := "harborbuddy:latest"
-
-	// Setup container
-	mockClient.Containers = []docker.ContainerInfo{
-		{
-			ID:    targetID,
-			Name:  "test-container",
-			State: &types.ContainerState{Running: false},
-			Config: &container.Config{
-				Image: "harborbuddy:old",
-			},
-		},
-	}
-
-	// Make creation fail
-	mockClient.CreateContainerError = fmt.Errorf("creation failed")
-
-	err := RunUpdater(ctx, mockClient, targetID, newImage)
-	if err == nil {
-		t.Error("Expected error when creation fails, got nil")
-	}
-	if !strings.Contains(err.Error(), "failed to create new container") {
-		t.Errorf("Expected creation error, got: %v", err)
-	}
-}
-
-func TestRunUpdaterRenameFails(t *testing.T) {
-	var logBuf bytes.Buffer
-	log.Initialize(log.Config{
-		Level:  "info",
-		Output: &logBuf,
-	})
-
-	mockClient := docker.NewMockDockerClient()
-	ctx := context.Background()
-
-	targetID := "target-123"
-	newImage := "harborbuddy:latest"
-
-	// Setup container
-	mockClient.Containers = []docker.ContainerInfo{
-		{
-			ID:    targetID,
-			Name:  "test-container",
-			State: &types.ContainerState{Running: false},
-			Config: &container.Config{
-				Image: "harborbuddy:old",
-			},
-		},
-	}
-
-	// Make rename fail
-	mockClient.RenameContainerError = fmt.Errorf("rename failed")
-
-	err := RunUpdater(ctx, mockClient, targetID, newImage)
-	if err == nil {
-		t.Error("Expected error when rename fails, got nil")
-	}
-	if !strings.Contains(err.Error(), "failed to rename new container") {
-		t.Errorf("Expected rename error, got: %v", err)
-	}
-
-	// Verify cleanup attempted (temp container should be removed)
-	if len(mockClient.RemovedContainers) < 2 {
-		t.Error("Expected temp container to be cleaned up after rename failure")
-	}
-}
-
-func TestRunUpdaterStartFails(t *testing.T) {
-	var logBuf bytes.Buffer
-	log.Initialize(log.Config{
-		Level:  "info",
-		Output: &logBuf,
-	})
-
-	mockClient := docker.NewMockDockerClient()
-	ctx := context.Background()
-
-	targetID := "target-123"
-	newImage := "harborbuddy:latest"
-
-	// Setup container
-	mockClient.Containers = []docker.ContainerInfo{
-		{
-			ID:    targetID,
-			Name:  "test-container",
-			State: &types.ContainerState{Running: false},
-			Config: &container.Config{
-				Image: "harborbuddy:old",
-			},
-		},
-	}
-
-	// Make start fail
-	mockClient.StartContainerError = fmt.Errorf("start failed")
-
-	err := RunUpdater(ctx, mockClient, targetID, newImage)
-	if err == nil {
-		t.Error("Expected error when start fails, got nil")
-	}
-	if !strings.Contains(err.Error(), "failed to start new container") {
-		t.Errorf("Expected start error, got: %v", err)
-	}
-}
-
-func TestTrigger_Success(t *testing.T) {
-	var logBuf bytes.Buffer
-	log.Initialize(log.Config{
-		Level:  "info",
-		Output: &logBuf,
-	})
-
-	mockClient := docker.NewMockDockerClient()
-	ctx := context.Background()
-
-	myContainer := docker.ContainerInfo{
-		ID:   "my-container-123",
-		Name: "harborbuddy",
-		Config: &container.Config{
-			Image: "harborbuddy:old",
-		},
-	}
-	newImage := "harborbuddy:latest"
-
-	// Track exit call
-	exitCalled := false
-	exitCode := -1
-	originalExitFunc := ExitFunc
-	ExitFunc = func(code int) {
-		exitCalled = true
-		exitCode = code
-	}
-	defer func() { ExitFunc = originalExitFunc }()
-
-	err := Trigger(ctx, mockClient, myContainer, newImage)
-	// Trigger returns nil after calling exitFunc (which we mocked)
-	if err != nil {
-		t.Errorf("Unexpected error: %v", err)
-	}
-
-	// Verify exit was called with code 0
-	if !exitCalled {
-		t.Error("Expected exitFunc to be called")
-	}
-	if exitCode != 0 {
-		t.Errorf("Expected exit code 0, got %d", exitCode)
-	}
-
-	// Verify helper was created
-	if len(mockClient.CreatedHelpers) != 1 {
-		t.Fatalf("Expected 1 helper creation, got %d", len(mockClient.CreatedHelpers))
-	}
-
-	helper := mockClient.CreatedHelpers[0]
-	if helper.Image != newImage {
-		t.Errorf("Expected helper image %s, got %s", newImage, helper.Image)
-	}
-
-	// Verify helper name contains container name
-	if !strings.Contains(helper.Name, "harborbuddy-updater-") {
-		t.Errorf("Expected helper name to contain 'harborbuddy-updater-', got %s", helper.Name)
-	}
-
-	// Verify command includes updater mode flags
-	cmdStr := strings.Join(helper.Cmd, " ")
-	if !strings.Contains(cmdStr, "--updater-mode") {
-		t.Error("Expected command to include --updater-mode")
-	}
-	if !strings.Contains(cmdStr, "--target-container-id") {
-		t.Error("Expected command to include --target-container-id")
-	}
-	if !strings.Contains(cmdStr, myContainer.ID) {
-		t.Errorf("Expected command to include container ID %s", myContainer.ID)
-	}
-
-	// Verify helper was started
-	if len(mockClient.StartedContainers) != 1 {
-		t.Error("Expected helper container to be started")
-	}
-
-	// Verify logs
-	logs := logBuf.String()
-	if !strings.Contains(logs, "Self-Update: Triggering helper process") {
-		t.Error("Expected trigger log message")
-	}
-}
-
-func TestTrigger_CreateHelperFails(t *testing.T) {
-	var logBuf bytes.Buffer
-	log.Initialize(log.Config{
-		Level:  "info",
-		Output: &logBuf,
-	})
-
-	mockClient := docker.NewMockDockerClient()
-	mockClient.CreateHelperContainerError = fmt.Errorf("failed to create helper")
-
-	ctx := context.Background()
-	myContainer := docker.ContainerInfo{
-		ID:   "my-container-123",
-		Name: "harborbuddy",
-	}
-
-	// Should NOT call exit if helper creation fails
-	exitCalled := false
-	originalExitFunc := ExitFunc
-	ExitFunc = func(code int) {
-		exitCalled = true
-	}
-	defer func() { ExitFunc = originalExitFunc }()
-
-	err := Trigger(ctx, mockClient, myContainer, "harborbuddy:latest")
-	if err == nil {
-		t.Error("Expected error when helper creation fails")
-	}
-	if !strings.Contains(err.Error(), "failed to create helper") {
-		t.Errorf("Expected create helper error, got: %v", err)
-	}
-	if exitCalled {
-		t.Error("Exit should not be called when helper creation fails")
-	}
-}
-
-func TestTrigger_StartHelperFails(t *testing.T) {
-	var logBuf bytes.Buffer
-	log.Initialize(log.Config{
-		Level:  "info",
-		Output: &logBuf,
-	})
-
-	mockClient := docker.NewMockDockerClient()
-	mockClient.StartContainerError = fmt.Errorf("failed to start helper")
-
-	ctx := context.Background()
-	myContainer := docker.ContainerInfo{
-		ID:   "my-container-123",
-		Name: "harborbuddy",
-	}
-
-	// Should NOT call exit if helper start fails
-	exitCalled := false
-	originalExitFunc := ExitFunc
-	ExitFunc = func(code int) {
-		exitCalled = true
-	}
-	defer func() { ExitFunc = originalExitFunc }()
-
-	err := Trigger(ctx, mockClient, myContainer, "harborbuddy:latest")
-	if err == nil {
-		t.Error("Expected error when helper start fails")
-	}
-	if !strings.Contains(err.Error(), "failed to start helper") {
-		t.Errorf("Expected start helper error, got: %v", err)
-	}
-	if exitCalled {
-		t.Error("Exit should not be called when helper start fails")
+	if client.replaceOpts.StopTimeout != request.StopTimeout || client.replaceOpts.StartupTimeout != request.StartupTimeout {
+		t.Fatalf("replacement timeouts = stop %s startup %s, want stop %s startup %s", client.replaceOpts.StopTimeout, client.replaceOpts.StartupTimeout, request.StopTimeout, request.StartupTimeout)
 	}
 }

@@ -1,0 +1,59 @@
+version: "2"
+
+run:
+  timeout: 5m
+
+linters:
+  default: none
+  enable:
+    - bodyclose
+    - cyclop
+    - errcheck
+    - errorlint
+    - exhaustive
+    - funlen
+    - gosec
+    - govet
+    - ineffassign
+    - maintidx
+    - nestif
+    - nilerr
+    - nolintlint
+    - staticcheck
+    - unconvert
+    - unused
+  settings:
+    cyclop:
+      max-complexity: 15
+      package-average: 0.0
+    errcheck:
+      check-type-assertions: true
+    funlen:
+      lines: 100
+      statements: 60
+      ignore-comments: true
+    maintidx:
+      under: 20
+    nestif:
+      min-complexity: 5
+    nolintlint:
+      allow-unused: false
+      require-explanation: true
+      require-specific: true
+  exclusions:
+    generated: strict
+    rules:
+      - path: _test\.go
+        linters:
+          - cyclop
+          - funlen
+          - maintidx
+          - nestif
+
+formatters:
+  enable:
+    - gofmt
+
+issues:
+  max-issues-per-linter: 0
+  max-same-issues: 0

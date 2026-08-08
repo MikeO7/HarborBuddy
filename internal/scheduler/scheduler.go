@@ -2,179 +2,213 @@ package scheduler
 
 import (
 	"context"
-	"os"
-	"os/signal"
-	"syscall"
-	"time"
-
 	"crypto/rand"
 	"encoding/hex"
+	"errors"
+	"fmt"
+	"time"
 
 	"github.com/MikeO7/HarborBuddy/internal/cleanup"
 	"github.com/MikeO7/HarborBuddy/internal/config"
 	"github.com/MikeO7/HarborBuddy/internal/docker"
+	"github.com/MikeO7/HarborBuddy/internal/selfupdate"
 	"github.com/MikeO7/HarborBuddy/internal/updater"
-	"github.com/MikeO7/HarborBuddy/pkg/log"
+	"github.com/rs/zerolog"
 )
 
-// Run starts the scheduler main loop
-func Run(cfg config.Config, dockerClient docker.Client) error {
-	ctx, cancel := context.WithCancel(context.Background())
-	defer cancel()
+// Run starts the scheduler using the caller's lifecycle context and logger.
+func Run(ctx context.Context, cfg config.Config, client docker.Client, logger zerolog.Logger) error {
+	s := newScheduler(realClock{})
+	return s.run(ctx, cfg, client, logger)
+}
 
-	// Set up signal handling for graceful shutdown and dynamic reconfig
-	sigChan := make(chan os.Signal, 1)
-	signal.Notify(sigChan, os.Interrupt, syscall.SIGTERM, syscall.SIGINT, syscall.SIGUSR1)
+type scheduler struct {
+	clock      clock
+	runUpdate  func(context.Context, config.Config, docker.Client, zerolog.Logger) error
+	runCleanup func(context.Context, config.Config, docker.Client, zerolog.Logger) error
+	cycleID    func(time.Time) string
+}
 
-	go handleSignals(sigChan, cancel)
-
-	log.Info("HarborBuddy started")
-
-	// Run once mode
-	if cfg.RunOnce {
-		log.Info("Running in once mode")
-		return runCycle(ctx, cfg, dockerClient)
+func newScheduler(clock clock) *scheduler {
+	return &scheduler{
+		clock: clock,
+		runUpdate: func(ctx context.Context, cfg config.Config, client docker.Client, logger zerolog.Logger) error {
+			_, err := updater.RunUpdateCycle(ctx, cfg, client, logger)
+			return err
+		},
+		runCleanup: func(ctx context.Context, cfg config.Config, client docker.Client, logger zerolog.Logger) error {
+			_, err := cleanup.RunCleanup(ctx, cfg, client, logger)
+			return err
+		},
+		cycleID: generateCycleID,
 	}
+}
 
-	// Cleanup only mode
+func (s *scheduler) run(ctx context.Context, cfg config.Config, client docker.Client, logger zerolog.Logger) error {
+	if ctx == nil {
+		ctx = context.Background()
+	}
+	logger.Info().Msg("Scheduler started")
+
 	if cfg.CleanupOnly {
-		log.Info("Running in cleanup-only mode")
-		// For one-off mode, we generate a cycle ID too
-		cycleID := generateCycleID()
-		logger := log.WithFields(map[string]interface{}{"cycle_id": cycleID})
-		return cleanup.RunCleanup(ctx, cfg, dockerClient, logger)
+		cycleLogger := logger.With().Str("cycle_id", s.cycleID(s.clock.Now())).Logger()
+		err := s.runCleanup(ctx, cfg, client, cycleLogger)
+		return gracefulResult(ctx, err)
 	}
-
-	// Normal loop mode - check if using scheduled time or interval
+	if cfg.RunOnce {
+		return gracefulResult(ctx, s.runCycle(ctx, cfg, client, logger))
+	}
 	if cfg.Updates.ScheduleTime != "" {
-		return runScheduledMode(ctx, cfg, dockerClient)
+		return s.runScheduled(ctx, cfg, client, logger)
 	}
-
-	return runIntervalMode(ctx, cfg, dockerClient)
+	return s.runInterval(ctx, cfg, client, logger)
 }
 
-// runIntervalMode runs cycles at regular intervals
-func runIntervalMode(ctx context.Context, cfg config.Config, dockerClient docker.Client) error {
-	log.Infof("Starting scheduler with interval: %v", cfg.Updates.CheckInterval)
-
-	// Run initial cycle immediately
-	if err := runCycle(ctx, cfg, dockerClient); err != nil {
-		log.ErrorErr("Error in initial cycle", err)
-	}
-
-	// Set up ticker for periodic cycles
-	ticker := time.NewTicker(cfg.Updates.CheckInterval)
-	defer ticker.Stop()
-
-	for {
-		select {
-		case <-ctx.Done():
-			log.Info("Scheduler stopped")
-			return nil
-		case <-ticker.C:
-			if err := runCycle(ctx, cfg, dockerClient); err != nil {
-				log.ErrorErr("Error in update cycle", err)
-			}
-		}
-	}
-}
-
-// runScheduledMode runs cycles at a specific time each day
-func runScheduledMode(ctx context.Context, cfg config.Config, dockerClient docker.Client) error {
-	location, err := time.LoadLocation(cfg.Updates.Timezone)
-	if err != nil {
+func (s *scheduler) runInterval(ctx context.Context, cfg config.Config, client docker.Client, logger zerolog.Logger) error {
+	logger.Info().Dur("interval", cfg.Updates.CheckInterval).Msg("Starting interval scheduler")
+	if stop, err := s.runContinuousCycle(ctx, cfg, client, logger); stop {
 		return err
 	}
 
-	log.Infof("Starting scheduler with daily schedule: %s (%s)", cfg.Updates.ScheduleTime, cfg.Updates.Timezone)
-
+	ticker := s.clock.NewTicker(cfg.Updates.CheckInterval)
+	defer ticker.Stop()
 	for {
-		// Calculate next run time
-		now := time.Now().In(location)
-		nextRun := calculateNextRun(now, cfg.Updates.ScheduleTime, location)
-		waitDuration := nextRun.Sub(now)
-
-		log.Infof("⏳ Next scheduled run: %s (in %v)", nextRun.Format("2006-01-02 15:04:05 MST"), waitDuration.Round(time.Second))
-
-		// Wait until scheduled time or cancellation
-		timer := time.NewTimer(waitDuration)
 		select {
 		case <-ctx.Done():
-			timer.Stop()
-			log.Info("Scheduler stopped")
+			logger.Info().Msg("Scheduler stopped")
 			return nil
-		case <-timer.C:
-			// Run the cycle at scheduled time
-			if err := runCycle(ctx, cfg, dockerClient); err != nil {
-				log.ErrorErr("Error in scheduled cycle", err)
+		case <-ticker.C():
+			if stop, err := s.runContinuousCycle(ctx, cfg, client, logger); stop {
+				return err
 			}
 		}
 	}
 }
 
-// calculateNextRun calculates the next scheduled run time
-func calculateNextRun(now time.Time, scheduleTime string, location *time.Location) time.Time {
-	// Parse the schedule time (HH:MM format)
-	scheduledTime, _ := time.Parse("15:04", scheduleTime)
-
-	// Create a time for today at the scheduled time
-	nextRun := time.Date(
-		now.Year(), now.Month(), now.Day(),
-		scheduledTime.Hour(), scheduledTime.Minute(), 0, 0,
-		location,
-	)
-
-	// If the scheduled time has already passed today, schedule for tomorrow
-	if nextRun.Before(now) || nextRun.Equal(now) {
-		nextRun = time.Date(
-			now.Year(), now.Month(), now.Day()+1,
-			scheduledTime.Hour(), scheduledTime.Minute(), 0, 0,
-			location,
-		)
-	}
-
-	return nextRun
-}
-
-// runCycle runs a single update and cleanup cycle
-func runCycle(ctx context.Context, cfg config.Config, dockerClient docker.Client) error {
-	cycleID := generateCycleID()
-	// Create a scoped logger for this cycle
-	cycleLogger := log.WithFields(map[string]interface{}{"cycle_id": cycleID})
-
-	cycleLogger.Info().Msg("➖➖➖➖ Starting update & cleanup cycle ➖➖➖➖")
-	cycleLogger.Info().Msgf("⚙️ Configuration: Updates=%v, DryRun=%v, Cleanup=%v",
-		cfg.Updates.Enabled, cfg.Updates.DryRun, cfg.Cleanup.Enabled)
-
-	// Run updates if enabled
-	if cfg.Updates.Enabled {
-		if err := updater.RunUpdateCycle(ctx, cfg, dockerClient, cycleLogger); err != nil {
-			return err
-		}
-	} else {
-		cycleLogger.Info().Msg("Updates are disabled, skipping update cycle")
-	}
-
-	// Run cleanup if enabled
-	if cfg.Cleanup.Enabled {
-		if err := cleanup.RunCleanup(ctx, cfg, dockerClient, cycleLogger); err != nil {
-			return err
-		}
-	} else {
-		cycleLogger.Debug().Msg("Cleanup is disabled, skipping")
-	}
-
-	cycleLogger.Info().Msg("➖➖➖➖ Cycle complete ➖➖➖➖")
-	return nil
-}
-
-// generateCycleID returns a short random ID for the cycle
-func generateCycleID() string {
-	b := make([]byte, 4) // 4 bytes = 8 hex chars
-	_, err := rand.Read(b)
+func (s *scheduler) runScheduled(ctx context.Context, cfg config.Config, client docker.Client, logger zerolog.Logger) error {
+	location, err := time.LoadLocation(cfg.Updates.Timezone)
 	if err != nil {
-		// Fallback to timestamp if random fails (unlikely)
-		return time.Now().Format("150405")
+		return fmt.Errorf("load schedule timezone %q: %w", cfg.Updates.Timezone, err)
 	}
-	return hex.EncodeToString(b)
+	logger.Info().Str("schedule_time", cfg.Updates.ScheduleTime).Str("timezone", cfg.Updates.Timezone).Msg("Starting daily scheduler")
+
+	for {
+		now := s.clock.Now().In(location)
+		next := calculateNextRun(now, cfg.Updates.ScheduleTime, location)
+		logger.Info().Time("next_run", next).Dur("wait", next.Sub(now)).Msg("Next scheduled run")
+		timer := s.clock.NewTimer(next.Sub(now))
+		select {
+		case <-ctx.Done():
+			timer.Stop()
+			logger.Info().Msg("Scheduler stopped")
+			return nil
+		case <-timer.C():
+			if stop, err := s.runContinuousCycle(ctx, cfg, client, logger); stop {
+				return err
+			}
+		}
+	}
 }
+
+func (s *scheduler) runContinuousCycle(ctx context.Context, cfg config.Config, client docker.Client, logger zerolog.Logger) (bool, error) {
+	err := s.runCycle(ctx, cfg, client, logger)
+	if err == nil {
+		return false, nil
+	}
+	if _, ok := selfupdate.AsShutdownRequired(err); ok {
+		logger.Info().Msg("Self-update helper started; scheduler is shutting down")
+		return true, err
+	}
+	if ctx.Err() != nil && errors.Is(err, ctx.Err()) {
+		return true, nil
+	}
+	logger.Error().Err(err).Msg("Scheduled cycle failed")
+	return false, nil
+}
+
+func (s *scheduler) runCycle(ctx context.Context, cfg config.Config, client docker.Client, logger zerolog.Logger) error {
+	cycleLogger := logger.With().Str("cycle_id", s.cycleID(s.clock.Now())).Logger()
+	cycleLogger.Info().Bool("updates", cfg.Updates.Enabled).Bool("cleanup", cfg.Cleanup.Enabled).Bool("dry_run", cfg.Updates.DryRun).Msg("Cycle started")
+
+	var cycleErrors []error
+	if cfg.Updates.Enabled {
+		if err := s.runUpdate(ctx, cfg, client, cycleLogger); err != nil {
+			if _, ok := selfupdate.AsShutdownRequired(err); ok {
+				return err
+			}
+			cycleErrors = append(cycleErrors, fmt.Errorf("update cycle: %w", err))
+		}
+	} else {
+		cycleLogger.Debug().Msg("Updates are disabled")
+	}
+
+	if cfg.Cleanup.Enabled {
+		if err := s.runCleanup(ctx, cfg, client, cycleLogger); err != nil {
+			cycleErrors = append(cycleErrors, fmt.Errorf("cleanup cycle: %w", err))
+		}
+	} else {
+		cycleLogger.Debug().Msg("Cleanup is disabled")
+	}
+
+	if len(cycleErrors) == 0 {
+		cycleLogger.Info().Msg("Cycle complete")
+	}
+	return errors.Join(cycleErrors...)
+}
+
+func gracefulResult(ctx context.Context, err error) error {
+	if err == nil {
+		return nil
+	}
+	if ctx.Err() != nil && errors.Is(err, ctx.Err()) {
+		return nil
+	}
+	return err
+}
+
+func calculateNextRun(now time.Time, scheduleTime string, location *time.Location) time.Time {
+	scheduled, _ := time.Parse("15:04", scheduleTime)
+	next := time.Date(now.Year(), now.Month(), now.Day(), scheduled.Hour(), scheduled.Minute(), 0, 0, location)
+	if !next.After(now) {
+		next = time.Date(now.Year(), now.Month(), now.Day()+1, scheduled.Hour(), scheduled.Minute(), 0, 0, location)
+	}
+	return next
+}
+
+func generateCycleID(now time.Time) string {
+	bytes := make([]byte, 4)
+	if _, err := rand.Read(bytes); err != nil {
+		return now.Format("150405")
+	}
+	return hex.EncodeToString(bytes)
+}
+
+type clock interface {
+	Now() time.Time
+	NewTimer(time.Duration) timer
+	NewTicker(time.Duration) ticker
+}
+
+type timer interface {
+	C() <-chan time.Time
+	Stop() bool
+}
+
+type ticker interface {
+	C() <-chan time.Time
+	Stop()
+}
+
+type realClock struct{}
+
+func (realClock) Now() time.Time                   { return time.Now() }
+func (realClock) NewTimer(d time.Duration) timer   { return realTimer{Timer: time.NewTimer(d)} }
+func (realClock) NewTicker(d time.Duration) ticker { return realTicker{Ticker: time.NewTicker(d)} }
+
+type realTimer struct{ *time.Timer }
+
+func (t realTimer) C() <-chan time.Time { return t.Timer.C }
+
+type realTicker struct{ *time.Ticker }
+
+func (t realTicker) C() <-chan time.Time { return t.Ticker.C }

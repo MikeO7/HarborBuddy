@@ -1,9 +1,9 @@
-# Ignore unnecessary files in Docker build context
-.git
-.gitignore
-README.md
-LICENSE
-examples/
-*.md
-.DS_Store
-
+**
+!Dockerfile
+!go.mod
+!go.sum
+!cmd/
+!cmd/**
+!internal/
+!internal/**
+**/*_test.go

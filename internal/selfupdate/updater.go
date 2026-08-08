@@ -2,161 +2,126 @@ package selfupdate
 
 import (
 	"context"
+	"errors"
 	"fmt"
-	"os"
 	"time"
 
 	"github.com/MikeO7/HarborBuddy/internal/docker"
-	"github.com/MikeO7/HarborBuddy/pkg/log"
 )
 
-// ExitFunc is the function called to exit the process. It can be overridden in tests.
-var ExitFunc = os.Exit
+const helperExitTimeout = 5 * time.Minute
 
-// RunUpdater is the entrypoint for the temporary helper container
-func RunUpdater(ctx context.Context, client docker.Client, targetID string, newImage string) error {
-	log.Info("Updater: 🔄 Started. Waiting for target to stop...")
-
-	// 1. Wait for the target container to stop
-	// We give it a generous timeout to shut down gracefully
-	waitCtx, cancel := context.WithTimeout(ctx, 5*time.Minute)
-	defer cancel()
-
-	ticker := time.NewTicker(1 * time.Second)
-	defer ticker.Stop()
-
-	targetStopped := false
-	for {
-		select {
-		case <-waitCtx.Done():
-			return fmt.Errorf("timeout waiting for target %s to stop", targetID)
-		case <-ticker.C:
-			info, err := client.InspectContainer(ctx, targetID)
-			if err != nil {
-				// If error is "Not Found", it's already gone (maybe manual rm?), which is fine-ish
-				// but usually we expect it to exist but be stopped.
-				// For now, let's assume if we can't inspect it, we can't copy its config, so that's a fatal error
-				// UNLESS we passed the config to the helper.
-				// However, the plan is to inspect it to get the config.
-				// So the target must exist.
-				log.ErrorErr("Updater: Failed to inspect target", err)
-				return err
-			}
-
-			if !info.State.Running {
-				targetStopped = true
-				break
-			}
-			log.Debugf("Updater: Target %s is still running...", targetID)
-		}
-		if targetStopped {
-			break
-		}
-	}
-
-	log.Info("Updater: Target stopped. Inspecting configuration...")
-
-	// 2. Inspect to get config for recreation
-	// Note: We inspect AFTER it stops to get the final state, although config shouldn't change much.
-	oldContainer, err := client.InspectContainer(ctx, targetID)
-	if err != nil {
-		return fmt.Errorf("failed to inspect stopped target: %w", err)
-	}
-
-	// 3. Remove the old container
-	log.Info("Updater: Removing old container...")
-	if err := client.RemoveContainer(ctx, targetID); err != nil {
-		return fmt.Errorf("failed to remove old container: %w", err)
-	}
-
-	// 4. Create the new container
-	log.Info("Updater: Creating new container...")
-	// We use the same name as the old one (which is now free since we removed it)
-	// CreateContainerLike needs to be slightly smarter to handle "use the old name"
-	// Currently CreateContainerLike creates with "tempName".
-	// We might need to adjust CreateContainerLike or do a rename.
-	// Let's check docker/containers.go... it creates with `old.Name + "-new"`.
-	// We want the EXACT same name.
-
-	// We will use a modified approach here or add a param to CreateContainerLike.
-	// For now, let's assume we use CreateContainerLike and then Rename.
-
-	tempID, err := client.CreateContainerLike(ctx, oldContainer, newImage)
-	if err != nil {
-		return fmt.Errorf("failed to create new container: %w", err)
-	}
-
-	// Rename tempID to oldContainer.Name
-	// But wait, CreateContainerLike creates "Name-new".
-	// We want "Name".
-	// Since "Name" is free (we removed oldContainer), we can rename immediately.
-
-	log.Info("Updater: Renaming new container to original name...")
-	if err := client.RenameContainer(ctx, tempID, oldContainer.Name); err != nil {
-		// Try to remove the temp one if rename fails
-		_ = client.RemoveContainer(ctx, tempID)
-		return fmt.Errorf("failed to rename new container: %w", err)
-	}
-
-	// 5. Start the new container
-	log.Info("Updater: 🚀 Starting new container...")
-	if err := client.StartContainer(ctx, tempID); err != nil {
-		return fmt.Errorf("failed to start new container: %w", err)
-	}
-
-	log.Info("Updater: ✅ Update complete. Exiting.")
-	return nil
+// HelperStarter is implemented by Docker clients that can launch the
+// short-lived, auto-removed self-update helper.
+type HelperStarter interface {
+	StartSelfUpdateHelper(context.Context, docker.ContainerDetails, docker.SelfUpdateHelperRequest) (string, error)
 }
 
-// Trigger starts the update process
-func Trigger(ctx context.Context, client docker.Client, myContainer docker.ContainerInfo, newImage string) error {
-	log.Info("Self-Update: Triggering helper process...")
+// ContainerExitWaiter is the self-update-specific Docker wait operation used
+// inside helper mode.
+type ContainerExitWaiter interface {
+	WaitContainerExit(context.Context, string) error
+}
 
-	// We need to spawn a container that runs:
-	// /app/harborbuddy --updater-mode --target-container-id <myID> --new-image-id <newImage>
+// TriggerOptions contains the replacement policy that must survive the handoff
+// from the daemon to the short-lived helper.
+type TriggerOptions struct {
+	DockerHost     string
+	StopTimeout    time.Duration
+	StartupTimeout time.Duration
+}
 
-	// We reuse the current configuration for the helper, but we need to ensure it has:
-	// 1. Docker socket mounted
-	// 2. The same image (or the NEW image, which we have pulled)
+// UpdaterRequest identifies the stopped daemon and the replacement policy the
+// helper must use. Keeping this as one value avoids positional helper arguments
+// drifting apart as the self-update protocol evolves.
+type UpdaterRequest struct {
+	TargetContainerID string
+	TargetImageID     string
+	StopTimeout       time.Duration
+	StartupTimeout    time.Duration
+}
 
-	// Ideally, the helper uses the NEW image. We already pulled it.
+// ShutdownRequiredError signals that the helper is running and the current
+// HarborBuddy process should complete a normal, successful shutdown.
+type ShutdownRequiredError struct {
+	TargetContainerID string
+	HelperContainerID string
+}
 
-	// Override entrypoint/cmd
-	cmd := []string{
-		"/app/harborbuddy", // Assuming binary path, need to verify
-		"--updater-mode",
-		"--target-container-id", myContainer.ID,
-		"--new-image-id", newImage,
+func (e *ShutdownRequiredError) Error() string {
+	return fmt.Sprintf("self-update helper %s started for container %s; graceful shutdown required", e.HelperContainerID, e.TargetContainerID)
+}
+
+// AsShutdownRequired returns the typed self-update signal, including when it is
+// wrapped by scheduler or application code.
+func AsShutdownRequired(err error) (*ShutdownRequiredError, bool) {
+	var signal *ShutdownRequiredError
+	ok := errors.As(err, &signal)
+	return signal, ok
+}
+
+// Trigger starts the helper from the pulled target image. It never terminates
+// the current process; callers must treat the returned typed error as success
+// and shut down normally.
+func Trigger(ctx context.Context, client HelperStarter, current docker.ContainerDetails, target docker.ImageInfo, options TriggerOptions) error {
+	if current.Summary.ID == "" || current.Summary.Name == "" {
+		return errors.New("start self-update helper: current container identity is incomplete")
+	}
+	if target.ID == "" {
+		return errors.New("start self-update helper: target image identity is missing")
 	}
 
-	// Create the helper container
-	// We need a specialized create function or use the raw client, but we are in `internal`.
-	// Let's add a method to `docker.Client` to spawn a helper.
-	// Or we can construct a ContainerInfo and use CreateContainerLike?
-	// No, CreateContainerLike clones the *target's* config (ports, envs, etc).
-	// The helper doesn't need ports, just the socket.
-
-	// For simplicity, let's assume the helper is a clone of the current container
-	// (so it has the socket mount) but with overridden CMD/Entrypoint.
-	// This is safe because the helper is short-lived.
-
-	helperName := fmt.Sprintf("%s-updater-%d", myContainer.Name, time.Now().Unix())
-
-	helperID, err := client.CreateHelperContainer(ctx, myContainer, newImage, helperName, cmd)
+	request := docker.SelfUpdateHelperRequest{
+		Name:              fmt.Sprintf("%s-harborbuddy-updater-%d", current.Summary.Name, time.Now().UnixNano()),
+		TargetContainerID: current.Summary.ID,
+		TargetImageID:     target.ID,
+		DockerHost:        options.DockerHost,
+		StopTimeout:       options.StopTimeout,
+		StartupTimeout:    options.StartupTimeout,
+	}
+	helperID, err := client.StartSelfUpdateHelper(ctx, current, request)
 	if err != nil {
-		return fmt.Errorf("failed to create helper: %w", err)
+		return fmt.Errorf("start self-update helper for %s: %w", current.Summary.ID, err)
+	}
+	if helperID == "" {
+		return fmt.Errorf("start self-update helper for %s: Docker returned an empty helper ID", current.Summary.ID)
+	}
+	return &ShutdownRequiredError{TargetContainerID: current.Summary.ID, HelperContainerID: helperID}
+}
+
+// RunUpdater is the entry point for helper mode. It waits for the original
+// HarborBuddy process to exit, re-inspects the target, and delegates replacement
+// to the same transactional path used for ordinary containers.
+func RunUpdater(ctx context.Context, client docker.Client, request UpdaterRequest) error {
+	if request.TargetContainerID == "" || request.TargetImageID == "" {
+		return errors.New("self-update helper requires target container and image IDs")
+	}
+	waiter, ok := client.(ContainerExitWaiter)
+	if !ok {
+		return fmt.Errorf("docker client %T cannot wait for the target container to exit", client)
+	}
+	waitCtx, cancel := context.WithTimeout(ctx, helperExitTimeout)
+	defer cancel()
+	if err := waiter.WaitContainerExit(waitCtx, request.TargetContainerID); err != nil {
+		return fmt.Errorf("wait for HarborBuddy container to exit: %w", err)
 	}
 
-	log.Infof("Self-Update: 🚀 Helper %s created. Starting...", helperID)
-
-	if err := client.StartContainer(ctx, helperID); err != nil {
-		return fmt.Errorf("failed to start helper: %w", err)
+	current, err := client.InspectContainer(ctx, request.TargetContainerID)
+	if err != nil {
+		return fmt.Errorf("inspect HarborBuddy container after exit: %w", err)
 	}
-
-	log.Info("Self-Update: 🔄 Helper started. Shutting down self to allow update to proceed.")
-
-	// We exit successfully. The helper is waiting for us to stop.
-	ExitFunc(0)
-
+	target := docker.ImageInfo{ID: request.TargetImageID}
+	options := docker.ReplaceOptions{
+		StopTimeout:           request.StopTimeout,
+		StartupTimeout:        request.StartupTimeout,
+		CurrentAlreadyStopped: current.State != nil && !current.State.Running,
+	}
+	result, err := client.ReplaceContainer(ctx, current, target, options)
+	if err != nil {
+		return fmt.Errorf("transactionally replace HarborBuddy container: %w", err)
+	}
+	// Backup cleanup failures are warnings for ordinary updates and remain
+	// non-fatal here so a healthy replacement is not reported as failed.
+	_ = result.BackupCleanupErr
 	return nil
 }

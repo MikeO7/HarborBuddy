@@ -1,32 +1,32 @@
 package docker
 
 import (
+	"context"
+	"errors"
 	"time"
 
-	"github.com/docker/docker/api/types"
-	"github.com/docker/docker/api/types/container"
+	containertypes "github.com/docker/docker/api/types/container"
 	"github.com/docker/docker/api/types/network"
 )
 
-// ContainerInfo holds information about a Docker container
-type ContainerInfo struct {
+type ContainerSummary struct {
 	ID        string
 	Name      string
-	Image     string
+	ImageRef  string
 	ImageID   string
 	Labels    map[string]string
 	CreatedAt time.Time
-	State     *types.ContainerState
-
-	// Config needed for recreation
-	// Note: These fields may be nil if the ContainerInfo was returned by ListContainers (optimization).
-	// They are populated by InspectContainer.
-	Config        *container.Config
-	HostConfig    *container.HostConfig
-	NetworkConfig *network.NetworkingConfig
 }
 
-// ImageInfo holds information about a Docker image
+type ContainerDetails struct {
+	Summary  ContainerSummary
+	Config   *containertypes.Config
+	Host     *containertypes.HostConfig
+	Mounts   []containertypes.MountPoint
+	Networks map[string]*network.EndpointSettings
+	State    *containertypes.State
+}
+
 type ImageInfo struct {
 	ID        string
 	RepoTags  []string
@@ -34,5 +34,41 @@ type ImageInfo struct {
 	CreatedAt time.Time
 	Size      int64
 	Labels    map[string]string
-	Config    *container.Config // Config from image inspection
+	Config    *containertypes.Config
+}
+
+type ReplaceOptions struct {
+	StopTimeout           time.Duration
+	StartupTimeout        time.Duration
+	StabilizationTime     time.Duration
+	PollInterval          time.Duration
+	CurrentAlreadyStopped bool
+}
+
+type ReplaceResult struct {
+	NewContainerID   string
+	BackupName       string
+	BackupCleanupErr error
+}
+
+type UnsupportedError struct {
+	Reason string
+}
+
+func (e *UnsupportedError) Error() string { return e.Reason }
+
+func IsUnsupported(err error) bool {
+	var target *UnsupportedError
+	return errors.As(err, &target)
+}
+
+type Client interface {
+	ListContainers(context.Context) ([]ContainerSummary, error)
+	InspectContainer(context.Context, string) (ContainerDetails, error)
+	PullImage(context.Context, string) (ImageInfo, error)
+	CheckReplacement(ContainerDetails, ImageInfo) error
+	ReplaceContainer(context.Context, ContainerDetails, ImageInfo, ReplaceOptions) (ReplaceResult, error)
+	ListImages(context.Context) ([]ImageInfo, error)
+	ListDanglingImages(context.Context) ([]ImageInfo, error)
+	RemoveImage(context.Context, string) error
 }

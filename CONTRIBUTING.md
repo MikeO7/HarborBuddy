@@ -1,258 +1,155 @@
 # Contributing to HarborBuddy
 
-Thank you for your interest in contributing to HarborBuddy! This document provides guidelines for contributing to the project.
+Thank you for contributing. Open an issue before beginning a large behavioral change so the safety model and compatibility impact can be discussed first.
 
-## Development Setup
+## Prerequisites
 
-### Prerequisites
+- Go version declared in `go.mod`
+- Docker Engine, or Podman for local compatibility testing, for container work and Dockerfile linting
+- Make
+- Bash and ShellCheck 0.11 for maintained scripts
+- `pipx` for the pinned yamllint target
 
-- Go 1.23 or later
-- Docker (for building container images and testing)
-- Make (optional, for convenience commands)
+The Make targets download pinned Go-based tools such as golangci-lint, govulncheck, and Actionlint; do not substitute arbitrary locally installed versions.
 
-### Getting Started
-
-1. Fork and clone the repository:
+## Set up the repository
 
 ```bash
 git clone https://github.com/MikeO7/HarborBuddy.git
 cd HarborBuddy
-```
-
-2. Install dependencies:
-
-```bash
 go mod download
-```
-
-3. Build the project:
-
-```bash
 make build
-# or
-go build -o harborbuddy ./cmd/harborbuddy
 ```
 
-4. Run tests:
+Do not run `go mod tidy` as an incidental build step. Run `make tidy` only when a dependency change requires an intentional `go.mod` or `go.sum` update.
+
+## Development checks
+
+Run the checks relevant to your change:
 
 ```bash
-make test
-# or
-go test ./...
+make verify-local
 ```
 
-## Project Structure
+The quality policy caps production Go files at 300 physical lines, functions at 100 lines and 60 statements, and cyclomatic complexity at 15. Test files may reach 400 lines, while correctly marked generated files receive only the documented generated-code exemptions. Per-package coverage floors are ratcheted in `test/coverage-baseline.txt` in addition to the repository-wide 70% minimum.
 
-```
-├── cmd/
-│   └── harborbuddy/        # Main application entry point
-├── internal/
-│   ├── cleanup/            # Image cleanup logic
-│   ├── config/             # Configuration loading and merging
-│   ├── docker/             # Docker API client wrapper
-│   ├── scheduler/          # Main scheduler loop
-│   └── updater/            # Container update logic
-├── pkg/
-│   └── log/                # Logging utilities
-├── examples/               # Example configurations
-│   ├── docker-compose.yml
-│   └── harborbuddy.yml
-└── Dockerfile              # Multi-stage Docker build
-```
-
-## Development Workflow
-
-### Making Changes
-
-1. Create a new branch:
+For Docker-facing changes, also run:
 
 ```bash
-git checkout -b feature/your-feature-name
+make docker-build
+make test-integration
+# Select an engine explicitly when needed:
+make test-integration CONTAINER_ENGINE=/opt/podman/bin/podman
 ```
 
-2. Make your changes and ensure code is formatted:
+The integration script requires read/write access to a disposable Docker or Podman socket. It creates uniquely named containers and a temporary local registry, verifies image metadata and dry-run non-mutation, performs a healthy replacement, confirms that an unhealthy replacement rolls back, and exercises the full automatic self-update helper lifecycle. Podman is a local Docker-compatibility test engine; standalone Docker Engine remains the production target.
+
+## Build metadata
+
+Local builds default to version `dev`. Release and CI builds pass deterministic values into `internal/buildinfo`:
 
 ```bash
-make fmt
-# or
-go fmt ./...
+make build \
+  VERSION=1.2.3 \
+  COMMIT="$(git rev-parse HEAD)" \
+  DATE="$(git show -s --format=%cI HEAD)"
 ```
 
-3. Run tests:
+Use the same values for a container build:
 
 ```bash
-make test
+make docker-build VERSION=1.2.3 TAG=1.2.3
 ```
 
-4. Run linter (if available):
+The build date must come from source control or another reproducible source, not the current wall-clock time.
 
-```bash
-make lint
+## Project layout
+
+```text
+cmd/harborbuddy/       CLI entry point
+internal/buildinfo/    injected version metadata
+internal/cleanup/      image cleanup policy
+internal/config/       strict configuration loading and validation
+internal/docker/       Docker SDK adapter and transactional replacement
+internal/scheduler/    interval and daily scheduling
+internal/selfupdate/   helper-container self-update lifecycle
+internal/updater/      discovery, filtering, pulls, and update decisions
+pkg/                   shared packages
+examples/              supported Compose and YAML examples
+test/integration.sh    Docker integration smoke test
+.github/workflows/     CI, image publication, release, and platform smoke tests
 ```
 
-5. Build and test locally:
+## Safety expectations
 
-```bash
-make run-dry
-```
+Changes to update behavior must preserve these properties unless an approved design explicitly replaces them:
 
-### Commit Messages
+- Dry-run may pull images but must not recreate, rename, stop, or remove containers and must not delete images.
+- A target is re-inspected immediately before replacement to detect external changes.
+- The old container remains recoverable until the replacement passes readiness checks.
+- Failed replacements roll back the original name, networks, and running state where Docker permits it.
+- Auto-remove containers, Swarm tasks, and container-network-namespace dependents are rejected rather than recreated unsafely.
+- The HarborBuddy daemon uses `com.harborbuddy.role=daemon`; safe helper-based self-update is enabled by default and can be disabled only with `HARBORBUDDY_SELF_UPDATE_ENABLED=false`.
+- Docker socket and remote-daemon credentials must not be logged.
 
-Use clear and descriptive commit messages:
+Add focused unit tests for success, cancellation, unsupported configurations, and rollback failures. Avoid tests that depend on mutable public tags unless the integration boundary specifically requires them.
 
-- Use present tense ("Add feature" not "Added feature")
-- Use imperative mood ("Move cursor to..." not "Moves cursor to...")
-- Limit first line to 72 characters
-- Reference issues and pull requests liberally
+## Configuration changes
 
-Examples:
-- `Add support for remote Docker hosts`
-- `Fix container recreation when ports are exposed`
-- `Update README with new configuration options`
+When changing configuration:
 
-### Testing
+1. Update defaults, validation, environment parsing, and tests together.
+2. Keep YAML decoding strict.
+3. Add a clear migration hint for removed keys.
+4. Update `README.md`, `examples/harborbuddy.yml`, and `CHANGELOG.md`.
+5. Never document a setting before the implementation accepts it.
 
-- Write tests for new features
-- Ensure existing tests pass
-- Add integration tests for complex scenarios
-- Test with real Docker containers when possible
+The removed keys `docker.tls`, `updates.update_all`, and top-level `logging` must not be reintroduced accidentally. Docker TLS uses standard `DOCKER_*` variables.
 
-Example test structure:
+## Generated code
 
-```go
-func TestYourFeature(t *testing.T) {
-    tests := []struct {
-        name     string
-        input    string
-        expected string
-    }{
-        {"case 1", "input1", "expected1"},
-        {"case 2", "input2", "expected2"},
-    }
+The repository currently commits no generated Go source. New generated files must use the standard `// Code generated ... DO NOT EDIT.` header, document an exact generator command and version, and be committed with their source inputs. Generation must be reproducible and CI must reject a dirty regeneration diff. Do not hand-edit generated outputs.
 
-    for _, tt := range tests {
-        t.Run(tt.name, func(t *testing.T) {
-            result := YourFunction(tt.input)
-            if result != tt.expected {
-                t.Errorf("got %v, want %v", result, tt.expected)
-            }
-        })
-    }
-}
-```
+See [docs/repository-policy.md](docs/repository-policy.md) for required checks, action pinning, generated-code policy, and secret-scanning expectations.
 
-## Code Style
+## Documentation changes
 
-- Follow standard Go conventions
-- Run `go fmt` before committing
-- Keep functions focused and small
-- Add comments for exported functions
-- Use meaningful variable names
+Documentation must distinguish guarantees from best-effort behavior. In particular:
 
-## Pull Request Process
+- State that Docker access is privileged and read/write.
+- State that dry-run still pulls images.
+- Do not claim automatic private-registry credential discovery.
+- Do not document runtime user/group override settings that the application does not implement.
+- Describe self-update as a helper lifecycle with rollback and a manual Compose fallback.
+- Keep the image name lowercase and consistent: `ghcr.io/mikeo7/harborbuddy`.
 
-1. Update the README.md with details of changes if needed
-2. Update the CHANGELOG.md (if exists) with notable changes
-3. Ensure all tests pass and code is formatted
-4. Update documentation for new features
-5. The PR will be merged once you have approval from maintainers
+## Pull requests
 
-### PR Checklist
+Before requesting review:
 
-- [ ] Code builds successfully
-- [ ] Tests pass
-- [ ] Code is formatted (`go fmt`)
-- [ ] New tests added for new features
-- [ ] Documentation updated
-- [ ] No linter errors
-- [ ] Commit messages are clear
+- [ ] The change is focused and has a clear rationale.
+- [ ] Go files pass formatting, source-size, vet, lint, vulnerability, coverage, and race checks.
+- [ ] Workflow, shell, Dockerfile, and YAML changes pass the pinned non-Go linters.
+- [ ] Docker changes pass the relevant image, Trivy, or integration checks.
+- [ ] New behavior has tests, including failure paths where practical, and does not lower package coverage floors.
+- [ ] Documentation and examples match the implementation.
+- [ ] `CHANGELOG.md` includes a user-visible entry when appropriate.
+- [ ] No credentials, Docker certificates, generated logs, or local artifacts are committed.
 
-## Adding New Features
+Use concise imperative commit subjects, for example `Add rollback readiness check` or `Document Docker TLS variables`.
 
-When adding new features, consider:
+## Reporting bugs
 
-1. **Backward compatibility**: Don't break existing configurations
-2. **Documentation**: Update README and examples
-3. **Testing**: Add comprehensive tests
-4. **Logging**: Add appropriate log messages
-5. **Error handling**: Handle errors gracefully
+Include:
 
-### Feature Requests
+- `harborbuddy --version` output
+- Docker Engine and operating-system versions
+- Sanitized configuration and Compose service definition
+- Relevant logs from the daemon and, for self-update failures, the helper
+- Exact reproduction steps, expected behavior, and actual behavior
 
-For major features, please open an issue first to discuss the approach before implementing.
+Report security issues privately according to [SECURITY.md](SECURITY.md).
 
-## Bug Reports
+## Code of conduct and license
 
-When reporting bugs, please include:
-
-1. HarborBuddy version (`harborbuddy --version`)
-2. Docker version
-3. Operating system and version
-4. Configuration file (sanitized)
-5. Relevant log output
-6. Steps to reproduce
-7. Expected behavior
-8. Actual behavior
-
-## Development Tips
-
-### Testing with Docker Compose
-
-Create a test docker-compose.yml:
-
-```yaml
-services:
-  harborbuddy:
-    build: .
-    volumes:
-      - /var/run/docker.sock:/var/run/docker.sock:ro
-      - ./examples/harborbuddy.yml:/config/harborbuddy.yml:ro
-    environment:
-      HARBORBUDDY_LOG_LEVEL: debug
-      HARBORBUDDY_DRY_RUN: "true"
-    labels:
-      com.harborbuddy.autoupdate: "false"
-
-  test-nginx:
-    image: nginx:latest
-    ports:
-      - "8080:80"
-```
-
-### Debugging
-
-Enable debug logging:
-
-```bash
-./harborbuddy --log-level debug --dry-run --once
-```
-
-### Local Development
-
-Run in dry-run mode to test without affecting containers:
-
-```bash
-./harborbuddy --dry-run --once --log-level debug
-```
-
-## Questions?
-
-If you have questions, please:
-
-1. Check existing issues and discussions
-2. Read the documentation thoroughly
-3. Open a new issue with your question
-
-## License
-
-By contributing, you agree that your contributions will be licensed under the same license as the project.
-
-## Code of Conduct
-
-- Be respectful and inclusive
-- Welcome newcomers
-- Focus on constructive feedback
-- Assume good intentions
-
-Thank you for contributing to HarborBuddy! 🚢
-
+Participation is governed by [CODE_OF_CONDUCT.md](CODE_OF_CONDUCT.md). Contributions are licensed under the repository's MIT License.

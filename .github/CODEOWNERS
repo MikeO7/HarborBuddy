@@ -1,0 +1,11 @@
+* @MikeO7
+
+/.github/ @MikeO7
+/.github/CODEOWNERS @MikeO7
+/Dockerfile @MikeO7
+/go.mod @MikeO7
+/go.sum @MikeO7
+/SECURITY.md @MikeO7
+/internal/docker/ @MikeO7
+/internal/selfupdate/ @MikeO7
+/internal/updater/ @MikeO7
