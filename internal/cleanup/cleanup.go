@@ -99,6 +99,7 @@ func cleanupImages(ctx context.Context, cfg config.Config, client docker.Client,
 		resources = append(resources, docker.CleanupResource{
 			Kind: docker.CleanupImage, ID: image.ID, Name: strings.Join(image.RepoTags, ","),
 			CreatedAt: image.CreatedAt, Size: image.Size, Dangling: image.Dangling,
+			Protected: image.Protected,
 		})
 	}
 	return removeResources(ctx, cfg, legacyImageCleaner{client}, logger, now, docker.CleanupImage, resources, Report{}), nil

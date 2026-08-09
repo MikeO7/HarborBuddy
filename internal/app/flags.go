@@ -10,22 +10,23 @@ import (
 )
 
 type flagValues struct {
-	configPath      string
-	interval        time.Duration
-	scheduleTime    string
-	timezone        string
-	once            bool
-	dryRun          bool
-	logLevel        string
-	cleanupOnly     bool
-	version         bool
-	updaterMode     bool
-	targetContainer string
-	newImage        string
-	helperStop      time.Duration
-	helperStartup   time.Duration
-	helperRestart   string
-	helperRetries   int
+	configPath                   string
+	interval                     time.Duration
+	scheduleTime                 string
+	timezone                     string
+	once                         bool
+	dryRun                       bool
+	logLevel                     string
+	cleanupOnly                  bool
+	version                      bool
+	updaterMode                  bool
+	targetContainer              string
+	newImage                     string
+	helperStop                   time.Duration
+	helperStartup                time.Duration
+	helperRestart                string
+	helperRetries                int
+	helperRollbackImageRetention int
 }
 
 var hideFlagsFn = hideFlags
@@ -52,8 +53,9 @@ func newFlagSet(stderr io.Writer) (*pflag.FlagSet, *flagValues, error) {
 	flags.DurationVar(&values.helperStartup, "helper-startup-timeout", 0, "self-update startup timeout")
 	flags.StringVar(&values.helperRestart, "helper-restart-policy", "", "original self-update restart policy")
 	flags.IntVar(&values.helperRetries, "helper-restart-max-retries", 0, "original self-update restart retry limit")
+	flags.IntVar(&values.helperRollbackImageRetention, "helper-rollback-image-retention", 0, "self-update rollback image retention")
 
-	if err := hideFlagsFn(flags, "updater-mode", "target-container-id", "new-image-id", "helper-stop-timeout", "helper-startup-timeout", "helper-restart-policy", "helper-restart-max-retries"); err != nil {
+	if err := hideFlagsFn(flags, "updater-mode", "target-container-id", "new-image-id", "helper-stop-timeout", "helper-startup-timeout", "helper-restart-policy", "helper-restart-max-retries", "helper-rollback-image-retention"); err != nil {
 		return nil, nil, err
 	}
 	return flags, values, nil

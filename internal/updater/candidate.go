@@ -2,6 +2,7 @@ package updater
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"time"
 
@@ -113,9 +114,10 @@ func processSelfCandidate(
 	}
 
 	err := selfupdate.Trigger(ctx, starter, details, candidateTarget(result), selfupdate.TriggerOptions{
-		DockerHost:     cfg.Docker.Host,
-		StopTimeout:    cfg.Updates.StopTimeout,
-		StartupTimeout: cfg.Updates.StartupTimeout,
+		DockerHost:             cfg.Docker.Host,
+		StopTimeout:            cfg.Updates.StopTimeout,
+		StartupTimeout:         cfg.Updates.StartupTimeout,
+		RollbackImageRetention: cfg.Updates.RollbackImageRetention,
 	})
 	if signal, ok := selfupdate.AsShutdownRequired(err); ok {
 		result.Status = StatusSelfUpdateStarted
@@ -135,9 +137,10 @@ func processOrdinaryCandidate(
 	result *ContainerResult,
 ) {
 	replaced, err := client.ReplaceContainer(ctx, details, candidateTarget(result), docker.ReplaceOptions{
-		StopTimeout:       cfg.Updates.StopTimeout,
-		StartupTimeout:    cfg.Updates.StartupTimeout,
-		StabilizationTime: 2 * time.Second,
+		StopTimeout:            cfg.Updates.StopTimeout,
+		StartupTimeout:         cfg.Updates.StartupTimeout,
+		StabilizationTime:      2 * time.Second,
+		RollbackImageRetention: cfg.Updates.RollbackImageRetention,
 	})
 	result.FailureStage = replaced.FailureStage
 	result.RollbackTried = replaced.RollbackAttempted
@@ -148,7 +151,7 @@ func processOrdinaryCandidate(
 		return
 	}
 	result.Status = StatusUpdated
-	result.Warning = replaced.BackupCleanupErr
+	result.Warning = errors.Join(replaced.BackupCleanupErr, replaced.RollbackImageRetentionErr)
 }
 
 func candidateTarget(result *ContainerResult) docker.ImageInfo {

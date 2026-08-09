@@ -26,6 +26,7 @@ func TestCleanupAdapterListsAndRemovesEveryResourceKind(t *testing.T) {
 			"Images": []imagetypes.Summary{
 				{ID: "sha256:dangling", Created: created.Unix(), Size: 10, Containers: 0},
 				{ID: "sha256:tagged", RepoTags: []string{"app:old"}, Created: created.Unix(), Size: -1, Containers: 2},
+				{ID: "sha256:rollback", RepoTags: []string{rollbackImageRepositoryPrefix + "abc:1"}, Created: created.Unix(), Size: 20},
 			},
 			"Volumes": []volumetypes.Volume{
 				{Name: "unused", CreatedAt: created.Format(time.RFC3339Nano), UsageData: &volumetypes.UsageData{RefCount: 0, Size: 20}},
@@ -83,7 +84,7 @@ func TestCleanupAdapterListsAndRemovesEveryResourceKind(t *testing.T) {
 	client := testDockerClient(t, transport)
 
 	images, err := client.ListCleanupResources(context.Background(), CleanupImage)
-	if err != nil || len(images) != 2 || !images[0].Dangling || images[1].Size != 0 || !images[1].InUse {
+	if err != nil || len(images) != 3 || !images[0].Dangling || images[1].Size != 0 || !images[1].InUse || !images[2].Protected {
 		t.Fatalf("cleanup images = %+v, %v", images, err)
 	}
 	containers, err := client.ListCleanupResources(context.Background(), CleanupContainer)

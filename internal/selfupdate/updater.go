@@ -27,20 +27,22 @@ type ContainerExitWaiter interface {
 // TriggerOptions contains the replacement policy that must survive the handoff
 // from the daemon to the short-lived helper.
 type TriggerOptions struct {
-	DockerHost     string
-	StopTimeout    time.Duration
-	StartupTimeout time.Duration
+	DockerHost             string
+	StopTimeout            time.Duration
+	StartupTimeout         time.Duration
+	RollbackImageRetention int
 }
 
 // UpdaterRequest identifies the stopped daemon and the replacement policy the
 // helper must use. Keeping this as one value avoids positional helper arguments
 // drifting apart as the self-update protocol evolves.
 type UpdaterRequest struct {
-	TargetContainerID string
-	TargetImageID     string
-	StopTimeout       time.Duration
-	StartupTimeout    time.Duration
-	RestartPolicy     containertypes.RestartPolicy
+	TargetContainerID      string
+	TargetImageID          string
+	StopTimeout            time.Duration
+	StartupTimeout         time.Duration
+	RollbackImageRetention int
+	RestartPolicy          containertypes.RestartPolicy
 }
 
 // ShutdownRequiredError signals that the helper is running and the current
@@ -74,12 +76,13 @@ func Trigger(ctx context.Context, client HelperStarter, current docker.Container
 	}
 
 	request := docker.SelfUpdateHelperRequest{
-		Name:              fmt.Sprintf("%s-harborbuddy-updater-%d", current.Summary.Name, time.Now().UnixNano()),
-		TargetContainerID: current.Summary.ID,
-		TargetImageID:     target.ID,
-		DockerHost:        options.DockerHost,
-		StopTimeout:       options.StopTimeout,
-		StartupTimeout:    options.StartupTimeout,
+		Name:                   fmt.Sprintf("%s-harborbuddy-updater-%d", current.Summary.Name, time.Now().UnixNano()),
+		TargetContainerID:      current.Summary.ID,
+		TargetImageID:          target.ID,
+		DockerHost:             options.DockerHost,
+		StopTimeout:            options.StopTimeout,
+		StartupTimeout:         options.StartupTimeout,
+		RollbackImageRetention: options.RollbackImageRetention,
 	}
 	helperID, err := client.StartSelfUpdateHelper(ctx, current, request)
 	if err != nil {
@@ -118,9 +121,10 @@ func RunUpdater(ctx context.Context, client docker.Client, request UpdaterReques
 	current.Host.RestartPolicy = request.RestartPolicy
 	target := docker.ImageInfo{ID: request.TargetImageID}
 	options := docker.ReplaceOptions{
-		StopTimeout:           request.StopTimeout,
-		StartupTimeout:        request.StartupTimeout,
-		CurrentAlreadyStopped: true,
+		StopTimeout:            request.StopTimeout,
+		StartupTimeout:         request.StartupTimeout,
+		CurrentAlreadyStopped:  true,
+		RollbackImageRetention: request.RollbackImageRetention,
 	}
 	result, err := client.ReplaceContainer(ctx, current, target, options)
 	if err != nil {

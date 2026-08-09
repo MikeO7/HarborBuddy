@@ -84,6 +84,7 @@ func imageSummaries(images []imagetypes.Summary, forceDangling bool) []ImageInfo
 			ID:        current.ID,
 			RepoTags:  append([]string(nil), current.RepoTags...),
 			Dangling:  dangling,
+			Protected: hasRollbackImageTag(current.RepoTags),
 			CreatedAt: time.Unix(current.Created, 0),
 			Size:      current.Size,
 			Labels:    cloneStringMap(current.Labels),

@@ -24,6 +24,8 @@ services:
       # HARBORBUDDY_LOG_FILE: /logs/harborbuddy.log
       # Self-update is enabled by default. Uncomment to manage it manually:
       # HARBORBUDDY_SELF_UPDATE_ENABLED: "false"
+      # Keep one prior known-working image per full image reference:
+      # HARBORBUDDY_ROLLBACK_IMAGE_RETENTION: "1"
       # Aggressive cleanup is off by default. This enables stopped containers,
       # unused tagged images, networks, volumes, and build cache after 24 hours:
       # HARBORBUDDY_CLEANUP_ALL: "true"

@@ -29,16 +29,17 @@ type DockerConfig struct {
 }
 
 type UpdatesConfig struct {
-	Enabled        bool          `yaml:"enabled"`
-	CheckInterval  time.Duration `yaml:"check_interval"`
-	ScheduleTime   string        `yaml:"schedule_time"`
-	Timezone       string        `yaml:"timezone"`
-	DryRun         bool          `yaml:"dry_run"`
-	SelfUpdate     bool          `yaml:"self_update"`
-	AllowImages    []string      `yaml:"allow_images"`
-	DenyImages     []string      `yaml:"deny_images"`
-	StopTimeout    time.Duration `yaml:"stop_timeout"`
-	StartupTimeout time.Duration `yaml:"startup_timeout"`
+	Enabled                bool          `yaml:"enabled"`
+	CheckInterval          time.Duration `yaml:"check_interval"`
+	ScheduleTime           string        `yaml:"schedule_time"`
+	Timezone               string        `yaml:"timezone"`
+	DryRun                 bool          `yaml:"dry_run"`
+	SelfUpdate             bool          `yaml:"self_update"`
+	AllowImages            []string      `yaml:"allow_images"`
+	DenyImages             []string      `yaml:"deny_images"`
+	StopTimeout            time.Duration `yaml:"stop_timeout"`
+	StartupTimeout         time.Duration `yaml:"startup_timeout"`
+	RollbackImageRetention int           `yaml:"rollback_image_retention"`
 }
 
 type CleanupConfig struct {

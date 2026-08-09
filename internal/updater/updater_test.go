@@ -22,9 +22,10 @@ type cycleFakeClient struct {
 	replaceErrors  map[string]error
 	replaceResults map[string]docker.ReplaceResult
 
-	mu           sync.Mutex
-	pulls        map[string]int
-	replacements []string
+	mu             sync.Mutex
+	pulls          map[string]int
+	replacements   []string
+	replaceOptions []docker.ReplaceOptions
 }
 
 func (f *cycleFakeClient) ListContainers(context.Context) ([]docker.ContainerSummary, error) {
@@ -45,8 +46,9 @@ func (f *cycleFakeClient) PullImage(_ context.Context, ref string) (docker.Image
 func (f *cycleFakeClient) CheckReplacement(current docker.ContainerDetails, _ docker.ImageInfo) error {
 	return f.checkErrors[current.Summary.ID]
 }
-func (f *cycleFakeClient) ReplaceContainer(_ context.Context, current docker.ContainerDetails, _ docker.ImageInfo, _ docker.ReplaceOptions) (docker.ReplaceResult, error) {
+func (f *cycleFakeClient) ReplaceContainer(_ context.Context, current docker.ContainerDetails, _ docker.ImageInfo, options docker.ReplaceOptions) (docker.ReplaceResult, error) {
 	f.replacements = append(f.replacements, current.Summary.ID)
+	f.replaceOptions = append(f.replaceOptions, options)
 	return f.replaceResults[current.Summary.ID], f.replaceErrors[current.Summary.ID]
 }
 func (f *cycleFakeClient) ListImages(context.Context) ([]docker.ImageInfo, error) { return nil, nil }
@@ -71,8 +73,10 @@ func TestRunUpdateCycleDeterministicResults(t *testing.T) {
 		},
 	}
 	withoutDetectedSelf(t)
+	cfg := config.Default()
+	cfg.Updates.RollbackImageRetention = 1
 
-	report, err := RunUpdateCycle(context.Background(), config.Default(), client, zerolog.Nop())
+	report, err := RunUpdateCycle(context.Background(), cfg, client, zerolog.Nop())
 	if err != nil {
 		t.Fatalf("RunUpdateCycle() error = %v", err)
 	}
@@ -81,6 +85,9 @@ func TestRunUpdateCycleDeterministicResults(t *testing.T) {
 	}
 	if report.Results[0].Status != StatusUpdated || report.Results[1].Status != StatusCurrent || report.Results[2].Status != StatusExcluded {
 		t.Fatalf("unexpected statuses: %+v", report.Results)
+	}
+	if len(client.replaceOptions) != 1 || client.replaceOptions[0].RollbackImageRetention != 1 {
+		t.Fatalf("replacement options = %+v, want rollback retention 1", client.replaceOptions)
 	}
 }
 

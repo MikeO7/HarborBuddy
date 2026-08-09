@@ -32,12 +32,13 @@ func ActiveSelfUpdateHelper(containers []ContainerSummary, targetID string) stri
 // SelfUpdateHelperRequest describes the short-lived helper that replaces the
 // currently running HarborBuddy container after its process exits.
 type SelfUpdateHelperRequest struct {
-	Name              string
-	TargetContainerID string
-	TargetImageID     string
-	DockerHost        string
-	StopTimeout       time.Duration
-	StartupTimeout    time.Duration
+	Name                   string
+	TargetContainerID      string
+	TargetImageID          string
+	DockerHost             string
+	StopTimeout            time.Duration
+	StartupTimeout         time.Duration
+	RollbackImageRetention int
 }
 
 // StartSelfUpdateHelper creates and starts an auto-removed helper from the

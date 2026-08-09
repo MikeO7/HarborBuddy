@@ -334,6 +334,7 @@
       <span class="code-key">HARBORBUDDY_SCHEDULE_TIME:</span> <span class="code-string">"03:00"</span>
       <span class="code-key">HARBORBUDDY_CONTAINER_NAME:</span> <span class="code-string">harborbuddy</span>
       <span class="code-key">HARBORBUDDY_DRY_RUN:</span> <span class="code-string">"true"</span>
+      <span class="code-key">HARBORBUDDY_ROLLBACK_IMAGE_RETENTION:</span> <span class="code-string">"1"</span>
     <span class="code-key">labels:</span>
       <span class="code-key">com.harborbuddy.role:</span> <span class="code-string">daemon</span></code></pre>
           <div class="command"><span>$</span> docker compose up -d</div>
@@ -359,6 +360,10 @@
           <details>
             <summary>What happens when a replacement container fails to start?</summary>
             <p>HarborBuddy attempts to remove the failed replacement, restore the prior container's name, networks, and restart policy, and start it again. Rollback is best-effort because Docker or the host can also fail during recovery.</p>
+          </details>
+          <details>
+            <summary>Can HarborBuddy retain a known-working image for rollback?</summary>
+            <p>Yes. Set <code>updates.rollback_image_retention</code> or <code>HARBORBUDDY_ROLLBACK_IMAGE_RETENTION</code> to the number of prior successful images to keep per full image reference. The opt-in default is <code>0</code>. Retention runs after readiness, uses isolated deterministic local tags, never deliberately removes images used by running or stopped containers, and reports maintenance failures as warnings without failing a successful update.</p>
           </details>
           <details>
             <summary>Can HarborBuddy update itself?</summary>

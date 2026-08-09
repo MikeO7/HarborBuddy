@@ -30,6 +30,9 @@ func validateUpdates(cfg UpdatesConfig) error {
 	if cfg.StartupTimeout <= 0 {
 		return errors.New("updates.startup_timeout must be positive")
 	}
+	if cfg.RollbackImageRetention < 0 {
+		return errors.New("updates.rollback_image_retention cannot be negative")
+	}
 	if cfg.ScheduleTime == "" {
 		return nil
 	}

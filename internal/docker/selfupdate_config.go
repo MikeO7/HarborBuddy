@@ -49,6 +49,9 @@ func selfUpdateHelperConfig(current ContainerDetails, request SelfUpdateHelperRe
 	if request.StartupTimeout > 0 {
 		containerConfig.Cmd = append(containerConfig.Cmd, "--helper-startup-timeout", request.StartupTimeout.String())
 	}
+	if request.RollbackImageRetention > 0 {
+		containerConfig.Cmd = append(containerConfig.Cmd, "--helper-rollback-image-retention", strconv.Itoa(request.RollbackImageRetention))
+	}
 
 	hostConfig := &containertypes.HostConfig{
 		Binds:         relevantBinds(current.Host.Binds, relevantPaths),

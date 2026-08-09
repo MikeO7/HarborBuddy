@@ -46,6 +46,9 @@ func (c *Config) applyUpdateEnvironment(getenv environmentReader) error {
 	if err := applyDuration(getenv, "HARBORBUDDY_STARTUP_TIMEOUT", &c.Updates.StartupTimeout); err != nil {
 		return err
 	}
+	if err := applyInt(getenv, "HARBORBUDDY_ROLLBACK_IMAGE_RETENTION", &c.Updates.RollbackImageRetention); err != nil {
+		return err
+	}
 	return applyBool(getenv, "HARBORBUDDY_UPDATES_ENABLED", &c.Updates.Enabled)
 }
 

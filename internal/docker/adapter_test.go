@@ -170,8 +170,8 @@ func TestImageAdapterOperationsAndSummaries(t *testing.T) {
 		t.Fatalf("inspectImage() error = %v", err)
 	}
 
-	got := imageSummaries([]imagetypes.Summary{{ID: "id", RepoTags: nil, Created: 0}}, true)
-	if len(got) != 1 || !got[0].Dangling || got[0].Labels != nil {
+	got := imageSummaries([]imagetypes.Summary{{ID: "id", RepoTags: nil, Created: 0}, {ID: "rollback", RepoTags: []string{rollbackImageRepositoryPrefix + "abc:1"}}}, true)
+	if len(got) != 2 || !got[0].Dangling || got[0].Labels != nil || !got[1].Protected {
 		t.Fatalf("forced dangling summary = %+v", got)
 	}
 }

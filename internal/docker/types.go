@@ -31,6 +31,7 @@ type ImageInfo struct {
 	ID        string
 	RepoTags  []string
 	Dangling  bool
+	Protected bool
 	CreatedAt time.Time
 	Size      int64
 	Labels    map[string]string
@@ -65,20 +66,22 @@ type CleanupPruneResult struct {
 }
 
 type ReplaceOptions struct {
-	StopTimeout           time.Duration
-	StartupTimeout        time.Duration
-	StabilizationTime     time.Duration
-	PollInterval          time.Duration
-	CurrentAlreadyStopped bool
+	StopTimeout            time.Duration
+	StartupTimeout         time.Duration
+	StabilizationTime      time.Duration
+	PollInterval           time.Duration
+	CurrentAlreadyStopped  bool
+	RollbackImageRetention int
 }
 
 type ReplaceResult struct {
-	NewContainerID    string
-	BackupName        string
-	BackupCleanupErr  error
-	FailureStage      string
-	RollbackAttempted bool
-	RollbackErr       error
+	NewContainerID            string
+	BackupName                string
+	BackupCleanupErr          error
+	RollbackImageRetentionErr error
+	FailureStage              string
+	RollbackAttempted         bool
+	RollbackErr               error
 }
 
 type UnsupportedError struct {

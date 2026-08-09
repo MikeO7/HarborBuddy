@@ -208,10 +208,11 @@ func TestRunUpdaterUsesTransactionalReplacement(t *testing.T) {
 	defer cancel()
 
 	request := UpdaterRequest{
-		TargetContainerID: "self-123",
-		TargetImageID:     "sha256:new",
-		StopTimeout:       6 * time.Second,
-		StartupTimeout:    17 * time.Second,
+		TargetContainerID:      "self-123",
+		TargetImageID:          "sha256:new",
+		StopTimeout:            6 * time.Second,
+		StartupTimeout:         17 * time.Second,
+		RollbackImageRetention: 2,
 		RestartPolicy: containertypes.RestartPolicy{
 			Name:              "on-failure",
 			MaximumRetryCount: 3,
@@ -234,6 +235,9 @@ func TestRunUpdaterUsesTransactionalReplacement(t *testing.T) {
 	}
 	if client.replaceOpts.StopTimeout != request.StopTimeout || client.replaceOpts.StartupTimeout != request.StartupTimeout {
 		t.Fatalf("replacement timeouts = stop %s startup %s, want stop %s startup %s", client.replaceOpts.StopTimeout, client.replaceOpts.StartupTimeout, request.StopTimeout, request.StartupTimeout)
+	}
+	if client.replaceOpts.RollbackImageRetention != 2 {
+		t.Fatalf("replacement retention = %d, want 2", client.replaceOpts.RollbackImageRetention)
 	}
 }
 

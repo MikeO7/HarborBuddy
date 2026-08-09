@@ -30,6 +30,16 @@ func TestEffectiveConfigurationListsEnabledCleanupCategories(t *testing.T) {
 	}
 }
 
+func TestEffectiveConfigurationLogsRollbackImageRetention(t *testing.T) {
+	var output bytes.Buffer
+	cfg := config.Default()
+	cfg.Updates.RollbackImageRetention = 2
+	logEffectiveConfig(zerolog.New(&output), cfg)
+	if text := output.String(); !strings.Contains(text, `"rollback_image_retention":2`) {
+		t.Fatalf("effective configuration log = %q", text)
+	}
+}
+
 func TestHelperCompletionLogsWarningsAndRollbackOutcomes(t *testing.T) {
 	for _, test := range []struct {
 		result docker.ReplaceResult

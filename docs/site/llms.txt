@@ -20,6 +20,7 @@ Release status: early stage, with no versioned release yet. The `latest` and `ed
 - HarborBuddy pulls the exact image reference stored in Docker and compares image IDs.
 - It re-inspects a container before changing it to detect concurrent changes.
 - The old container is stopped, disconnected, and renamed before the replacement starts, so updates are not zero-downtime.
+- Optional rollback image retention is disabled by default. A positive `updates.rollback_image_retention` (or `HARBORBUDDY_ROLLBACK_IMAGE_RETENTION`) keeps that many prior known-working images per full image reference after successful readiness; retention failures are warnings and images referenced by running or stopped containers are not deliberately removed.
 - With a Docker health check, readiness requires `healthy`. Without one, HarborBuddy checks that the process stays running without restarting for two seconds; this is not proof of application health.
 - Creation, startup, or readiness failure triggers an attempted cleanup and restoration of the old container. Rollback is best-effort and can fail.
 - Operator-supplied settings are retained where possible, while command, entrypoint, and health-check defaults inherited from the old image can move to the new image defaults.

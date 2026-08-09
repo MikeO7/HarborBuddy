@@ -2,6 +2,7 @@ package docker
 
 import (
 	"reflect"
+	"slices"
 	"strings"
 	"testing"
 
@@ -93,5 +94,22 @@ func TestHelperMountAndPathFiltersCoverSyntaxEdges(t *testing.T) {
 	}
 	if len(relevantMounts([]mount.Mount{{Target: "/run/socket"}, {Target: "/other"}}, []string{"/run"})) != 1 {
 		t.Fatal("relevantMounts filtering failed")
+	}
+}
+
+func TestSelfUpdateHelperConfigIncludesRollbackRetention(t *testing.T) {
+	current := ContainerDetails{Config: &containertypes.Config{}, Host: &containertypes.HostConfig{}}
+	request := SelfUpdateHelperRequest{
+		Name:                   "helper",
+		TargetContainerID:      "target",
+		TargetImageID:          "image",
+		RollbackImageRetention: 3,
+	}
+	config, _, _, err := selfUpdateHelperConfig(current, request)
+	if err != nil {
+		t.Fatalf("selfUpdateHelperConfig() error = %v", err)
+	}
+	if !slices.Contains(config.Cmd, "--helper-rollback-image-retention") || !slices.Contains(config.Cmd, "3") {
+		t.Fatalf("helper command = %v, want rollback retention 3", config.Cmd)
 	}
 }
