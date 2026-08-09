@@ -1,0 +1,28 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1200" height="630" viewBox="0 0 1200 630">
+  <rect width="1200" height="630" fill="#071923"/>
+  <g opacity=".12" stroke="#43c0c9">
+    <path d="M0 70h1200M0 140h1200M0 210h1200M0 280h1200M0 350h1200M0 420h1200M0 490h1200M0 560h1200"/>
+    <path d="M70 0v630M140 0v630M210 0v630M280 0v630M350 0v630M420 0v630M490 0v630M560 0v630M630 0v630M700 0v630M770 0v630M840 0v630M910 0v630M980 0v630M1050 0v630M1120 0v630M1190 0v630"/>
+  </g>
+  <rect x="58" y="55" width="1084" height="520" fill="#0d2632" stroke="#35515c" stroke-width="2"/>
+  <g fill="none" stroke="#ed6a32" stroke-linecap="round" stroke-linejoin="round" stroke-width="7">
+    <path d="M115 92v56M95 111h40M86 133c0 29 10 43 29 50 19-7 29-21 29-50M74 143c9 5 17 5 25 0M131 143c8 5 16 5 25 0"/>
+  </g>
+  <text x="181" y="143" fill="#f1efe7" font-family="Arial, Helvetica, sans-serif" font-size="52" font-weight="800" letter-spacing="-2">HarborBuddy</text>
+  <text x="86" y="290" fill="#f1efe7" font-family="Arial, Helvetica, sans-serif" font-size="72" font-weight="800" letter-spacing="-3">Container updates</text>
+  <text x="86" y="375" fill="#ed6a32" font-family="Arial, Helvetica, sans-serif" font-size="72" font-weight="800" letter-spacing="-3">with a safe way back.</text>
+  <g transform="translate(770 206)">
+    <rect width="282" height="58" fill="#102e3b" stroke="#43c0c9"/>
+    <circle cx="28" cy="29" r="7" fill="#43c0c9"/>
+    <text x="50" y="36" fill="#dfe8e6" font-family="Menlo, monospace" font-size="17">IMAGE PULLED</text>
+    <path d="M141 58v42" stroke="#43c0c9"/>
+    <rect y="100" width="282" height="58" fill="#102e3b" stroke="#43c0c9"/>
+    <circle cx="28" cy="129" r="7" fill="#43c0c9"/>
+    <text x="50" y="136" fill="#dfe8e6" font-family="Menlo, monospace" font-size="17">REPLACED</text>
+    <path d="M141 158v42" stroke="#7bc89a"/>
+    <rect y="200" width="282" height="58" fill="#15382f" stroke="#7bc89a"/>
+    <circle cx="28" cy="229" r="7" fill="#7bc89a"/>
+    <text x="50" y="236" fill="#dfe8e6" font-family="Menlo, monospace" font-size="17">HEALTHY</text>
+  </g>
+  <text x="86" y="520" fill="#91a6ad" font-family="Menlo, monospace" font-size="19" letter-spacing="1">TRANSACTIONAL REPLACEMENT · READINESS CHECKS · ROLLBACK</text>
+</svg>

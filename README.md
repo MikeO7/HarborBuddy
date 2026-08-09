@@ -1,10 +1,25 @@
 # HarborBuddy
 
-HarborBuddy keeps containers on a standalone Docker Engine current by pulling each configured image reference and transactionally replacing containers whose image ID changed.
-
 [![CI](https://github.com/MikeO7/HarborBuddy/actions/workflows/ci.yml/badge.svg)](https://github.com/MikeO7/HarborBuddy/actions/workflows/ci.yml)
 [![Container Image](https://github.com/MikeO7/HarborBuddy/actions/workflows/docker-build.yml/badge.svg)](https://github.com/MikeO7/HarborBuddy/actions/workflows/docker-build.yml)
+[![GitHub Pages](https://github.com/MikeO7/HarborBuddy/actions/workflows/pages.yml/badge.svg)](https://mikeo7.github.io/HarborBuddy/)
 [![License: PolyForm Noncommercial 1.0.0](https://img.shields.io/badge/license-PolyForm%20Noncommercial%201.0.0-blue.svg)](LICENSE)
+
+[![HarborBuddy guides Docker containers through a verified update and rollback path](docs/site/assets/harborbuddy-social.png)](https://mikeo7.github.io/HarborBuddy/)
+
+**Keep containers current without giving up readiness checks and rollback.**
+
+HarborBuddy keeps containers on a standalone Docker Engine current by pulling each configured image reference and transactionally replacing containers whose image ID changed.
+
+[View the project website](https://mikeo7.github.io/HarborBuddy/),
+[jump to the quick start](#quick-start), or review the
+[Docker access boundary](https://mikeo7.github.io/HarborBuddy/#safety) before installing.
+
+> [!IMPORTANT]
+> HarborBuddy is noncommercial source-available software under the
+> [PolyForm Noncommercial License 1.0.0](LICENSE), not an open-source license.
+> Commercial use is not permitted by the current license. Read/write Docker
+> daemon access is equivalent to host-level administrative access.
 
 ## Features
 

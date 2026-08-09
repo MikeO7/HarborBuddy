@@ -1,0 +1,59 @@
+# HarborBuddy
+
+HarborBuddy is a noncommercial source-available Go service that keeps containers on a standalone Docker Engine current through image-ID comparison, transactional replacement, readiness checks, and rollback.
+
+Last substantive update: 2026-08-08
+Maintainer: MikeO7 — https://github.com/MikeO7
+Canonical website: https://mikeo7.github.io/HarborBuddy/
+Source repository: https://github.com/MikeO7/HarborBuddy
+License: PolyForm Noncommercial License 1.0.0; commercial use is not permitted by the current license.
+
+## Intended use
+
+- Run continuously on a standalone Docker Engine host.
+- Check for new images on an interval or at a configured daily time.
+- Recreate eligible containers only when the pulled image ID differs from the running image ID.
+- Verify a replacement before removing the temporary backup.
+
+## Update and rollback behavior
+
+- HarborBuddy pulls the exact configured image reference and compares immutable image IDs.
+- It re-inspects a container before changing it to detect concurrent changes.
+- The prior container is renamed as a temporary backup while the replacement is created and started.
+- A health check is used when available; otherwise HarborBuddy waits through a configurable stabilization period.
+- Creation, startup, or readiness failure removes the failed replacement and restores the old container's name and networks.
+- Docker Swarm tasks, auto-remove containers, and containers sharing another container's network namespace are skipped.
+
+## Control and maintenance
+
+- Containers are managed by default unless excluded by configuration or the `com.harborbuddy.autoupdate=false` label.
+- Image allow and deny patterns are supported; deny rules take precedence.
+- Dry-run mode pulls images and updates the local image cache, but does not stop, recreate, rename, or remove containers and does not delete images.
+- Cleanup can be limited by image age and dangling status.
+- Logs can use console text or JSON, with optional rotating files.
+
+## Automatic self-update
+
+- Automatic self-update is enabled by default and can be disabled independently.
+- A short-lived helper replaces the HarborBuddy daemon after the daemon exits.
+- The helper retains the old daemon as a backup until the new daemon passes startup readiness.
+- `HARBORBUDDY_CONTAINER_NAME` should identify the daemon's stable container name in Compose deployments.
+
+## Security boundary
+
+- HarborBuddy requires read/write Docker API access to pull images and create, stop, rename, start, and remove containers.
+- Docker daemon access is equivalent to host-level administrative access.
+- Run only one active HarborBuddy controller per Docker daemon.
+- Remote Docker endpoints must be secured with Docker's standard TLS environment variables.
+
+## Canonical page
+
+- Product overview and installation: https://mikeo7.github.io/HarborBuddy/
+
+## Authoritative repository references
+
+- README and full behavior: https://github.com/MikeO7/HarborBuddy#readme
+- Example configuration: https://github.com/MikeO7/HarborBuddy/blob/main/examples/harborbuddy.yml
+- Docker Compose example: https://github.com/MikeO7/HarborBuddy/blob/main/examples/docker-compose.yml
+- License: https://github.com/MikeO7/HarborBuddy/blob/main/LICENSE
+- Support and issues: https://github.com/MikeO7/HarborBuddy/issues
