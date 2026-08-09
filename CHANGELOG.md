@@ -18,6 +18,7 @@ All notable changes to HarborBuddy are documented here. The format follows [Keep
 - Pinned golangci-lint, govulncheck, Gitleaks, Trivy, Actionlint, ShellCheck, Hadolint, and yamllint quality gates.
 - Function-complexity and source-size limits, aggregate coverage enforcement, and per-package coverage ratchets.
 - Dependabot configuration, CODEOWNERS, a pull-request template, and documented repository policy.
+- Opt-in cleanup for stopped containers, unused tagged images, unused networks, unused volumes, and build cache through a master environment switch or independent category switches.
 
 ### Changed
 

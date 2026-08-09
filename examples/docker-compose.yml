@@ -22,6 +22,14 @@ services:
       # HARBORBUDDY_SELF_UPDATE_ENABLED: "false"
       # Preview pulls and decisions without recreation or deletion:
       # HARBORBUDDY_DRY_RUN: "true"
+      # Aggressive cleanup is off by default. This enables stopped containers,
+      # unused tagged images, networks, volumes, and build cache after 24 hours:
+      # HARBORBUDDY_CLEANUP_ALL: "true"
+      # Prefer individual switches on shared Docker hosts:
+      # HARBORBUDDY_CLEANUP_STOPPED_CONTAINERS: "true"
+      # HARBORBUDDY_CLEANUP_UNUSED_NETWORKS: "true"
+      # HARBORBUDDY_CLEANUP_UNUSED_VOLUMES: "true"
+      # HARBORBUDDY_CLEANUP_BUILD_CACHE: "true"
     labels:
       # Identifies the daemon; self-update itself uses exact runtime identity.
       com.harborbuddy.role: daemon

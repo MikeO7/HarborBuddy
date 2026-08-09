@@ -28,6 +28,12 @@ func TestDefault(t *testing.T) {
 	if len(cfg.Updates.AllowImages) != 1 || cfg.Updates.AllowImages[0] != "*" {
 		t.Fatalf("AllowImages = %v, want [*]", cfg.Updates.AllowImages)
 	}
+	if !cfg.Cleanup.Enabled || !cfg.Cleanup.DanglingOnly || cfg.Cleanup.MinAgeHours != 24 {
+		t.Fatalf("safe cleanup defaults = %+v", cfg.Cleanup)
+	}
+	if cfg.Cleanup.All || cfg.Cleanup.StoppedContainers || cfg.Cleanup.UnusedNetworks || cfg.Cleanup.UnusedVolumes || cfg.Cleanup.BuildCache {
+		t.Fatalf("aggressive cleanup defaults must be disabled: %+v", cfg.Cleanup)
+	}
 }
 
 func TestLoadFileMissing(t *testing.T) {
@@ -55,6 +61,11 @@ updates:
   self_update: false
 cleanup:
   enabled: false
+  all: true
+  stopped_containers: true
+  unused_networks: true
+  unused_volumes: true
+  build_cache: true
 log:
   level: debug
 `)
@@ -70,6 +81,9 @@ log:
 	}
 	if cfg.Updates.StartupTimeout != time.Minute || !cfg.Updates.DryRun || cfg.Updates.SelfUpdate || cfg.Cleanup.Enabled {
 		t.Fatalf("YAML overrides not applied: %+v", cfg)
+	}
+	if !cfg.Cleanup.All || !cfg.Cleanup.StoppedContainers || !cfg.Cleanup.UnusedNetworks || !cfg.Cleanup.UnusedVolumes || !cfg.Cleanup.BuildCache {
+		t.Fatalf("cleanup YAML overrides not applied: %+v", cfg.Cleanup)
 	}
 }
 
@@ -116,21 +130,28 @@ func TestLoadFromFileDelegatesToOptionalLoader(t *testing.T) {
 
 func TestApplyEnvironment(t *testing.T) {
 	env := map[string]string{
-		"HARBORBUDDY_DOCKER_HOST":         "tcp://env:2375",
-		"HARBORBUDDY_INTERVAL":            "2h",
-		"HARBORBUDDY_SCHEDULE_TIME":       "03:15",
-		"HARBORBUDDY_TIMEZONE":            "America/New_York",
-		"HARBORBUDDY_DRY_RUN":             "true",
-		"HARBORBUDDY_SELF_UPDATE_ENABLED": "false",
-		"HARBORBUDDY_STOP_TIMEOUT":        "20s",
-		"HARBORBUDDY_STARTUP_TIMEOUT":     "40s",
-		"HARBORBUDDY_UPDATES_ENABLED":     "false",
-		"HARBORBUDDY_CLEANUP_ENABLED":     "false",
-		"HARBORBUDDY_LOG_LEVEL":           "debug",
-		"HARBORBUDDY_LOG_JSON":            "true",
-		"HARBORBUDDY_LOG_FILE":            "/tmp/harborbuddy.log",
-		"HARBORBUDDY_LOG_MAX_SIZE":        "20",
-		"HARBORBUDDY_LOG_MAX_BACKUPS":     "4",
+		"HARBORBUDDY_DOCKER_HOST":                "tcp://env:2375",
+		"HARBORBUDDY_INTERVAL":                   "2h",
+		"HARBORBUDDY_SCHEDULE_TIME":              "03:15",
+		"HARBORBUDDY_TIMEZONE":                   "America/New_York",
+		"HARBORBUDDY_DRY_RUN":                    "true",
+		"HARBORBUDDY_SELF_UPDATE_ENABLED":        "false",
+		"HARBORBUDDY_STOP_TIMEOUT":               "20s",
+		"HARBORBUDDY_STARTUP_TIMEOUT":            "40s",
+		"HARBORBUDDY_UPDATES_ENABLED":            "false",
+		"HARBORBUDDY_CLEANUP_ENABLED":            "false",
+		"HARBORBUDDY_CLEANUP_MIN_AGE_HOURS":      "72",
+		"HARBORBUDDY_CLEANUP_DANGLING_ONLY":      "false",
+		"HARBORBUDDY_CLEANUP_ALL":                "true",
+		"HARBORBUDDY_CLEANUP_STOPPED_CONTAINERS": "true",
+		"HARBORBUDDY_CLEANUP_UNUSED_NETWORKS":    "true",
+		"HARBORBUDDY_CLEANUP_UNUSED_VOLUMES":     "true",
+		"HARBORBUDDY_CLEANUP_BUILD_CACHE":        "true",
+		"HARBORBUDDY_LOG_LEVEL":                  "debug",
+		"HARBORBUDDY_LOG_JSON":                   "true",
+		"HARBORBUDDY_LOG_FILE":                   "/tmp/harborbuddy.log",
+		"HARBORBUDDY_LOG_MAX_SIZE":               "20",
+		"HARBORBUDDY_LOG_MAX_BACKUPS":            "4",
 	}
 	cfg := Default()
 	if err := cfg.ApplyEnvironment(func(name string) string { return env[name] }); err != nil {
@@ -141,6 +162,9 @@ func TestApplyEnvironment(t *testing.T) {
 	}
 	if cfg.Updates.StartupTimeout != 40*time.Second || cfg.Updates.Enabled || cfg.Updates.SelfUpdate || cfg.Cleanup.Enabled {
 		t.Fatalf("environment values were not applied: %+v", cfg)
+	}
+	if cfg.Cleanup.MinAgeHours != 72 || cfg.Cleanup.DanglingOnly || !cfg.Cleanup.All || !cfg.Cleanup.StoppedContainers || !cfg.Cleanup.UnusedNetworks || !cfg.Cleanup.UnusedVolumes || !cfg.Cleanup.BuildCache {
+		t.Fatalf("cleanup environment was not applied: %+v", cfg.Cleanup)
 	}
 	if !cfg.Log.JSON || cfg.Log.MaxSize != 20 || cfg.Log.MaxBackups != 4 {
 		t.Fatalf("logging environment was not applied: %+v", cfg.Log)
@@ -159,6 +183,13 @@ func TestApplyEnvironmentRejectsInvalidValues(t *testing.T) {
 		{name: "HARBORBUDDY_STARTUP_TIMEOUT", value: "later"},
 		{name: "HARBORBUDDY_UPDATES_ENABLED", value: "sometimes"},
 		{name: "HARBORBUDDY_CLEANUP_ENABLED", value: "sometimes"},
+		{name: "HARBORBUDDY_CLEANUP_MIN_AGE_HOURS", value: "old"},
+		{name: "HARBORBUDDY_CLEANUP_DANGLING_ONLY", value: "sometimes"},
+		{name: "HARBORBUDDY_CLEANUP_ALL", value: "sometimes"},
+		{name: "HARBORBUDDY_CLEANUP_STOPPED_CONTAINERS", value: "sometimes"},
+		{name: "HARBORBUDDY_CLEANUP_UNUSED_NETWORKS", value: "sometimes"},
+		{name: "HARBORBUDDY_CLEANUP_UNUSED_VOLUMES", value: "sometimes"},
+		{name: "HARBORBUDDY_CLEANUP_BUILD_CACHE", value: "sometimes"},
 		{name: "HARBORBUDDY_LOG_JSON", value: "sometimes"},
 		{name: "HARBORBUDDY_LOG_MAX_SIZE", value: "large"},
 		{name: "HARBORBUDDY_LOG_MAX_BACKUPS", value: "many"},

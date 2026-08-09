@@ -28,7 +28,7 @@ HarborBuddy keeps containers on a standalone Docker Engine current by pulling ea
 - Transactional replacement with startup checks and rollback
 - Safe automatic self-update, enabled by default, through a short-lived helper container
 - Dry-run discovery that pulls images but never recreates containers or deletes images
-- Configurable cleanup of old or dangling images
+- Conservative dangling-image cleanup plus opt-in pruning of stopped containers, unused tagged images, networks, volumes, and build cache
 - Structured console or JSON logging with optional rotating files
 - Published `linux/amd64`, `linux/arm64`, and `linux/arm/v7` images
 
@@ -85,7 +85,7 @@ HarborBuddy skips replacements it cannot perform safely, including auto-remove c
 
 ### Dry-run semantics
 
-Dry-run mode still pulls eligible image references so it can compare the actual image IDs. It may therefore use network bandwidth and update the Docker Engine's local image cache. It does not stop, recreate, rename, or remove containers, and cleanup reports candidate images without deleting them.
+Dry-run mode still pulls eligible image references so it can compare the actual image IDs. It may therefore use network bandwidth and update the Docker Engine's local image cache. It does not stop, recreate, rename, or remove containers, and cleanup reports candidates across every enabled resource class without deleting or pruning them.
 
 Enable it with either:
 
@@ -150,6 +150,11 @@ cleanup:
   enabled: true
   min_age_hours: 24
   dangling_only: true
+  all: false
+  stopped_containers: false
+  unused_networks: false
+  unused_volumes: false
+  build_cache: false
 
 log:
   level: info
@@ -197,7 +202,14 @@ Environment variables override YAML values.
 | `HARBORBUDDY_CONTAINER_ID` | empty | Optional container ID/prefix identity override; prefer the stable name setting |
 | `HARBORBUDDY_STOP_TIMEOUT` | `10s` | Graceful stop timeout |
 | `HARBORBUDDY_STARTUP_TIMEOUT` | `30s` | Replacement readiness timeout |
-| `HARBORBUDDY_CLEANUP_ENABLED` | `true` | Enable image cleanup |
+| `HARBORBUDDY_CLEANUP_ENABLED` | `true` | Enable the cleanup cycle; the safe default removes only old dangling images |
+| `HARBORBUDDY_CLEANUP_MIN_AGE_HOURS` | `24` | Minimum resource age before any cleanup category may remove it |
+| `HARBORBUDDY_CLEANUP_DANGLING_ONLY` | `true` | Restrict image cleanup to untagged images |
+| `HARBORBUDDY_CLEANUP_ALL` | `false` | Enable every aggressive cleanup category and include unused tagged images |
+| `HARBORBUDDY_CLEANUP_STOPPED_CONTAINERS` | `false` | Remove stopped containers older than the minimum age |
+| `HARBORBUDDY_CLEANUP_UNUSED_NETWORKS` | `false` | Remove unused local, non-system networks older than the minimum age |
+| `HARBORBUDDY_CLEANUP_UNUSED_VOLUMES` | `false` | Remove unused volumes with known age and zero references |
+| `HARBORBUDDY_CLEANUP_BUILD_CACHE` | `false` | Prune unused build cache older than the minimum age |
 | `HARBORBUDDY_LOG_LEVEL` | `info` | `debug`, `info`, `warn`, or `error` |
 | `HARBORBUDDY_LOG_JSON` | `false` | Emit JSON logs |
 | `HARBORBUDDY_LOG_FILE` | empty | Explicit rotating log path; stdout remains enabled |
@@ -264,7 +276,19 @@ Cleanup runs after update checks when enabled.
 - `dangling_only: true` considers only untagged images.
 - `min_age_hours` prevents removal of newer candidates.
 - `dangling_only: false` broadens the candidate list, but Docker still refuses removal of images in use.
-- Dry-run reports `would_remove` and performs no deletion.
+- `stopped_containers`, `unused_networks`, `unused_volumes`, and `build_cache` independently enable their resource classes. They default to `false`.
+- `all: true` enables every resource class and includes unused tagged images. `HARBORBUDDY_CLEANUP_ALL=true` is the equivalent environment switch.
+- System networks, running containers, attached networks, referenced volumes, active build-cache records, and resources with unknown age or usage remain protected.
+- Dry-run reports `would_remove` across every enabled category and performs no deletion or build-cache prune.
+
+The full opt-in environment configuration is:
+
+```yaml
+environment:
+  HARBORBUDDY_CLEANUP_ALL: "true"
+```
+
+Prefer the individual category switches on shared Docker hosts. Volume cleanup can permanently delete application data after the last container reference is removed; HarborBuddy cannot determine whether an unused volume is still valuable.
 
 Use conservative cleanup settings on shared Docker hosts.
 
@@ -282,7 +306,7 @@ File logging is opt-in. Set `log.file` or `HARBORBUDDY_LOG_FILE` explicitly (for
 --schedule-time HH:MM  override the daily schedule
 --timezone ZONE        override the schedule timezone
 --once                 run one cycle and exit
---dry-run              pull and report without recreating containers or deleting images
+--dry-run              pull and report without recreating containers or removing cleanup resources
 --cleanup-only         run cleanup and exit
 --log-level LEVEL      override the log level
 --version              print build information

@@ -37,6 +37,33 @@ type ImageInfo struct {
 	Config    *containertypes.Config
 }
 
+type CleanupResourceKind string
+
+const (
+	CleanupImage      CleanupResourceKind = "image"
+	CleanupContainer  CleanupResourceKind = "container"
+	CleanupNetwork    CleanupResourceKind = "network"
+	CleanupVolume     CleanupResourceKind = "volume"
+	CleanupBuildCache CleanupResourceKind = "build_cache"
+)
+
+type CleanupResource struct {
+	Kind       CleanupResourceKind
+	ID         string
+	Name       string
+	CreatedAt  time.Time
+	LastUsedAt time.Time
+	Size       int64
+	Dangling   bool
+	InUse      bool
+	Protected  bool
+}
+
+type CleanupPruneResult struct {
+	Deleted        []string
+	ReclaimedBytes int64
+}
+
 type ReplaceOptions struct {
 	StopTimeout           time.Duration
 	StartupTimeout        time.Duration

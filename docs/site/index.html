@@ -74,7 +74,8 @@
               "Scheduled and interval-based updates",
               "Allow and deny image filters",
               "Safe automatic self-update",
-              "Non-destructive dry-run discovery"
+              "Non-destructive dry-run discovery",
+              "Opt-in cleanup of unused Docker resources"
             ],
             "softwareRequirements": "A standalone Docker Engine with read/write Docker API access"
           },
@@ -112,7 +113,12 @@
               {
                 "@type": "Question",
                 "name": "Does dry-run mode change running containers?",
-                "acceptedAnswer": { "@type": "Answer", "text": "No. Dry-run mode pulls eligible image references and updates the Docker Engine's local image cache so it can report real image-ID differences, but it never stops, recreates, renames, or removes containers and does not delete images." }
+                "acceptedAnswer": { "@type": "Answer", "text": "No. Dry-run mode pulls eligible image references and updates the Docker Engine's local image cache so it can report real image-ID differences, but it never stops, recreates, renames, or removes containers and does not remove or prune any cleanup resource." }
+              },
+              {
+                "@type": "Question",
+                "name": "Can HarborBuddy clean all unused Docker resources?",
+                "acceptedAnswer": { "@type": "Answer", "text": "Yes, when explicitly enabled. The safe default removes only old dangling images. HARBORBUDDY_CLEANUP_ALL enables old stopped containers, unused tagged images, unused local networks, unused volumes, and unused build cache. Each aggressive category also has its own environment switch and defaults to off." }
               },
               {
                 "@type": "Question",
@@ -248,8 +254,8 @@
             </article>
             <article class="feature">
               <span class="feature-label">Maintenance</span>
-              <h3>Conservative image cleanup</h3>
-              <p>Limit removal to dangling or sufficiently old images, with Docker still protecting images in use.</p>
+              <h3>Safe by default. Comprehensive by choice.</h3>
+              <p>Old dangling images are the default. Independent opt-ins cover stopped containers, unused tagged images, local networks, volumes, and build cache—or enable all of them with one environment switch.</p>
             </article>
             <article class="feature feature-wide self-update">
               <span class="feature-label">Self-update</span>
@@ -335,7 +341,11 @@
           </details>
           <details>
             <summary>Does dry-run mode change running containers?</summary>
-            <p>No. Dry-run mode pulls eligible image references and updates the Docker Engine's local image cache so it can report real image-ID differences, but it never stops, recreates, renames, or removes containers and does not delete images.</p>
+            <p>No. Dry-run mode pulls eligible image references and updates the Docker Engine's local image cache so it can report real image-ID differences, but it never stops, recreates, renames, or removes containers and does not remove or prune any cleanup resource.</p>
+          </details>
+          <details>
+            <summary>Can HarborBuddy clean all unused Docker resources?</summary>
+            <p>Yes, when explicitly enabled. The safe default removes only old dangling images. <code>HARBORBUDDY_CLEANUP_ALL=true</code> enables old stopped containers, unused tagged images, unused local networks, unused volumes, and unused build cache. Each aggressive category also has its own environment switch and defaults to off. Preview the exact candidates with dry-run first; unused-volume cleanup can permanently remove application data.</p>
           </details>
           <details>
             <summary>Does HarborBuddy support Docker Swarm?</summary>

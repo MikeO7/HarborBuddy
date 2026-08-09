@@ -42,9 +42,14 @@ type UpdatesConfig struct {
 }
 
 type CleanupConfig struct {
-	Enabled      bool `yaml:"enabled"`
-	MinAgeHours  int  `yaml:"min_age_hours"`
-	DanglingOnly bool `yaml:"dangling_only"`
+	Enabled           bool `yaml:"enabled"`
+	MinAgeHours       int  `yaml:"min_age_hours"`
+	DanglingOnly      bool `yaml:"dangling_only"`
+	All               bool `yaml:"all"`
+	StoppedContainers bool `yaml:"stopped_containers"`
+	UnusedNetworks    bool `yaml:"unused_networks"`
+	UnusedVolumes     bool `yaml:"unused_volumes"`
+	BuildCache        bool `yaml:"build_cache"`
 }
 
 type LogConfig struct {

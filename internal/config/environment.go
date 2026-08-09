@@ -50,7 +50,27 @@ func (c *Config) applyUpdateEnvironment(getenv environmentReader) error {
 }
 
 func (c *Config) applyCleanupEnvironment(getenv environmentReader) error {
-	return applyBool(getenv, "HARBORBUDDY_CLEANUP_ENABLED", &c.Cleanup.Enabled)
+	settings := []struct {
+		name   string
+		target *bool
+	}{
+		{name: "HARBORBUDDY_CLEANUP_ENABLED", target: &c.Cleanup.Enabled},
+		{name: "HARBORBUDDY_CLEANUP_DANGLING_ONLY", target: &c.Cleanup.DanglingOnly},
+		{name: "HARBORBUDDY_CLEANUP_ALL", target: &c.Cleanup.All},
+		{name: "HARBORBUDDY_CLEANUP_STOPPED_CONTAINERS", target: &c.Cleanup.StoppedContainers},
+		{name: "HARBORBUDDY_CLEANUP_UNUSED_NETWORKS", target: &c.Cleanup.UnusedNetworks},
+		{name: "HARBORBUDDY_CLEANUP_UNUSED_VOLUMES", target: &c.Cleanup.UnusedVolumes},
+		{name: "HARBORBUDDY_CLEANUP_BUILD_CACHE", target: &c.Cleanup.BuildCache},
+	}
+	if err := applyInt(getenv, "HARBORBUDDY_CLEANUP_MIN_AGE_HOURS", &c.Cleanup.MinAgeHours); err != nil {
+		return err
+	}
+	for _, setting := range settings {
+		if err := applyBool(getenv, setting.name, setting.target); err != nil {
+			return err
+		}
+	}
+	return nil
 }
 
 func (c *Config) applyLogEnvironment(getenv environmentReader) error {

@@ -16,7 +16,7 @@ updates:
   timezone: America/Los_Angeles
 
   # Dry-run still pulls eligible images, but never recreates/deletes containers
-  # and never deletes images during cleanup.
+  # and never removes any cleanup resource or build cache.
   dry_run: false
 
   # Deny patterns take precedence. One wildcard is supported at either edge.
@@ -33,6 +33,14 @@ cleanup:
   enabled: true
   min_age_hours: 24
   dangling_only: true
+
+  # Every broader cleanup category is opt-in. Setting all: true enables all
+  # four categories below and includes unused tagged images.
+  all: false
+  stopped_containers: false
+  unused_networks: false
+  unused_volumes: false
+  build_cache: false
 
 log:
   level: info
