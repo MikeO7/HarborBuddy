@@ -198,19 +198,31 @@ jobs:
         shell: bash
         run: |
           image_ref="$REGISTRY/$IMAGE_NAME@$DIGEST"
-          checks=(
-            'linux/amd64:linux/amd64'
-            'linux/arm64:linux/arm64'
-            'linux/arm/v7:linux/arm'
-          )
-          for check in "${checks[@]}"; do
-            platform="${check%%:*}"
-            expected="${check#*:}"
-            output="$(docker run --rm --platform "$platform" "$image_ref" --version)"
+          manifest_json="$(docker buildx imagetools inspect "$image_ref" --raw)"
+          while IFS='|' read -r platform os architecture variant expected; do
+            platform_digest="$(jq -r \
+              --arg os "$os" \
+              --arg architecture "$architecture" \
+              --arg variant "$variant" \
+              '.manifests[] | select(
+                .platform.os == $os and
+                .platform.architecture == $architecture and
+                (($variant == "") or .platform.variant == $variant)
+              ) | .digest' <<< "$manifest_json" | head -n 1)"
+            [[ -n "$platform_digest" ]] || {
+              printf 'Published image is missing platform %s\n' "$platform" >&2
+              exit 1
+            }
+            output="$(docker run --rm --platform "$platform" \
+              "$REGISTRY/$IMAGE_NAME@$platform_digest" --version)"
             printf '%s\n' "$output"
             grep -Fq 'HarborBuddy' <<< "$output"
             grep -Fq ", $expected)" <<< "$output"
-          done
+          done <<'EOF'
+          linux/amd64|linux|amd64||linux/amd64
+          linux/arm64|linux|arm64||linux/arm64
+          linux/arm/v7|linux|arm|v7|linux/arm
+          EOF
 
           if [[ "$GITHUB_REF" == refs/heads/main || "$STABLE" == true ]]; then
             latest_digest="$(docker buildx imagetools inspect \
