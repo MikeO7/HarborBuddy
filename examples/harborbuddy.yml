@@ -29,6 +29,10 @@ updates:
   stop_timeout: 10s
   startup_timeout: 30s
 
+  # Keep this many prior known-working images per full image reference.
+  # Zero disables rollback image retention.
+  rollback_image_retention: 0
+
 cleanup:
   enabled: true
   min_age_hours: 24

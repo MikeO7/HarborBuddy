@@ -94,10 +94,11 @@ func runHelper(ctx context.Context, stdout io.Writer, deps Dependencies, values 
 		return fmt.Errorf("acknowledge self-update helper readiness: %w", err)
 	}
 	request := selfupdate.UpdaterRequest{
-		TargetContainerID: values.targetContainer,
-		TargetImageID:     values.newImage,
-		StopTimeout:       values.helperStop,
-		StartupTimeout:    values.helperStartup,
+		TargetContainerID:      values.targetContainer,
+		TargetImageID:          values.newImage,
+		StopTimeout:            values.helperStop,
+		StartupTimeout:         values.helperStartup,
+		RollbackImageRetention: values.helperRollbackImageRetention,
 		RestartPolicy: containertypes.RestartPolicy{
 			Name:              containertypes.RestartPolicyMode(values.helperRestart),
 			MaximumRetryCount: values.helperRetries,
@@ -120,12 +121,13 @@ func runHelper(ctx context.Context, stdout io.Writer, deps Dependencies, values 
 		Str("target_image_id", shortOperationalID(values.newImage)).
 		Str("new_container_id", shortOperationalID(result.NewContainerID)).
 		Int64("duration_ms", time.Since(started).Milliseconds())
-	if result.BackupCleanupErr != nil {
+	warning := errors.Join(result.BackupCleanupErr, result.RollbackImageRetentionErr)
+	if warning != nil {
 		event = logger.Warn().Str("event", "self_update_helper_complete").
 			Str("target_container_id", shortOperationalID(values.targetContainer)).
 			Str("target_image_id", shortOperationalID(values.newImage)).
 			Str("new_container_id", shortOperationalID(result.NewContainerID)).
-			Str("warning", result.BackupCleanupErr.Error()).
+			Str("warning", warning.Error()).
 			Int64("duration_ms", time.Since(started).Milliseconds())
 	}
 	event.Msg("Self-update helper completed")

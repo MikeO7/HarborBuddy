@@ -25,6 +25,9 @@ func TestDefault(t *testing.T) {
 	if !cfg.Updates.SelfUpdate {
 		t.Fatal("SelfUpdate = false, want enabled by default")
 	}
+	if cfg.Updates.RollbackImageRetention != 0 {
+		t.Fatalf("RollbackImageRetention = %d, want opt-in default 0", cfg.Updates.RollbackImageRetention)
+	}
 	if len(cfg.Updates.AllowImages) != 1 || cfg.Updates.AllowImages[0] != "*" {
 		t.Fatalf("AllowImages = %v, want [*]", cfg.Updates.AllowImages)
 	}
@@ -56,6 +59,7 @@ docker:
   host: tcp://docker.example:2376
 updates:
   check_interval: 45m
+  rollback_image_retention: 2
   startup_timeout: 1m
   dry_run: true
   self_update: false
@@ -79,7 +83,7 @@ log:
 	if cfg.Updates.StopTimeout != 10*time.Second {
 		t.Fatalf("default StopTimeout was not preserved: %v", cfg.Updates.StopTimeout)
 	}
-	if cfg.Updates.StartupTimeout != time.Minute || !cfg.Updates.DryRun || cfg.Updates.SelfUpdate || cfg.Cleanup.Enabled {
+	if cfg.Updates.StartupTimeout != time.Minute || cfg.Updates.RollbackImageRetention != 2 || !cfg.Updates.DryRun || cfg.Updates.SelfUpdate || cfg.Cleanup.Enabled {
 		t.Fatalf("YAML overrides not applied: %+v", cfg)
 	}
 	if !cfg.Cleanup.All || !cfg.Cleanup.StoppedContainers || !cfg.Cleanup.UnusedNetworks || !cfg.Cleanup.UnusedVolumes || !cfg.Cleanup.BuildCache {
@@ -139,6 +143,7 @@ func TestApplyEnvironment(t *testing.T) {
 		"HARBORBUDDY_STOP_TIMEOUT":               "20s",
 		"HARBORBUDDY_STARTUP_TIMEOUT":            "40s",
 		"HARBORBUDDY_UPDATES_ENABLED":            "false",
+		"HARBORBUDDY_ROLLBACK_IMAGE_RETENTION":   "1",
 		"HARBORBUDDY_CLEANUP_ENABLED":            "false",
 		"HARBORBUDDY_CLEANUP_MIN_AGE_HOURS":      "72",
 		"HARBORBUDDY_CLEANUP_DANGLING_ONLY":      "false",
@@ -160,7 +165,7 @@ func TestApplyEnvironment(t *testing.T) {
 	if cfg.Docker.Host != env["HARBORBUDDY_DOCKER_HOST"] || cfg.Updates.CheckInterval != 2*time.Hour {
 		t.Fatalf("environment was not applied: %+v", cfg)
 	}
-	if cfg.Updates.StartupTimeout != 40*time.Second || cfg.Updates.Enabled || cfg.Updates.SelfUpdate || cfg.Cleanup.Enabled {
+	if cfg.Updates.StartupTimeout != 40*time.Second || cfg.Updates.RollbackImageRetention != 1 || cfg.Updates.Enabled || cfg.Updates.SelfUpdate || cfg.Cleanup.Enabled {
 		t.Fatalf("environment values were not applied: %+v", cfg)
 	}
 	if cfg.Cleanup.MinAgeHours != 72 || cfg.Cleanup.DanglingOnly || !cfg.Cleanup.All || !cfg.Cleanup.StoppedContainers || !cfg.Cleanup.UnusedNetworks || !cfg.Cleanup.UnusedVolumes || !cfg.Cleanup.BuildCache {
@@ -181,6 +186,7 @@ func TestApplyEnvironmentRejectsInvalidValues(t *testing.T) {
 		{name: "HARBORBUDDY_DRY_RUN", value: "sometimes"},
 		{name: "HARBORBUDDY_SELF_UPDATE_ENABLED", value: "sometimes"},
 		{name: "HARBORBUDDY_STARTUP_TIMEOUT", value: "later"},
+		{name: "HARBORBUDDY_ROLLBACK_IMAGE_RETENTION", value: "many"},
 		{name: "HARBORBUDDY_UPDATES_ENABLED", value: "sometimes"},
 		{name: "HARBORBUDDY_CLEANUP_ENABLED", value: "sometimes"},
 		{name: "HARBORBUDDY_CLEANUP_MIN_AGE_HOURS", value: "old"},
@@ -245,6 +251,7 @@ func TestValidate(t *testing.T) {
 		{name: "interval", edit: func(c *Config) { c.Updates.CheckInterval = 0 }, want: "check_interval"},
 		{name: "stop timeout", edit: func(c *Config) { c.Updates.StopTimeout = 0 }, want: "stop_timeout"},
 		{name: "startup timeout", edit: func(c *Config) { c.Updates.StartupTimeout = 0 }, want: "startup_timeout"},
+		{name: "negative rollback retention", edit: func(c *Config) { c.Updates.RollbackImageRetention = -1 }, want: "rollback_image_retention"},
 		{name: "schedule", edit: func(c *Config) { c.Updates.ScheduleTime = "25:00" }, want: "schedule_time"},
 		{name: "timezone", edit: func(c *Config) { c.Updates.ScheduleTime = "03:00"; c.Updates.Timezone = "Mars/Base" }, want: "timezone"},
 		{name: "allow pattern", edit: func(c *Config) { c.Updates.AllowImages = []string{"repo/*/image"} }, want: "unsupported image pattern"},

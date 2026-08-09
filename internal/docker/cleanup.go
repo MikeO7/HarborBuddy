@@ -80,9 +80,19 @@ func (d *DockerClient) listCleanupImages(ctx context.Context) ([]CleanupResource
 			Size:      nonNegative(image.Size),
 			Dangling:  dangling,
 			InUse:     image.Containers > 0,
+			Protected: hasRollbackImageTag(image.RepoTags),
 		})
 	}
 	return resources, nil
+}
+
+func hasRollbackImageTag(tags []string) bool {
+	for _, tag := range tags {
+		if strings.HasPrefix(tag, rollbackImageRepositoryPrefix) {
+			return true
+		}
+	}
+	return false
 }
 
 func (d *DockerClient) listCleanupContainers(ctx context.Context) ([]CleanupResource, error) {

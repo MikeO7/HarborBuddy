@@ -136,6 +136,7 @@ func (d *DockerClient) ReplaceContainer(ctx context.Context, current ContainerDe
 	if _, err := d.cli.ContainerRemove(ctx, current.Summary.ID, client.ContainerRemoveOptions{Force: true}); err != nil {
 		result.BackupCleanupErr = fmt.Errorf("remove backup container %s: %w", backupName, err)
 	}
+	result.RollbackImageRetentionErr = d.retainRollbackImage(ctx, current.Summary.ImageRef, current.Summary.ImageID, options.RollbackImageRetention)
 	return result, nil
 }
 

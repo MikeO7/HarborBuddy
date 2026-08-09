@@ -161,6 +161,8 @@ updates:
   deny_images: []
   stop_timeout: 10s
   startup_timeout: 30s
+  # Opt in to retained known-working images per full image reference.
+  rollback_image_retention: 0
 
 cleanup:
   enabled: true
@@ -189,6 +191,8 @@ volumes:
 
 YAML parsing is strict. Unknown fields and multiple YAML documents cause startup to fail. When `updates.schedule_time` is set, HarborBuddy uses that daily `HH:MM` time in `updates.timezone`; otherwise it uses `updates.check_interval`.
 
+Set `updates.rollback_image_retention` to `N` to keep `N` prior images that completed a successful update, independently for each full registry/repository/tag reference. The default `0` performs no retention work. HarborBuddy uses deterministic local `localhost/harborbuddy-rollback/<sha256>:<slot>` tags, rotates them only after the replacement is ready, and treats retention errors as warnings. It never deliberately removes an overflow image referenced by any running or stopped container. Container-referenced images can therefore remain on disk beyond the configured slots.
+
 ### Environment variables
 
 Environment variables override YAML settings.
@@ -208,6 +212,7 @@ Environment variables override YAML settings.
 | `HARBORBUDDY_CONTAINER_ID` | empty | Optional container ID or unique prefix of at least 12 characters |
 | `HARBORBUDDY_STOP_TIMEOUT` | `10s` | Graceful stop timeout |
 | `HARBORBUDDY_STARTUP_TIMEOUT` | `30s` | Replacement readiness timeout |
+| `HARBORBUDDY_ROLLBACK_IMAGE_RETENTION` | `0` | Prior known-working images retained per full image reference |
 | `HARBORBUDDY_CLEANUP_ENABLED` | `true` | Enable cleanup in normal scheduled and one-shot cycles |
 | `HARBORBUDDY_CLEANUP_MIN_AGE_HOURS` | `24` | Minimum cleanup candidate age |
 | `HARBORBUDDY_CLEANUP_DANGLING_ONLY` | `true` | Restrict image cleanup to untagged images |

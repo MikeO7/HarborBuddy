@@ -16,6 +16,7 @@ func logEffectiveConfig(logger zerolog.Logger, cfg config.Config) {
 		Str("schedule_time", cfg.Updates.ScheduleTime).
 		Str("timezone", cfg.Updates.Timezone).
 		Str("check_interval", cfg.Updates.CheckInterval.String()).
+		Int("rollback_image_retention", cfg.Updates.RollbackImageRetention).
 		Bool("cleanup_enabled", cfg.Cleanup.Enabled).
 		Int("cleanup_min_age_hours", cfg.Cleanup.MinAgeHours).
 		Bool("cleanup_dangling_only", cfg.Cleanup.DanglingOnly).
