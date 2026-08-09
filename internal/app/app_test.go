@@ -247,11 +247,11 @@ func TestHelperModeInvokesHelper(t *testing.T) {
 		gotHost = host
 		return &fakeDockerClient{}, nil
 	}
-	deps.RunHelper = func(_ context.Context, _ docker.Client, request selfupdate.UpdaterRequest) error {
+	deps.RunHelper = func(_ context.Context, _ docker.Client, request selfupdate.UpdaterRequest) (docker.ReplaceResult, error) {
 		gotTarget, gotImage = request.TargetContainerID, request.TargetImageID
 		gotStop, gotStartup = request.StopTimeout, request.StartupTimeout
 		gotRestart = request.RestartPolicy
-		return nil
+		return docker.ReplaceResult{}, nil
 	}
 
 	var stdout bytes.Buffer

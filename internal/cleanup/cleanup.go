@@ -15,6 +15,8 @@ import (
 
 type Result struct {
 	Resource    docker.CleanupResource
+	ReferenceAt time.Time
+	AgeHours    int64
 	Eligible    bool
 	Removed     bool
 	WouldRemove bool
@@ -25,6 +27,7 @@ type Result struct {
 type Report struct {
 	Results        []Result
 	ReclaimedBytes int64
+	Duration       time.Duration
 }
 
 type resourceCleaner interface {
@@ -37,14 +40,18 @@ func RunCleanup(ctx context.Context, cfg config.Config, client docker.Client, lo
 	return runCleanupAt(ctx, cfg, client, logger, time.Now())
 }
 
-func runCleanupAt(ctx context.Context, cfg config.Config, client docker.Client, logger zerolog.Logger, now time.Time) (Report, error) {
+func runCleanupAt(ctx context.Context, cfg config.Config, client docker.Client, logger zerolog.Logger, now time.Time) (report Report, returnErr error) {
+	started := time.Now()
+	defer func() {
+		report.Duration = time.Since(started)
+		logReport(logger, report, cfg.Updates.DryRun, returnErr)
+	}()
 	report, err := cleanupImages(ctx, cfg, client, logger, now)
 	if ctxErr := ctx.Err(); ctxErr != nil {
 		return report, errors.Join(err, ctxErr)
 	}
 	kinds := enabledResourceKinds(cfg.Cleanup)
 	if len(kinds) == 0 {
-		logReport(logger, report, cfg.Updates.DryRun)
 		return report, err
 	}
 
@@ -63,7 +70,6 @@ func runCleanupAt(ctx context.Context, cfg config.Config, client docker.Client, 
 	if ctxErr := ctx.Err(); ctxErr != nil {
 		return report, errors.Join(err, ctxErr)
 	}
-	logReport(logger, report, cfg.Updates.DryRun)
 	return report, err
 }
 
@@ -158,7 +164,9 @@ func removeResources(
 			}
 		}
 		report.Results = append(report.Results, result)
-		logResult(logger, result)
+		if kind != docker.CleanupBuildCache || cfg.Updates.DryRun {
+			logResult(logger, result)
+		}
 	}
 	return report
 }
@@ -181,10 +189,20 @@ func pruneBuildCache(
 		}
 	}
 	if len(eligible) == 0 {
+		for index := start; index < len(report.Results); index++ {
+			logResult(logger, report.Results[index])
+		}
 		return report, nil
 	}
 	pruned, err := cleaner.PruneBuildCache(ctx, now.Add(-time.Duration(cfg.Cleanup.MinAgeHours)*time.Hour))
 	if err != nil {
+		for index := start; index < len(report.Results); index++ {
+			if report.Results[index].Eligible {
+				report.Results[index].Err = err
+				report.Results[index].Reason = ""
+			}
+			logResult(logger, report.Results[index])
+		}
 		return report, err
 	}
 	deleted := make(map[string]struct{}, len(pruned.Deleted))
@@ -195,7 +213,10 @@ func pruneBuildCache(
 		if _, ok := deleted[report.Results[index].Resource.ID]; ok {
 			report.Results[index].Removed = true
 			report.Results[index].Reason = ""
+		} else if report.Results[index].Eligible {
+			report.Results[index].Reason = "Docker prune retained the eligible cache record"
 		}
+		logResult(logger, report.Results[index])
 	}
 	report.ReclaimedBytes += pruned.ReclaimedBytes
 	return report, nil
@@ -206,6 +227,10 @@ func classify(resource docker.CleanupResource, cfg config.CleanupConfig, now tim
 	referenceTime := resource.CreatedAt
 	if !resource.LastUsedAt.IsZero() {
 		referenceTime = resource.LastUsedAt
+	}
+	result.ReferenceAt = referenceTime
+	if !referenceTime.IsZero() {
+		result.AgeHours = int64(now.Sub(referenceTime).Hours())
 	}
 	switch {
 	case resource.Protected:
@@ -249,43 +274,4 @@ func sortResources(resources []docker.CleanupResource) {
 		}
 		return left.Before(right)
 	})
-}
-
-func logResult(logger zerolog.Logger, result Result) {
-	event := logger.Info().Str("resource", string(result.Resource.Kind)).Str("resource_id", shortID(result.Resource.ID)).Str("resource_name", result.Resource.Name).Int64("resource_size", result.Resource.Size)
-	switch {
-	case result.Err != nil:
-		event.Err(result.Err).Str("result", "failed").Msg("Cleanup failed")
-	case result.Removed:
-		event.Str("result", "removed").Msg("Resource removed")
-	case result.WouldRemove:
-		event.Str("result", "would_remove").Msg("Resource would be removed")
-	default:
-		event.Str("result", "skipped").Str("reason", result.Reason).Msg("Cleanup skipped")
-	}
-}
-
-func logReport(logger zerolog.Logger, report Report, dryRun bool) {
-	logger.Info().Int("resources", len(report.Results)).Int64("reclaimed_bytes", report.ReclaimedBytes).Str("reclaimed", formatBytes(report.ReclaimedBytes)).Bool("dry_run", dryRun).Msg("Cleanup complete")
-}
-
-func formatBytes(bytes int64) string {
-	const unit = 1024
-	if bytes < unit {
-		return fmt.Sprintf("%d B", bytes)
-	}
-	divisor, exponent := int64(unit), 0
-	for value := bytes / unit; value >= unit; value /= unit {
-		divisor *= unit
-		exponent++
-	}
-	return fmt.Sprintf("%.1f %ciB", float64(bytes)/float64(divisor), "KMGTPE"[exponent])
-}
-
-func shortID(id string) string {
-	id = strings.TrimPrefix(id, "sha256:")
-	if len(id) > 12 {
-		return id[:12]
-	}
-	return id
 }

@@ -80,12 +80,16 @@ func TestRunHelperReportsDependencyFailuresAndCloseErrors(t *testing.T) {
 	client := &fakeDockerClient{closeErr: closeErr}
 	deps = testDependencies(nil)
 	deps.NewDockerClient = func(context.Context, string) (DockerClient, error) { return client, nil }
-	deps.RunHelper = func(context.Context, docker.Client, selfupdate.UpdaterRequest) error { return runErr }
+	deps.RunHelper = func(context.Context, docker.Client, selfupdate.UpdaterRequest) (docker.ReplaceResult, error) {
+		return docker.ReplaceResult{}, runErr
+	}
 	if err := runHelper(context.Background(), &bytes.Buffer{}, deps, values); !errors.Is(err, runErr) || errors.Is(err, closeErr) || !strings.Contains(err.Error(), "run self-update helper") {
 		t.Fatalf("runHelper() error = %v, want helper error only", err)
 	}
 
-	deps.RunHelper = func(context.Context, docker.Client, selfupdate.UpdaterRequest) error { return nil }
+	deps.RunHelper = func(context.Context, docker.Client, selfupdate.UpdaterRequest) (docker.ReplaceResult, error) {
+		return docker.ReplaceResult{}, nil
+	}
 	if err := runHelper(context.Background(), &bytes.Buffer{}, deps, values); !errors.Is(err, closeErr) || !strings.Contains(err.Error(), "close Docker client") {
 		t.Fatalf("runHelper() error = %v, want Docker close error", err)
 	}
@@ -127,7 +131,7 @@ func TestDefaultDependenciesExposeWorkingProcessIntegrations(t *testing.T) {
 	if err := deps.RunScheduler(ctx, cfg, nil, zerolog.Nop()); err != nil {
 		t.Fatalf("default scheduler dependency error = %v", err)
 	}
-	if err := deps.RunHelper(ctx, nil, selfupdate.UpdaterRequest{}); err == nil {
+	if _, err := deps.RunHelper(ctx, nil, selfupdate.UpdaterRequest{}); err == nil {
 		t.Fatal("default helper dependency accepted incomplete request")
 	}
 	stop := deps.StartLevelSignals(ctx, zerolog.Nop(), &logging.LevelController{})

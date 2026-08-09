@@ -160,6 +160,16 @@ func TestHandleLevelSignalsTogglesAndRestores(t *testing.T) {
 	waitForLevel(t, controller, zerolog.ErrorLevel)
 }
 
+func TestBoundedField(t *testing.T) {
+	if got, truncated := BoundedField(" short "); got != "short" || truncated {
+		t.Fatalf("BoundedField(short) = %q, %v", got, truncated)
+	}
+	long := strings.Repeat("x", maxFieldLength+1)
+	if got, truncated := BoundedField(long); len(got) <= maxFieldLength || !truncated || !strings.HasSuffix(got, "…") {
+		t.Fatalf("BoundedField(long) length=%d truncated=%v", len(got), truncated)
+	}
+}
+
 func waitForLevel(t *testing.T, controller *LevelController, want zerolog.Level) {
 	t.Helper()
 	deadline := time.Now().Add(time.Second)

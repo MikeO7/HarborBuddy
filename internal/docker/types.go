@@ -73,9 +73,12 @@ type ReplaceOptions struct {
 }
 
 type ReplaceResult struct {
-	NewContainerID   string
-	BackupName       string
-	BackupCleanupErr error
+	NewContainerID    string
+	BackupName        string
+	BackupCleanupErr  error
+	FailureStage      string
+	RollbackAttempted bool
+	RollbackErr       error
 }
 
 type UnsupportedError struct {

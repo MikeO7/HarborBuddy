@@ -217,7 +217,7 @@ func TestRunUpdaterUsesTransactionalReplacement(t *testing.T) {
 			MaximumRetryCount: 3,
 		},
 	}
-	if err := RunUpdater(ctx, client, request); err != nil {
+	if _, err := RunUpdater(ctx, client, request); err != nil {
 		t.Fatalf("RunUpdater() error = %v", err)
 	}
 	if client.waitedFor != "self-123" {
@@ -249,7 +249,7 @@ func TestRunUpdaterReportsValidationWaitInspectAndReplaceFailures(t *testing.T) 
 		{name: "client cannot wait", client: &clientWithoutWait{}, request: UpdaterRequest{TargetContainerID: "target", TargetImageID: "new"}, want: "cannot wait for the target container to exit"},
 	} {
 		t.Run(test.name, func(t *testing.T) {
-			err := RunUpdater(context.Background(), test.client, test.request)
+			_, err := RunUpdater(context.Background(), test.client, test.request)
 			if err == nil || !strings.Contains(err.Error(), test.want) {
 				t.Fatalf("RunUpdater() error = %v, want %q", err, test.want)
 			}
@@ -258,24 +258,24 @@ func TestRunUpdaterReportsValidationWaitInspectAndReplaceFailures(t *testing.T) 
 
 	baseRequest := UpdaterRequest{TargetContainerID: "target", TargetImageID: "new"}
 	client = &fakeClient{waitErr: errors.New("wait failed")}
-	if err := RunUpdater(context.Background(), client, baseRequest); err == nil || !strings.Contains(err.Error(), "wait for HarborBuddy container") {
+	if _, err := RunUpdater(context.Background(), client, baseRequest); err == nil || !strings.Contains(err.Error(), "wait for HarborBuddy container") {
 		t.Fatalf("wait failure = %v", err)
 	}
 	client = &fakeClient{inspectErr: errors.New("inspect failed")}
-	if err := RunUpdater(context.Background(), client, baseRequest); err == nil || !strings.Contains(err.Error(), "inspect HarborBuddy container") {
+	if _, err := RunUpdater(context.Background(), client, baseRequest); err == nil || !strings.Contains(err.Error(), "inspect HarborBuddy container") {
 		t.Fatalf("inspect failure = %v", err)
 	}
 	client = &fakeClient{details: docker.ContainerDetails{Host: nil}}
-	if err := RunUpdater(context.Background(), client, baseRequest); err == nil || !strings.Contains(err.Error(), "host configuration is missing") {
+	if _, err := RunUpdater(context.Background(), client, baseRequest); err == nil || !strings.Contains(err.Error(), "host configuration is missing") {
 		t.Fatalf("missing host configuration = %v", err)
 	}
 	client = &fakeClient{details: docker.ContainerDetails{Host: &containertypes.HostConfig{}}, replaceErr: errors.New("replace failed")}
-	if err := RunUpdater(context.Background(), client, baseRequest); err == nil || !strings.Contains(err.Error(), "transactionally replace HarborBuddy container") {
+	if _, err := RunUpdater(context.Background(), client, baseRequest); err == nil || !strings.Contains(err.Error(), "transactionally replace HarborBuddy container") {
 		t.Fatalf("replace failure = %v", err)
 	}
 
 	client = &fakeClient{details: docker.ContainerDetails{Host: &containertypes.HostConfig{}, State: nil}, backupErr: errors.New("backup cleanup warning")}
-	if err := RunUpdater(context.Background(), client, baseRequest); err != nil {
+	if _, err := RunUpdater(context.Background(), client, baseRequest); err != nil {
 		t.Fatalf("RunUpdater() with nil state and cleanup warning = %v", err)
 	}
 	if !client.replaceOpts.CurrentAlreadyStopped {

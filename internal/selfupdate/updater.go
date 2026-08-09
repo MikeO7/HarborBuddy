@@ -94,26 +94,26 @@ func Trigger(ctx context.Context, client HelperStarter, current docker.Container
 // RunUpdater is the entry point for helper mode. It waits for the original
 // HarborBuddy process to exit, re-inspects the target, and delegates replacement
 // to the same transactional path used for ordinary containers.
-func RunUpdater(ctx context.Context, client docker.Client, request UpdaterRequest) error {
+func RunUpdater(ctx context.Context, client docker.Client, request UpdaterRequest) (docker.ReplaceResult, error) {
 	if request.TargetContainerID == "" || request.TargetImageID == "" {
-		return errors.New("self-update helper requires target container and image IDs")
+		return docker.ReplaceResult{}, errors.New("self-update helper requires target container and image IDs")
 	}
 	waiter, ok := client.(ContainerExitWaiter)
 	if !ok {
-		return fmt.Errorf("docker client %T cannot wait for the target container to exit", client)
+		return docker.ReplaceResult{}, fmt.Errorf("docker client %T cannot wait for the target container to exit", client)
 	}
 	waitCtx, cancel := context.WithTimeout(ctx, helperExitTimeout)
 	defer cancel()
 	if err := waiter.WaitContainerExit(waitCtx, request.TargetContainerID); err != nil {
-		return fmt.Errorf("wait for HarborBuddy container to exit: %w", err)
+		return docker.ReplaceResult{}, fmt.Errorf("wait for HarborBuddy container to exit: %w", err)
 	}
 
 	current, err := client.InspectContainer(ctx, request.TargetContainerID)
 	if err != nil {
-		return fmt.Errorf("inspect HarborBuddy container after exit: %w", err)
+		return docker.ReplaceResult{}, fmt.Errorf("inspect HarborBuddy container after exit: %w", err)
 	}
 	if current.Host == nil {
-		return errors.New("inspect HarborBuddy container after exit: host configuration is missing")
+		return docker.ReplaceResult{}, errors.New("inspect HarborBuddy container after exit: host configuration is missing")
 	}
 	current.Host.RestartPolicy = request.RestartPolicy
 	target := docker.ImageInfo{ID: request.TargetImageID}
@@ -124,10 +124,9 @@ func RunUpdater(ctx context.Context, client docker.Client, request UpdaterReques
 	}
 	result, err := client.ReplaceContainer(ctx, current, target, options)
 	if err != nil {
-		return fmt.Errorf("transactionally replace HarborBuddy container: %w", err)
+		return result, fmt.Errorf("transactionally replace HarborBuddy container: %w", err)
 	}
 	// Backup cleanup failures are warnings for ordinary updates and remain
 	// non-fatal here so a healthy replacement is not reported as failed.
-	_ = result.BackupCleanupErr
-	return nil
+	return result, nil
 }

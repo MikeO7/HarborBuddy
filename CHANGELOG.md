@@ -19,6 +19,7 @@ All notable changes to HarborBuddy are documented here. The format follows [Keep
 - Function-complexity and source-size limits, aggregate coverage enforcement, and per-package coverage ratchets.
 - Dependabot configuration, CODEOWNERS, a pull-request template, and documented repository policy.
 - Opt-in cleanup for stopped containers, unused tagged images, unused networks, unused volumes, and build cache through a master environment switch or independent category switches.
+- Operational event logging with stable event names, effective configuration, correlated cycles, transaction and rollback fields, self-update helper outcomes, and per-resource cleanup summaries.
 
 ### Changed
 
@@ -34,6 +35,7 @@ All notable changes to HarborBuddy are documented here. The format follows [Keep
 - Go was updated to 1.26.5 to include current standard-library security fixes.
 - Stable releases use semantic-version tags and `latest`; the default branch publishes `edge` and immutable SHA tags.
 - Configuration loading is strict and rejects unknown fields or multiple YAML documents.
+- Routine no-op results now log at debug, warnings at warn, and failures at error; daemon-provided descriptions are bounded to keep logs concise.
 
 ### Removed
 

@@ -87,7 +87,7 @@ func New(cfg config.LogConfig, stdout io.Writer) (zerolog.Logger, *LevelControll
 	}
 
 	zerolog.SetGlobalLevel(level)
-	logger := zerolog.New(output).With().Timestamp().Logger()
+	logger := zerolog.New(output).With().Timestamp().Str("application", "harborbuddy").Logger()
 	controller := &LevelController{base: level, current: level}
 	closeFn := func() error {
 		if fileWriter == nil {
@@ -123,7 +123,7 @@ func handleLevelSignals(ctx context.Context, logger zerolog.Logger, controller *
 			return
 		case <-signals:
 			level := controller.ToggleDebug()
-			logger.Info().Str("level", level.String()).Msg("Log level changed by SIGUSR1")
+			logger.Info().Str("event", "log_level_changed").Str("level", level.String()).Msg("Log level changed by SIGUSR1")
 		}
 	}
 }

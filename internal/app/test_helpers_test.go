@@ -31,7 +31,9 @@ func testDependencies(env map[string]string) Dependencies {
 			return func() {}
 		},
 		RunScheduler: func(context.Context, config.Config, docker.Client, zerolog.Logger) error { return nil },
-		RunHelper:    func(context.Context, docker.Client, selfupdate.UpdaterRequest) error { return nil },
+		RunHelper: func(context.Context, docker.Client, selfupdate.UpdaterRequest) (docker.ReplaceResult, error) {
+			return docker.ReplaceResult{}, nil
+		},
 	}
 }
 

@@ -86,12 +86,14 @@ func helperNetworkConfig(current ContainerDetails) *network.NetworkingConfig {
 func helperDockerEnvironment(source []string, configuredHost string) (environment []string, dockerHost, certPath string) {
 	const harborBuddyDockerHost = "HARBORBUDDY_DOCKER_HOST"
 	allowed := map[string]bool{
-		harborBuddyDockerHost: true,
-		"DOCKER_HOST":         true,
-		"DOCKER_TLS_VERIFY":   true,
-		"DOCKER_CERT_PATH":    true,
-		"DOCKER_API_VERSION":  true,
-		"DOCKER_CONTEXT":      true,
+		harborBuddyDockerHost:   true,
+		"DOCKER_HOST":           true,
+		"DOCKER_TLS_VERIFY":     true,
+		"DOCKER_CERT_PATH":      true,
+		"DOCKER_API_VERSION":    true,
+		"DOCKER_CONTEXT":        true,
+		"HARBORBUDDY_LOG_LEVEL": true,
+		"HARBORBUDDY_LOG_JSON":  true,
 	}
 	values, order := allowedEnvironment(source, allowed)
 

@@ -29,7 +29,7 @@ type Dependencies struct {
 	NewLogger         func(config.LogConfig, io.Writer) (zerolog.Logger, *logging.LevelController, func() error, error)
 	StartLevelSignals func(context.Context, zerolog.Logger, *logging.LevelController) func()
 	RunScheduler      func(context.Context, config.Config, docker.Client, zerolog.Logger) error
-	RunHelper         func(context.Context, docker.Client, selfupdate.UpdaterRequest) error
+	RunHelper         func(context.Context, docker.Client, selfupdate.UpdaterRequest) (docker.ReplaceResult, error)
 }
 
 var newFlagSetFn = newFlagSet

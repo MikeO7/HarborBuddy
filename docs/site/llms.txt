@@ -33,7 +33,9 @@ License: PolyForm Noncommercial License 1.0.0; commercial use is not permitted b
 - `HARBORBUDDY_CLEANUP_ALL=true` additionally enables stopped-container, unused-network, unused-volume, build-cache, and unused-tagged-image cleanup.
 - Each aggressive cleanup category has an independent environment switch and defaults to off.
 - System or in-use resources and resources with unknown age or usage are protected. Volume cleanup can remove application data after its final container reference is gone.
-- Logs can use console text or JSON, with optional rotating files.
+- Logs use stable event names and correlated cycle IDs, with severity-correct update, cleanup, transaction, rollback, and self-update outcomes.
+- Startup records the effective non-secret configuration. Cleanup records concise per-resource summaries; routine skips move to debug so warnings and failures remain visible.
+- Logs can use console text or production-recommended JSON, with optional rotating files.
 
 ## Automatic self-update
 

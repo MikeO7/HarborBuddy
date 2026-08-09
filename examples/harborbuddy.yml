@@ -44,6 +44,7 @@ cleanup:
 
 log:
   level: info
+  # JSON is recommended for unattended production instances.
   json: false
   file: ""
   max_size: 10

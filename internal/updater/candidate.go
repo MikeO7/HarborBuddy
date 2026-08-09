@@ -117,8 +117,9 @@ func processSelfCandidate(
 		StopTimeout:    cfg.Updates.StopTimeout,
 		StartupTimeout: cfg.Updates.StartupTimeout,
 	})
-	if _, ok := selfupdate.AsShutdownRequired(err); ok {
+	if signal, ok := selfupdate.AsShutdownRequired(err); ok {
 		result.Status = StatusSelfUpdateStarted
+		result.HelperID = signal.HelperContainerID
 		return err
 	}
 	result.Status = StatusFailed
@@ -138,6 +139,9 @@ func processOrdinaryCandidate(
 		StartupTimeout:    cfg.Updates.StartupTimeout,
 		StabilizationTime: 2 * time.Second,
 	})
+	result.FailureStage = replaced.FailureStage
+	result.RollbackTried = replaced.RollbackAttempted
+	result.RollbackErr = replaced.RollbackErr
 	if err != nil {
 		result.Status = StatusFailed
 		result.Err = err

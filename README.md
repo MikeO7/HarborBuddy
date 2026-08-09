@@ -294,7 +294,13 @@ Use conservative cleanup settings on shared Docker hosts.
 
 ## Logging
 
-Logs go to the container's standard output. Set `log.json` or `HARBORBUDDY_LOG_JSON=true` for JSON output.
+Logs go to the container's standard output. Set `log.json` or `HARBORBUDDY_LOG_JSON=true` for JSON output; JSON is recommended for unattended production instances and log aggregation.
+
+Every operational record has a stable `event` name. Scheduled work carries a `cycle_id`, and update records include container, current-image, target-image, transaction, failure-stage, and rollback fields when applicable. Startup emits the effective non-secret configuration. Cycle summaries include every update outcome, while cleanup emits compact per-resource-class counts, duration, and estimated reclaimed space.
+
+Routine current, excluded, protected, in-use, recent, and otherwise skipped resources are logged at `debug`. Changes and normal summaries use `info`; unsupported or warning outcomes use `warn`; failed operations and failed summaries use `error`. Send `SIGUSR1` to the HarborBuddy process to temporarily switch to debug logging, then send it again to restore the configured level.
+
+Daemon-provided descriptions are bounded to keep individual Docker resources from overwhelming the stream. Set `HARBORBUDDY_LOG_LEVEL=debug` when investigating a specific cycle, and filter JSON records by `cycle_id`, `event`, `container_name`, or `resource`.
 
 File logging is opt-in. Set `log.file` or `HARBORBUDDY_LOG_FILE` explicitly (for example, `/logs/harborbuddy.log` when mounting a `/logs` volume). File logging rotates according to `max_size` and `max_backups`.
 

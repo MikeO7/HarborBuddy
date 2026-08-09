@@ -22,6 +22,8 @@ func FuzzHelperDockerEnvironmentFiltersSecrets(f *testing.F) {
 			"DOCKER_CERT_PATH":        true,
 			"DOCKER_API_VERSION":      true,
 			"DOCKER_CONTEXT":          true,
+			"HARBORBUDDY_LOG_LEVEL":   true,
+			"HARBORBUDDY_LOG_JSON":    true,
 		}
 		for _, item := range environment {
 			key, _, ok := strings.Cut(item, "=")
