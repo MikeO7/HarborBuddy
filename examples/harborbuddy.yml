@@ -1,0 +1,42 @@
+# HarborBuddy configuration example. Environment variables override these values.
+# Safe helper-based self-update is enabled by default. Set the environment variable
+# HARBORBUDDY_SELF_UPDATE_ENABLED=false to opt out while retaining other updates.
+
+docker:
+  # Empty uses standard Docker SDK variables such as DOCKER_HOST,
+  # DOCKER_TLS_VERIFY, DOCKER_CERT_PATH, and DOCKER_API_VERSION.
+  host: ""
+
+updates:
+  enabled: true
+
+  # Set schedule_time for a daily run, or leave it empty to use check_interval.
+  check_interval: 12h
+  schedule_time: "03:00"
+  timezone: America/Los_Angeles
+
+  # Dry-run still pulls eligible images, but never recreates/deletes containers
+  # and never deletes images during cleanup.
+  dry_run: false
+
+  # Deny patterns take precedence. One wildcard is supported at either edge.
+  allow_images:
+    - "*"
+  deny_images:
+    - "postgres:*"
+    - "mysql:*"
+
+  stop_timeout: 10s
+  startup_timeout: 30s
+
+cleanup:
+  enabled: true
+  min_age_hours: 24
+  dangling_only: true
+
+log:
+  level: info
+  json: false
+  file: ""
+  max_size: 10
+  max_backups: 1

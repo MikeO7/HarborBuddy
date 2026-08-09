@@ -1,0 +1,6 @@
+ignored:
+  # HarborBuddy must inherit the host-specific Docker socket permissions.
+  - DL3002
+  # Alpine repository package revisions are not stable long-term identifiers;
+  # the digest-pinned builder image is the reproducibility boundary.
+  - DL3018

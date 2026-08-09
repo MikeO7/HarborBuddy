@@ -1,0 +1,49 @@
+services:
+  harborbuddy:
+    image: ghcr.io/mikeo7/harborbuddy:latest
+    container_name: harborbuddy
+    restart: unless-stopped
+    volumes:
+      # HarborBuddy requires read/write Docker API access.
+      - /var/run/docker.sock:/var/run/docker.sock
+      - ./harborbuddy.yml:/config/harborbuddy.yml:ro
+      # Optional persistent rotating logs:
+      # - ./logs:/logs
+    environment:
+      TZ: America/Los_Angeles
+      HARBORBUDDY_SCHEDULE_TIME: "03:00"
+      HARBORBUDDY_LOG_LEVEL: info
+      HARBORBUDDY_LOG_JSON: "false"
+      # Stable identity for self-update, especially when hostname is customized:
+      HARBORBUDDY_CONTAINER_NAME: harborbuddy
+      # Set this when the optional ./logs mount above is enabled:
+      # HARBORBUDDY_LOG_FILE: /logs/harborbuddy.log
+      # Self-update is enabled by default. Uncomment to manage it manually:
+      # HARBORBUDDY_SELF_UPDATE_ENABLED: "false"
+      # Preview pulls and decisions without recreation or deletion:
+      # HARBORBUDDY_DRY_RUN: "true"
+    labels:
+      # Identifies the daemon; self-update itself uses exact runtime identity.
+      com.harborbuddy.role: daemon
+
+  nginx:
+    image: nginx:stable-alpine
+    container_name: example-nginx
+    restart: unless-stopped
+
+  postgres:
+    image: postgres:18.4
+    container_name: example-postgres
+    restart: unless-stopped
+    environment:
+      POSTGRES_PASSWORD: change-me
+    volumes:
+      # PostgreSQL 18+ uses a major-version-specific data directory beneath this parent.
+      # Existing PostgreSQL 17-and-earlier volumes require an explicit migration first.
+      - postgres_data:/var/lib/postgresql
+    labels:
+      # Stateful services with manual migrations should usually opt out.
+      com.harborbuddy.autoupdate: "false"
+
+volumes:
+  postgres_data:
