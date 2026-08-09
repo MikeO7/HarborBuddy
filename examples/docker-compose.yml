@@ -1,6 +1,7 @@
 services:
   harborbuddy:
-    image: ghcr.io/mikeo7/harborbuddy:latest
+    # HarborBuddy is pre-release; edge and latest currently both follow main.
+    image: ghcr.io/mikeo7/harborbuddy:edge
     container_name: harborbuddy
     restart: unless-stopped
     volumes:
@@ -17,12 +18,12 @@ services:
       HARBORBUDDY_LOG_JSON: "false"
       # Stable identity for self-update, especially when hostname is customized:
       HARBORBUDDY_CONTAINER_NAME: harborbuddy
+      # Start in dry-run mode. Remove this after reviewing logs and filters.
+      HARBORBUDDY_DRY_RUN: "true"
       # Set this when the optional ./logs mount above is enabled:
       # HARBORBUDDY_LOG_FILE: /logs/harborbuddy.log
       # Self-update is enabled by default. Uncomment to manage it manually:
       # HARBORBUDDY_SELF_UPDATE_ENABLED: "false"
-      # Preview pulls and decisions without recreation or deletion:
-      # HARBORBUDDY_DRY_RUN: "true"
       # Aggressive cleanup is off by default. This enables stopped containers,
       # unused tagged images, networks, volumes, and build cache after 24 hours:
       # HARBORBUDDY_CLEANUP_ALL: "true"

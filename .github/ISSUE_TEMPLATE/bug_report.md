@@ -19,7 +19,7 @@ Steps to reproduce the behavior:
 A clear description of what you expected to happen.
 
 ## Environment
-- HarborBuddy version: [e.g., v0.1.0]
+- HarborBuddy version: [paste `harborbuddy --version` output]
 - Docker version: [e.g., 24.0.0]
 - OS: [e.g., Ubuntu 22.04]
 - Architecture: [e.g., amd64, arm64]
@@ -34,4 +34,3 @@ Paste relevant sanitized logs here (use --log-level debug for more details)
 
 ## Additional context
 Add any other context about the problem here.
-

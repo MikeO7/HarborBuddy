@@ -10,7 +10,7 @@
   </g>
   <text x="181" y="143" fill="#f1efe7" font-family="Arial, Helvetica, sans-serif" font-size="52" font-weight="800" letter-spacing="-2">HarborBuddy</text>
   <text x="86" y="290" fill="#f1efe7" font-family="Arial, Helvetica, sans-serif" font-size="72" font-weight="800" letter-spacing="-3">Container updates</text>
-  <text x="86" y="375" fill="#ed6a32" font-family="Arial, Helvetica, sans-serif" font-size="72" font-weight="800" letter-spacing="-3">with a safe way back.</text>
+  <text x="86" y="375" fill="#ed6a32" font-family="Arial, Helvetica, sans-serif" font-size="72" font-weight="800" letter-spacing="-3">with a rollback path.</text>
   <g transform="translate(770 206)">
     <rect width="282" height="58" fill="#102e3b" stroke="#43c0c9"/>
     <circle cx="28" cy="29" r="7" fill="#43c0c9"/>
@@ -24,5 +24,5 @@
     <circle cx="28" cy="229" r="7" fill="#7bc89a"/>
     <text x="50" y="236" fill="#dfe8e6" font-family="Menlo, monospace" font-size="17">HEALTHY</text>
   </g>
-  <text x="86" y="520" fill="#91a6ad" font-family="Menlo, monospace" font-size="19" letter-spacing="1">TRANSACTIONAL REPLACEMENT · READINESS CHECKS · ROLLBACK</text>
+  <text x="86" y="520" fill="#91a6ad" font-family="Menlo, monospace" font-size="19" letter-spacing="1">IMAGE ID CHECKS · READINESS CHECKS · BEST-EFFORT ROLLBACK</text>
 </svg>
