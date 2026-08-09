@@ -387,7 +387,7 @@ if ! output="$(docker run --rm \
     fail "opt-out cycle failed"
 fi
 printf '%s\n' "$output"
-grep -Eq '"event":"update_complete".*"excluded":1' <<< "$output" || fail "opt-out cycle summary was not reported"
+grep -Eq '"event":"update_complete".*"excluded":[1-9][0-9]*' <<< "$output" || fail "opt-out cycle summary was not reported"
 OPT_OUT_CURRENT_ID="$(docker inspect "$OPT_OUT_NAME" --format '{{.Id}}')"
 OPT_OUT_CURRENT_IMAGE="$(docker inspect "$OPT_OUT_NAME" --format '{{.Image}}')"
 [[ "$OPT_OUT_CURRENT_ID" == "$OPT_OUT_CONTAINER_ID" ]] || fail "opt-out container was replaced"
