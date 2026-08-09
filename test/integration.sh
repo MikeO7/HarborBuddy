@@ -260,6 +260,7 @@ if ! output="$(docker run --rm \
     --name "$DAEMON_NAME" \
     --label "$TEST_LABEL" \
     --label com.harborbuddy.role=daemon \
+    --env HARBORBUDDY_LOG_JSON=true \
     --env HARBORBUDDY_SELF_UPDATE_ENABLED=false \
     --volume "$DOCKER_SOCKET:/var/run/docker.sock" \
     --volume "$TMP_DIR/harborbuddy.yml:/config/harborbuddy.yml:$BIND_READ_ONLY" \
@@ -312,6 +313,7 @@ if ! output="$(docker run --rm \
     --name "$DAEMON_NAME" \
     --label "$TEST_LABEL" \
     --label com.harborbuddy.role=daemon \
+    --env HARBORBUDDY_LOG_JSON=true \
     --env HARBORBUDDY_SELF_UPDATE_ENABLED=false \
     --volume "$DOCKER_SOCKET:/var/run/docker.sock" \
     --volume "$TMP_DIR/harborbuddy.yml:/config/harborbuddy.yml:$BIND_READ_ONLY" \
@@ -321,7 +323,7 @@ if ! output="$(docker run --rm \
     fail "current-image cycle failed"
 fi
 printf '%s\n' "$output"
-grep -Eq '"result":"current"|image is current|Container image is current' <<< "$output" || fail "current-image cycle was not reported"
+grep -Eq '"event":"update_complete".*"current":1' <<< "$output" || fail "current-image cycle summary was not reported"
 CURRENT_CONTAINER_ID="$(docker inspect "$TARGET_NAME" --format '{{.Id}}')"
 CURRENT_IMAGE_ID="$(docker inspect "$TARGET_NAME" --format '{{.Image}}')"
 [[ "$CURRENT_CONTAINER_ID" == "$HEALTHY_CONTAINER_ID" ]] || fail "current-image cycle replaced the target"
@@ -375,6 +377,7 @@ if ! output="$(docker run --rm \
     --name "$DAEMON_NAME" \
     --label "$TEST_LABEL" \
     --label com.harborbuddy.role=daemon \
+    --env HARBORBUDDY_LOG_JSON=true \
     --env HARBORBUDDY_SELF_UPDATE_ENABLED=false \
     --volume "$DOCKER_SOCKET:/var/run/docker.sock" \
     --volume "$TMP_DIR/opt-out.yml:/config/harborbuddy.yml:$BIND_READ_ONLY" \
@@ -384,7 +387,7 @@ if ! output="$(docker run --rm \
     fail "opt-out cycle failed"
 fi
 printf '%s\n' "$output"
-grep -Eq 'autoupdate=false|Container excluded' <<< "$output" || fail "opt-out label was not reported"
+grep -Eq '"event":"update_complete".*"excluded":1' <<< "$output" || fail "opt-out cycle summary was not reported"
 OPT_OUT_CURRENT_ID="$(docker inspect "$OPT_OUT_NAME" --format '{{.Id}}')"
 OPT_OUT_CURRENT_IMAGE="$(docker inspect "$OPT_OUT_NAME" --format '{{.Image}}')"
 [[ "$OPT_OUT_CURRENT_ID" == "$OPT_OUT_CONTAINER_ID" ]] || fail "opt-out container was replaced"
@@ -465,7 +468,7 @@ cleanup:
   enabled: false
 log:
   level: info
-  json: false
+  json: true
   max_size: 10
   max_backups: 1
 EOF
@@ -482,7 +485,7 @@ docker run -d "${CONTAINER_SECURITY_ARGS[@]}" \
 initial_cycle=false
 for _ in {1..60}; do
     daemon_logs="$(docker logs "$DAEMON_NAME" 2>&1 || true)"
-    if grep -Eq 'image is current|"result":"current"' <<< "$daemon_logs"; then
+    if grep -Eq '"event":"update_complete".*"current":[1-9][0-9]*' <<< "$daemon_logs"; then
         initial_cycle=true
         break
     fi
