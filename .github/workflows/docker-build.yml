@@ -162,7 +162,7 @@ jobs:
             type=semver,pattern={{version}}
             type=semver,pattern={{major}}.{{minor}}
             type=semver,pattern={{major}}
-            type=raw,value=latest,enable=${{ steps.build.outputs.stable == 'true' }}
+            type=raw,value=latest,enable=${{ steps.build.outputs.stable == 'true' || github.ref == 'refs/heads/main' }}
             type=raw,value=edge,enable={{is_default_branch}}
             type=sha,prefix=sha-,format=short
           labels: |
@@ -190,6 +190,38 @@ jobs:
           cache-to: type=gha,mode=max,scope=release
           provenance: mode=max
           sbom: true
+
+      - name: Verify published image
+        env:
+          DIGEST: ${{ steps.image.outputs.digest }}
+          STABLE: ${{ steps.build.outputs.stable }}
+        shell: bash
+        run: |
+          image_ref="$REGISTRY/$IMAGE_NAME@$DIGEST"
+          checks=(
+            'linux/amd64:linux/amd64'
+            'linux/arm64:linux/arm64'
+            'linux/arm/v7:linux/arm'
+          )
+          for check in "${checks[@]}"; do
+            platform="${check%%:*}"
+            expected="${check#*:}"
+            output="$(docker run --rm --platform "$platform" "$image_ref" --version)"
+            printf '%s\n' "$output"
+            grep -Fq 'HarborBuddy' <<< "$output"
+            grep -Fq ", $expected)" <<< "$output"
+          done
+
+          if [[ "$GITHUB_REF" == refs/heads/main || "$STABLE" == true ]]; then
+            latest_digest="$(docker buildx imagetools inspect \
+              "$REGISTRY/$IMAGE_NAME:latest" \
+              --format '{{.Manifest.Digest}}')"
+            [[ "$latest_digest" == "$DIGEST" ]] || {
+              printf 'latest digest %s does not match published digest %s\n' \
+                "$latest_digest" "$DIGEST" >&2
+              exit 1
+            }
+          fi
 
       - name: Summarize publication
         env:
