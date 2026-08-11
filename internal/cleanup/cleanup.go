@@ -195,7 +195,7 @@ func pruneBuildCache(
 		}
 		return report, nil
 	}
-	pruned, err := cleaner.PruneBuildCache(ctx, now.Add(-time.Duration(cfg.Cleanup.MinAgeHours)*time.Hour))
+	pruned, err := cleaner.PruneBuildCache(ctx, now.Add(-minAgeDuration(cfg.Cleanup.MinAgeHours)))
 	if err != nil {
 		for index := start; index < len(report.Results); index++ {
 			if report.Results[index].Eligible {
@@ -240,7 +240,7 @@ func classify(resource docker.CleanupResource, cfg config.CleanupConfig, now tim
 		result.Reason = "resource is in use"
 	case referenceTime.IsZero():
 		result.Reason = "resource age is unavailable"
-	case now.Sub(referenceTime) < time.Duration(cfg.MinAgeHours)*time.Hour:
+	case now.Sub(referenceTime) < minAgeDuration(cfg.MinAgeHours):
 		result.Reason = "resource is newer than the minimum age"
 	case resource.Kind == docker.CleanupImage && cfg.DanglingOnly && !cfg.All && !resource.Dangling:
 		result.Reason = "image is not dangling"
@@ -248,6 +248,14 @@ func classify(resource docker.CleanupResource, cfg config.CleanupConfig, now tim
 		result.Eligible = true
 	}
 	return result
+}
+
+func minAgeDuration(hours int) time.Duration {
+	const maxDuration = time.Duration(1<<63 - 1)
+	if hours > int(maxDuration/time.Hour) {
+		return maxDuration
+	}
+	return time.Duration(hours) * time.Hour
 }
 
 func enabledResourceKinds(cfg config.CleanupConfig) []docker.CleanupResourceKind {

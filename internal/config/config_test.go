@@ -257,6 +257,7 @@ func TestValidate(t *testing.T) {
 		{name: "allow pattern", edit: func(c *Config) { c.Updates.AllowImages = []string{"repo/*/image"} }, want: "unsupported image pattern"},
 		{name: "deny pattern", edit: func(c *Config) { c.Updates.DenyImages = []string{"repo/**"} }, want: "unsupported image pattern"},
 		{name: "negative age", edit: func(c *Config) { c.Cleanup.MinAgeHours = -1 }, want: "min_age_hours"},
+		{name: "overflowing age", edit: func(c *Config) { c.Cleanup.MinAgeHours = maxCleanupMinAgeHours + 1 }, want: "min_age_hours"},
 		{name: "log level", edit: func(c *Config) { c.Log.Level = "verbose" }, want: "log.level"},
 		{name: "log size", edit: func(c *Config) { c.Log.MaxSize = 0 }, want: "log.max_size"},
 		{name: "log backups", edit: func(c *Config) { c.Log.MaxBackups = -1 }, want: "log.max_backups"},

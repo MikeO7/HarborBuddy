@@ -3,6 +3,11 @@ set -Eeuo pipefail
 IFS=$'\n\t'
 
 status=0
+shopt -s nullglob
+workflow_files=(.github/workflows/*.yml .github/workflows/*.yaml)
+if (( ${#workflow_files[@]} == 0 )); then
+    exit 0
+fi
 while IFS= read -r reference; do
     if [[ "$reference" =~ ^[A-Za-z0-9_.-]+/[A-Za-z0-9_.-]+@[0-9a-f]{40}$ ]]; then
         continue
@@ -12,6 +17,6 @@ while IFS= read -r reference; do
     fi
     printf 'workflow action is not pinned to an immutable digest: %s\n' "$reference" >&2
     status=1
-done < <(awk '$1 == "uses:" { print $2 }' .github/workflows/*.yml)
+done < <(awk '{ for (field = 1; field < NF; field++) if ($field == "uses:") print $(field + 1) }' "${workflow_files[@]}")
 
 exit "$status"

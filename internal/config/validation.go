@@ -7,6 +7,8 @@ import (
 	"time"
 )
 
+const maxCleanupMinAgeHours = int((1<<63 - 1) / int64(time.Hour))
+
 func (c Config) Validate() error {
 	if err := validateUpdates(c.Updates); err != nil {
 		return err
@@ -68,6 +70,9 @@ func validImagePattern(pattern string) bool {
 func validateCleanup(cfg CleanupConfig) error {
 	if cfg.MinAgeHours < 0 {
 		return errors.New("cleanup.min_age_hours cannot be negative")
+	}
+	if cfg.MinAgeHours > maxCleanupMinAgeHours {
+		return fmt.Errorf("cleanup.min_age_hours cannot exceed %d", maxCleanupMinAgeHours)
 	}
 	return nil
 }

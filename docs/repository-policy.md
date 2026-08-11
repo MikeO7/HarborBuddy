@@ -12,7 +12,9 @@ Changes to `main` are expected to pass these stable GitHub Actions job names:
 
 Release publication additionally requires `Publish multi-platform image` before `Publish GitHub release` runs. The scheduled `Multi-Platform Runtime Verification` workflow is an additional architecture smoke test rather than a pull-request gate.
 
-The repository's current private-plan configuration does not provide branch protection or repository rulesets. These checks are therefore documented and automated but cannot yet block direct pushes or enforce approvals server-side. If that capability becomes available, require pull requests, the checks above, resolved conversations, blocked force-pushes/deletion, and code-owner review where a second trusted reviewer is available.
+The repository currently has no branch protection or repository rulesets. These checks are therefore documented and automated but do not block direct pushes or enforce approvals server-side. Configure a `main` branch rule to require pull requests, the checks above, resolved conversations, blocked force-pushes/deletion, and code-owner review where a second trusted reviewer is available.
+
+Repository policy restricts Actions to GitHub-owned actions and the exact third-party action families used by the workflows, with full-length commit SHA pins enforced server-side. The in-repository `test/check-action-pins.sh` check remains a defense-in-depth guard for both `.yml` and `.yaml` workflow files.
 
 All direct workflow actions must be pinned to full commit SHAs. `test/check-action-pins.sh` enforces that repository rule; Dependabot maintains the pins.
 

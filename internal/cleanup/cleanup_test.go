@@ -335,6 +335,10 @@ func TestCleanupExtendedErrorAndAgePaths(t *testing.T) {
 	if result := classify(docker.CleanupResource{}, config.Default().Cleanup, now); result.Reason != "resource age is unavailable" {
 		t.Fatalf("unknown-age classification = %+v", result)
 	}
+	maxInt := int(^uint(0) >> 1)
+	if result := classify(docker.CleanupResource{CreatedAt: old}, config.CleanupConfig{MinAgeHours: maxInt}, now); result.Eligible {
+		t.Fatalf("overflowing minimum age made a resource eligible: %+v", result)
+	}
 }
 
 func TestFormatBytesAndShortIDBoundaries(t *testing.T) {
