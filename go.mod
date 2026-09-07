@@ -4,8 +4,8 @@ go 1.26.5
 
 require (
 	github.com/containerd/errdefs v1.0.0
-	github.com/moby/moby/api v1.55.0
-	github.com/moby/moby/client v0.5.1
+	github.com/moby/moby/api v1.56.0
+	github.com/moby/moby/client v0.6.0
 	github.com/rs/zerolog v1.35.1
 	github.com/spf13/pflag v1.0.10
 	gopkg.in/natefinch/lumberjack.v2 v2.2.1
