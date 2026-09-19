@@ -32,7 +32,7 @@ All notable changes to HarborBuddy are documented here. The format follows [Keep
 - Container builds use BuildKit target platform arguments, a scratch runtime, and `/harborbuddy` as the executable path.
 - Image validation, multi-platform publication, and GitHub release creation are sequenced in the container workflow with least-privilege job permissions.
 - Container builds use an allow-listed context, explicit source copies, and digest-pinned Dockerfile and Go builder images.
-- Go was updated to 1.26.5 to include current standard-library security fixes.
+- Go was updated to 1.27.1 to include current standard-library security fixes.
 - The default branch publishes `latest`, `edge`, and commit-specific `sha-*` tags. Version tags will also trigger GitHub release publication when the first versioned release is created.
 - Configuration loading is strict and rejects unknown fields or multiple YAML documents.
 - Routine no-op results now log at debug, warnings at warn, and failures at error; daemon-provided descriptions are bounded to keep logs concise.

@@ -4,8 +4,8 @@ VERSION ?= dev
 COMMIT ?= $(shell git rev-parse HEAD 2>/dev/null || printf 'unknown')
 DATE ?= $(shell git show -s --format=%cI HEAD 2>/dev/null || printf 'unknown')
 TAG ?= $(VERSION)
-GOLANGCI_LINT_VERSION := v2.12.2
-GOVULNCHECK_VERSION := v1.6.0
+GOLANGCI_LINT_VERSION := v2.13.2
+GOVULNCHECK_VERSION := v1.8.0
 ACTIONLINT_VERSION := v1.7.12
 ACTIONLINT_SHELLCHECK ?= ./test/shellcheck-pinned.sh
 CONTAINER_ENGINE ?= $(shell if command -v docker >/dev/null 2>&1; then command -v docker; elif command -v podman >/dev/null 2>&1; then command -v podman; elif test -x /opt/podman/bin/podman; then printf /opt/podman/bin/podman; else printf docker; fi)

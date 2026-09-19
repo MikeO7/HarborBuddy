@@ -2,7 +2,7 @@
 set -Eeuo pipefail
 IFS=$'\n\t'
 
-readonly VERSION="${GOVULNCHECK_VERSION:-v1.6.0}"
+readonly VERSION="${GOVULNCHECK_VERSION:-v1.8.0}"
 readonly ACCEPTED_IDS=(
     GO-2026-4883 # Moby daemon plugin privilege validation; HarborBuddy is only an API client.
     GO-2026-4887 # Moby daemon AuthZ request handling; HarborBuddy does not run the daemon server.
