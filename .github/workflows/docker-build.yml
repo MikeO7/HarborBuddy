@@ -69,7 +69,7 @@ jobs:
       - name: Block fixed high and critical vulnerabilities
         uses: aquasecurity/trivy-action@ed142fd0673e97e23eac54620cfb913e5ce36c25 # v0.36.0
         with:
-          version: v0.73.0
+          version: v0.74.0
           image-ref: harborbuddy:validate
           format: table
           severity: HIGH,CRITICAL
@@ -80,7 +80,7 @@ jobs:
         if: always()
         uses: aquasecurity/trivy-action@ed142fd0673e97e23eac54620cfb913e5ce36c25 # v0.36.0
         with:
-          version: v0.73.0
+          version: v0.74.0
           image-ref: harborbuddy:validate
           format: sarif
           output: trivy-results.sarif
