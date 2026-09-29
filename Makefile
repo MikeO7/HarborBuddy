@@ -4,7 +4,7 @@ VERSION ?= dev
 COMMIT ?= $(shell git rev-parse HEAD 2>/dev/null || printf 'unknown')
 DATE ?= $(shell git show -s --format=%cI HEAD 2>/dev/null || printf 'unknown')
 TAG ?= $(VERSION)
-GOLANGCI_LINT_VERSION := v2.13.2
+GOLANGCI_LINT_VERSION := v2.14.0
 GOVULNCHECK_VERSION := v1.8.0
 ACTIONLINT_VERSION := v1.7.12
 ACTIONLINT_SHELLCHECK ?= ./test/shellcheck-pinned.sh

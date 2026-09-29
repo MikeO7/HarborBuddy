@@ -6,7 +6,7 @@
 
 - A Unix-like shell with Bash
 - A running local Docker Engine or Podman machine
-- Network access to pull the temporary `registry:3.1.1` and `busybox:1.38.0` test dependencies
+- Network access to pull the temporary `registry:3.1.2` and `busybox:1.38.0` test dependencies
 
 The integration script requires read/write engine access. Do not run it against a shared or production engine.
 

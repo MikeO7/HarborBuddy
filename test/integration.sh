@@ -175,7 +175,7 @@ docker run -d \
     --name "$REGISTRY_NAME" \
     --label "$TEST_LABEL" \
     --publish 127.0.0.1::5000 \
-    docker.io/library/registry:3.1.1 >/dev/null
+    docker.io/library/registry:3.1.2 >/dev/null
 
 registry_ready=false
 for _ in {1..50}; do
