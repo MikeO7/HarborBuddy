@@ -1,13 +1,17 @@
 package docker
 
 import (
+	"bytes"
 	"context"
+	"encoding/json"
+	"errors"
 	"fmt"
 	"io"
 	"time"
 
 	containertypes "github.com/moby/moby/api/types/container"
 	imagetypes "github.com/moby/moby/api/types/image"
+	"github.com/moby/moby/api/types/jsonstream"
 	"github.com/moby/moby/client"
 )
 
@@ -16,13 +20,23 @@ func (d *DockerClient) PullImage(ctx context.Context, imageRef string) (ImageInf
 	if err != nil {
 		return ImageInfo{}, fmt.Errorf("pull image %s: %w", imageRef, err)
 	}
-	_, readErr := io.Copy(io.Discard, reader)
+	const maxPullResponse = 16 * 1024 * 1024
+	response, readErr := io.ReadAll(io.LimitReader(reader, maxPullResponse+1))
 	closeErr := reader.Close()
 	if readErr != nil {
 		return ImageInfo{}, fmt.Errorf("read pull response for %s: %w", imageRef, readErr)
 	}
 	if closeErr != nil {
 		return ImageInfo{}, fmt.Errorf("close pull response for %s: %w", imageRef, closeErr)
+	}
+	if len(response) > maxPullResponse {
+		return ImageInfo{}, fmt.Errorf("pull response exceeds %d bytes", maxPullResponse)
+	}
+	if len(bytes.TrimSpace(response)) == 0 {
+		return ImageInfo{}, fmt.Errorf("empty pull response for %s", imageRef)
+	}
+	if err := validatePullResponse(response); err != nil {
+		return ImageInfo{}, fmt.Errorf("read pull response for %s: %w", imageRef, err)
 	}
 	return d.inspectImage(ctx, imageRef)
 }
@@ -109,4 +123,28 @@ func cloneStringMap(source map[string]string) map[string]string {
 		result[key] = value
 	}
 	return result
+}
+
+func validatePullResponse(response []byte) error {
+	decoder := json.NewDecoder(bytes.NewReader(response))
+	for {
+		var message *struct {
+			jsonstream.Message
+			LegacyError string `json:"error"`
+		}
+		if err := decoder.Decode(&message); errors.Is(err, io.EOF) {
+			return nil
+		} else if err != nil {
+			return err
+		}
+		if message == nil || (message.Stream == "" && message.Status == "" && message.Progress == nil && message.ID == "" && message.Error == nil && message.Aux == nil && message.LegacyError == "") {
+			return errors.New("missing pull message")
+		}
+		if message.Error != nil {
+			return message.Error
+		}
+		if message.LegacyError != "" {
+			return errors.New(message.LegacyError)
+		}
+	}
 }

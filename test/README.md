@@ -1,5 +1,30 @@
 # Local verification and integration tests
 
+## Production-binary protocol journeys
+
+Install Node 24.20 or newer, then run:
+
+```bash
+npm ci --ignore-scripts --no-audit --no-fund
+make test-e2e
+```
+
+The pinned tester-army/e2e runner builds the production Go binary. Each test gets
+a disposable Docker HTTP and Unix-socket protocol fixture, with isolated config
+and synthetic resources. No model, provider key, registry, or container engine is used.
+Telemetry is disabled by the runner script. Port 39070 must be free.
+
+The journeys cover CLI and config rejection, precedence, filters, dry-run,
+replacement, rollback, cleanup, scheduling, and self-update handoff/helper mode.
+Rejected input must leave Docker resources and log files untouched. Docker pull
+responses are bounded to 16 MiB and checked before inspecting a cached image.
+
+Evidence lives in `.e2e/report.json`, `environment.json`, `junit.xml`, `summary.md`,
+and `fixtures/`. It records revision, command, environment, synthetic data, process
+output, and protocol requests. These tests verify HarborBuddy's real executable
+against a protocol fixture. The live runtime suite below verifies actual Docker
+and Podman behavior, image pulls, health checks, and autonomous helper execution.
+
 `make verify-local` is the comprehensive developer suite. It combines the Go and repository-policy checks with `test/integration.sh`, the disposable Docker-compatible runtime test.
 
 ## Requirements
