@@ -15,7 +15,7 @@ LDFLAGS := -s -w \
 	-X github.com/MikeO7/HarborBuddy/internal/buildinfo.Commit=$(COMMIT) \
 	-X github.com/MikeO7/HarborBuddy/internal/buildinfo.Date=$(DATE)
 
-.PHONY: help build clean test test-cover test-race test-fuzz test-integration verify-local fmt fmt-check source-limits \
+.PHONY: help build clean test test-cover test-race test-fuzz test-e2e test-integration verify-local fmt fmt-check source-limits \
 	vet lint vuln lint-actions lint-shell lint-docker lint-yaml lint-nongo tidy deps \
 	docker-build docker-push run run-dry
 
@@ -52,6 +52,9 @@ test-fuzz: ## Fuzz security-sensitive parsers and identity logic briefly
 
 test-integration: ## Run the Docker/Podman integration suite
 	CONTAINER_ENGINE="$(CONTAINER_ENGINE)" ./test/integration.sh
+
+test-e2e: ## Run production-binary journeys against an isolated Docker protocol fixture
+	npm run test:e2e
 
 verify-local: fmt-check source-limits vet lint vuln test-cover test-race test-fuzz build lint-nongo test-integration ## Run the comprehensive local verification suite
 

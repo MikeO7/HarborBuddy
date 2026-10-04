@@ -39,3 +39,7 @@ harborbuddy-test
 /test-results/
 /test/test-logs/
 
+
+# Deterministic protocol E2E dependencies and evidence
+/node_modules
+/.e2e

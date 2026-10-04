@@ -53,6 +53,9 @@ func RunWithDependencies(ctx context.Context, args []string, stdout, stderr io.W
 	if err := flags.Parse(args); err != nil {
 		return err
 	}
+	if flags.NArg() != 0 {
+		return errors.New("positional arguments are not supported")
+	}
 	if values.version {
 		_, err := fmt.Fprintln(stdout, buildinfo.String())
 		return err
