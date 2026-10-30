@@ -238,9 +238,11 @@ func classify(resource docker.CleanupResource, cfg config.CleanupConfig, now tim
 		result.Reason = "resource is protected"
 	case resource.InUse:
 		result.Reason = "resource is in use"
+	case resource.Kind == docker.CleanupImage && resource.Name != "" && cfg.KeepsImage(strings.Split(resource.Name, ",")):
+		result.Reason = "image is in cleanup.keep_images"
 	case referenceTime.IsZero():
 		result.Reason = "resource age is unavailable"
-	case now.Sub(referenceTime) < minAgeDuration(cfg.MinAgeHours):
+	case now.Sub(referenceTime) < minAgeDuration(cfg.MinAgeFor(string(resource.Kind), resource.Name, resource.Dangling)):
 		result.Reason = "resource is newer than the minimum age"
 	case resource.Kind == docker.CleanupImage && cfg.DanglingOnly && !cfg.All && !resource.Dangling:
 		result.Reason = "image is not dangling"

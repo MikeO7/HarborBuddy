@@ -73,7 +73,7 @@ func (c *Config) applyCleanupEnvironment(getenv environmentReader) error {
 			return err
 		}
 	}
-	return nil
+	return c.applyCleanupOverrideEnvironment(getenv)
 }
 
 func (c *Config) applyLogEnvironment(getenv environmentReader) error {

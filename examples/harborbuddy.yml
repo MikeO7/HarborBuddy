@@ -45,6 +45,12 @@ cleanup:
   unused_networks: false
   unused_volumes: false
   build_cache: false
+  # Optional shorter ages (default: min_age_hours):
+  # dangling_image_min_age_hours: 1
+  # cache_volumes: ["*gocache", "*gomod"]  # volume-name globs
+  # cache_volume_min_age_hours: 1
+  # Images cleanup never removes (allow/deny pattern syntax), e.g. host tools:
+  # keep_images: ["openthread/border-router:*"]
 
 log:
   level: info
