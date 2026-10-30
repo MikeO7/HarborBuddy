@@ -61,8 +61,10 @@ COPY --from=builder /out/harborbuddy /harborbuddy
 COPY --from=builder /out/tmp /tmp
 
 # The daemon pings Docker every 15s and records it; this fails when that
-# heartbeat is older than 60s or an update cycle has run for over 2h.
-HEALTHCHECK --interval=30s --timeout=10s --start-period=1m --start-interval=2s --retries=3 \
+# heartbeat is older than 60s or an update cycle has run for over 2h. The short
+# interval keeps self-update readiness fast: Podman builds reject --start-interval,
+# and a replacement daemon is ready only once its first check passes.
+HEALTHCHECK --interval=5s --timeout=5s --start-period=30s --retries=3 \
     CMD ["/harborbuddy", "--healthcheck"]
 
 ENTRYPOINT ["/harborbuddy"]
