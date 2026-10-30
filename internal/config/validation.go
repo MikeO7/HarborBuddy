@@ -74,7 +74,7 @@ func validateCleanup(cfg CleanupConfig) error {
 	if cfg.MinAgeHours > maxCleanupMinAgeHours {
 		return fmt.Errorf("cleanup.min_age_hours cannot exceed %d", maxCleanupMinAgeHours)
 	}
-	return nil
+	return validateCleanupOverrides(cfg)
 }
 
 func validateLog(cfg LogConfig) error {

@@ -51,6 +51,12 @@ type CleanupConfig struct {
 	UnusedNetworks    bool `yaml:"unused_networks"`
 	UnusedVolumes     bool `yaml:"unused_volumes"`
 	BuildCache        bool `yaml:"build_cache"`
+	// DanglingImageMinAgeHours overrides MinAgeHours for untagged images; nil = MinAgeHours.
+	DanglingImageMinAgeHours *int `yaml:"dangling_image_min_age_hours"`
+	// CacheVolumes are volume-name globs (path.Match) whose unused volumes use
+	// CacheVolumeMinAgeHours (nil = MinAgeHours) when volume cleanup is on.
+	CacheVolumes           []string `yaml:"cache_volumes"`
+	CacheVolumeMinAgeHours *int     `yaml:"cache_volume_min_age_hours"`
 }
 
 type LogConfig struct {
