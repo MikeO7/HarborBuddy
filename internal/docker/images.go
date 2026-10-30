@@ -107,13 +107,6 @@ func imageSummaries(images []imagetypes.Summary, forceDangling bool) []ImageInfo
 	return result
 }
 
-func (d *DockerClient) RemoveImage(ctx context.Context, imageID string) error {
-	if _, err := d.cli.ImageRemove(ctx, imageID, client.ImageRemoveOptions{Force: false, PruneChildren: true}); err != nil {
-		return fmt.Errorf("remove image %s: %w", imageID, err)
-	}
-	return nil
-}
-
 func cloneStringMap(source map[string]string) map[string]string {
 	if source == nil {
 		return nil
