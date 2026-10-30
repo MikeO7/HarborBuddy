@@ -57,6 +57,9 @@ type CleanupConfig struct {
 	// CacheVolumeMinAgeHours (nil = MinAgeHours) when volume cleanup is on.
 	CacheVolumes           []string `yaml:"cache_volumes"`
 	CacheVolumeMinAgeHours *int     `yaml:"cache_volume_min_age_hours"`
+	// KeepImages are image patterns (the allow/deny syntax) never removed by cleanup, for
+	// images that only host tools run.
+	KeepImages []string `yaml:"keep_images"`
 }
 
 type LogConfig struct {

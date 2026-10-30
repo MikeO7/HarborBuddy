@@ -3,7 +3,6 @@ package config
 import (
 	"fmt"
 	"path"
-	"strings"
 )
 
 // MinAgeFor returns the minimum age in hours before a cleanup candidate may be removed.
@@ -40,6 +39,9 @@ func validateCleanupOverrides(cfg CleanupConfig) error {
 		if err := validateAge(age.name, age.value); err != nil {
 			return err
 		}
+	}
+	if err := validateKeepImages(cfg.KeepImages); err != nil {
+		return err
 	}
 	for _, pattern := range cfg.CacheVolumes {
 		if pattern == "" {
@@ -84,12 +86,10 @@ func (c *Config) applyCleanupOverrideEnvironment(getenv environmentReader) error
 		*age.target = &value
 	}
 	if raw := getenv("HARBORBUDDY_CLEANUP_CACHE_VOLUMES"); raw != "" {
-		c.Cleanup.CacheVolumes = nil
-		for _, pattern := range strings.Split(raw, ",") {
-			if pattern = strings.TrimSpace(pattern); pattern != "" {
-				c.Cleanup.CacheVolumes = append(c.Cleanup.CacheVolumes, pattern)
-			}
-		}
+		c.Cleanup.CacheVolumes = splitList(raw)
+	}
+	if raw := getenv("HARBORBUDDY_CLEANUP_KEEP_IMAGES"); raw != "" {
+		c.Cleanup.KeepImages = splitList(raw)
 	}
 	return nil
 }

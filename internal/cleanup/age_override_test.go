@@ -31,3 +31,19 @@ func TestClassifyUsesPerResourceMinimumAge(t *testing.T) {
 		}
 	}
 }
+
+func TestClassifyKeepsListedImages(t *testing.T) {
+	now := time.Date(2026, 10, 30, 12, 0, 0, 0, time.UTC)
+	old := now.Add(-30 * 24 * time.Hour)
+	cfg := config.CleanupConfig{MinAgeHours: 168, All: true, KeepImages: []string{"openthread/border-router:*"}}
+	kept := classify(docker.CleanupResource{Kind: docker.CleanupImage, Name: "x:1,openthread/border-router:latest", CreatedAt: old}, cfg, now)
+	if kept.Eligible || kept.Reason != "image is in cleanup.keep_images" {
+		t.Fatalf("kept image = %+v", kept)
+	}
+	if other := classify(docker.CleanupResource{Kind: docker.CleanupImage, Name: "app:1", CreatedAt: old}, cfg, now); !other.Eligible {
+		t.Fatalf("unlisted image = %+v", other)
+	}
+	if vol := classify(docker.CleanupResource{Kind: docker.CleanupVolume, Name: "openthread/border-router:latest", CreatedAt: old}, cfg, now); !vol.Eligible {
+		t.Fatalf("keep list applied to a volume: %+v", vol)
+	}
+}

@@ -177,6 +177,8 @@ cleanup:
   # dangling_image_min_age_hours: 1
   # cache_volumes: ["*gocache", "*gomod"]  # volume-name globs
   # cache_volume_min_age_hours: 1
+  # Images cleanup never removes (allow/deny pattern syntax), e.g. host tools:
+  # keep_images: ["openthread/border-router:*"]
 
 log:
   level: info
@@ -222,6 +224,7 @@ Environment variables override YAML settings.
 | `HARBORBUDDY_CLEANUP_DANGLING_IMAGE_MIN_AGE_HOURS` | `min_age_hours` | Minimum age for untagged images |
 | `HARBORBUDDY_CLEANUP_CACHE_VOLUMES` | empty | Comma-separated volume-name globs treated as caches |
 | `HARBORBUDDY_CLEANUP_CACHE_VOLUME_MIN_AGE_HOURS` | `min_age_hours` | Minimum age for unused volumes matching `cache_volumes` |
+| `HARBORBUDDY_CLEANUP_KEEP_IMAGES` | empty | Comma-separated image patterns cleanup never removes |
 | `HARBORBUDDY_CLEANUP_DANGLING_ONLY` | `true` | Restrict image cleanup to untagged images |
 | `HARBORBUDDY_CLEANUP_ALL` | `false` | Enable every broader cleanup category |
 | `HARBORBUDDY_CLEANUP_STOPPED_CONTAINERS` | `false` | Remove old stopped containers |
@@ -296,6 +299,8 @@ The default cleanup policy removes only dangling images older than 24 hours. Eve
 `all: true` or `HARBORBUDDY_CLEANUP_ALL=true` enables all of them. Individual switches are safer on shared hosts.
 
 Untagged images and cache volumes can expire sooner than everything else. `dangling_image_min_age_hours` sets the age for untagged images. `cache_volumes` lists volume-name globs (for example `*gocache`), and `cache_volume_min_age_hours` sets the age for unused volumes that match; this applies only when volume cleanup is on. Both default to `min_age_hours`. Build-cache age stays `min_age_hours`.
+
+`keep_images` lists image patterns (the same syntax as `allow_images`) that cleanup never removes. Use it for images that only host tools run, such as a `docker run --rm` helper: no container references them between runs, so they otherwise look unused.
 
 System networks, running containers, attached networks, referenced volumes, active build-cache records, and resources with unknown age or usage are skipped. For containers, networks, and volumes, minimum age is based on creation time, not time since the resource became stopped or unused. An old resource can therefore become eligible as soon as its final reference is gone. Volume cleanup can permanently delete application data, and HarborBuddy cannot know whether an unused volume still matters to you.
 
