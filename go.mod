@@ -1,6 +1,6 @@
 module github.com/MikeO7/HarborBuddy
 
-go 1.27.1
+go 1.27.3
 
 require (
 	github.com/containerd/errdefs v1.0.0
