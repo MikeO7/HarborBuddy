@@ -6,6 +6,7 @@ All notable changes to HarborBuddy are documented here. The format follows [Keep
 
 ### Added
 
+- A container health check: the daemon records a Docker ping every 15 seconds, and `harborbuddy --healthcheck` (the image `HEALTHCHECK`) fails when that heartbeat is over 60 seconds old or an update cycle has run for over two hours. `HARBORBUDDY_HEALTH_FILE` sets the status file path.
 - Staged container replacement with readiness checks and best-effort rollback.
 - `updates.startup_timeout` and `HARBORBUDDY_STARTUP_TIMEOUT` for replacement readiness.
 - Dedicated daemon role label, `com.harborbuddy.role=daemon`, for the helper-based self-update path.
