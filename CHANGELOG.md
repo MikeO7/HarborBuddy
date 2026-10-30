@@ -45,6 +45,10 @@ All notable changes to HarborBuddy are documented here. The format follows [Keep
 - Documentation for unsupported runtime user/group overrides and registry credential handling.
 - Duplicate and obsolete integration scripts and Compose fixtures.
 
+### Fixed
+
+- Image cleanup now removes unused images that have more than one tag. Docker refuses to delete such an image by ID, so the cleanup failed on it every run; HarborBuddy now removes the extra tags of an image no container uses, skipping any tag that has moved to another image, and then deletes it.
+
 ### Security
 
 - Build with Go 1.27.3, fixing standard-library advisories GO-2026-6607 (CVE-2026-97031, `crypto/tls`), GO-2026-6609 (CVE-2026-78667, `net/http`), GO-2026-6611 (CVE-2026-78669, `net/http`), and GO-2026-6809 (CVE-2026-111943, `crypto/x509`).
