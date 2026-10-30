@@ -226,6 +226,7 @@ Environment variables override YAML settings.
 | `HARBORBUDDY_LOG_FILE` | empty | Optional rotating log path; stdout stays enabled |
 | `HARBORBUDDY_LOG_MAX_SIZE` | `10` | Rotation size in MiB |
 | `HARBORBUDDY_LOG_MAX_BACKUPS` | `1` | Number of rotated files to keep |
+| `HARBORBUDDY_HEALTH_FILE` | `/tmp/harborbuddy-health.json` | Status file shared by the daemon and `--healthcheck` |
 
 Invalid environment values and invalid configured schedules are rejected at startup instead of silently falling back.
 
@@ -303,9 +304,14 @@ Logs go to standard output. Set `HARBORBUDDY_LOG_JSON=true` for JSON or `HARBORB
 --cleanup-only         run cleanup and exit
 --log-level LEVEL      override the log level
 --version              print build information
+--healthcheck          check the daemon in this container and exit
 ```
 
-## Development
+### Container health check
+
+The image defines a Docker `HEALTHCHECK` that runs `/harborbuddy --healthcheck`. A long-running daemon pings Docker every 15 seconds and writes the result to `HARBORBUDDY_HEALTH_FILE`. The check fails when the last successful ping is more than 60 seconds old or when an update cycle has run for more than two hours, so Docker, and any tool that watches container health, sees a daemon that lost Docker or got stuck. `--once` and `--cleanup-only` runs do not write the file. With a read-only root filesystem, mount a tmpfs at `/tmp` or point `HARBORBUDDY_HEALTH_FILE` at a writable path. Self-update helpers run with the health check disabled.
+
+## Development)
 
 HarborBuddy is written in Go. To run the full local verification suite:
 

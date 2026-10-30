@@ -84,6 +84,9 @@ func TestSelfUpdateHelperConfigIsRestricted(t *testing.T) {
 	if !slices.Contains(config.Env, "HARBORBUDDY_DOCKER_HOST=unix:///var/run/docker.sock") {
 		t.Fatalf("Docker host not propagated: %v", config.Env)
 	}
+	if config.Healthcheck == nil || !slices.Equal(config.Healthcheck.Test, []string{"NONE"}) {
+		t.Fatalf("helper must disable the inherited image healthcheck: %+v", config.Healthcheck)
+	}
 	if !host.AutoRemove || host.RestartPolicy.Name != "no" {
 		t.Fatalf("helper cleanup policy is unsafe: auto_remove=%v restart=%q", host.AutoRemove, host.RestartPolicy.Name)
 	}
