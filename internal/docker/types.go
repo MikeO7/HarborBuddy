@@ -58,6 +58,7 @@ type CleanupResource struct {
 	Dangling   bool
 	InUse      bool
 	Protected  bool
+	Labels     map[string]string // volumes only
 }
 
 type CleanupPruneResult struct {

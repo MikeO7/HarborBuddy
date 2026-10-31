@@ -252,18 +252,6 @@ func classify(resource docker.CleanupResource, cfg config.CleanupConfig, now tim
 	return result
 }
 
-// keepReason says why a keep list protects resource, or "" when none does.
-func keepReason(resource docker.CleanupResource, cfg config.CleanupConfig) string {
-	switch {
-	case resource.Kind == docker.CleanupImage && resource.Name != "" && cfg.KeepsImage(strings.Split(resource.Name, ",")):
-		return "image is in cleanup.keep_images"
-	case resource.Kind == docker.CleanupVolume && cfg.KeepsVolume(resource.Name):
-		return "volume is in cleanup.keep_volumes"
-	default:
-		return ""
-	}
-}
-
 func minAgeDuration(hours int) time.Duration {
 	const maxDuration = time.Duration(1<<63 - 1)
 	if hours > int(maxDuration/time.Hour) {

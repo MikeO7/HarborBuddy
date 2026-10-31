@@ -53,6 +53,8 @@ cleanup:
   # keep_images: ["openthread/border-router:*"]
   # Volume-name globs cleanup never removes, e.g. backup stores:
   # keep_volumes: ["*-backups"]
+  # Volume labels that keep a volume ("key=value", or "key" for any value):
+  # keep_volume_labels: ["com.example.keep=true"]
 
 log:
   level: info

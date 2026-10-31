@@ -63,6 +63,8 @@ type CleanupConfig struct {
 	// KeepVolumes are volume-name globs (path.Match) never removed by cleanup, for volumes that
 	// may hold data that cannot be recreated even while nothing mounts them.
 	KeepVolumes []string `yaml:"keep_volumes"`
+	// KeepVolumeLabels keep every volume carrying a label: "key=value", or "key" for any value.
+	KeepVolumeLabels []string `yaml:"keep_volume_labels"`
 }
 
 type LogConfig struct {

@@ -43,3 +43,42 @@ func TestKeepVolumesConfigAndValidation(t *testing.T) {
 		t.Fatalf("Validate() = %v", err)
 	}
 }
+
+func TestKeepsVolumeByLabel(t *testing.T) {
+	cfg := CleanupConfig{KeepVolumeLabels: []string{"com.getarcaneapp.internal.resource=true", "keep-me"}}
+	for _, tc := range []struct {
+		labels map[string]string
+		want   bool
+	}{
+		{map[string]string{"com.getarcaneapp.internal.resource": "true"}, true},
+		{map[string]string{"com.getarcaneapp.internal.resource": "false"}, false},
+		{map[string]string{"keep-me": ""}, true},
+		{map[string]string{"keep-me": "anything"}, true},
+		{map[string]string{"other": "true"}, false},
+		{nil, false},
+	} {
+		if got := cfg.KeepsVolumeLabels(tc.labels); got != tc.want {
+			t.Errorf("KeepsVolumeLabels(%v) = %v; want %v", tc.labels, got, tc.want)
+		}
+	}
+}
+
+func TestKeepVolumeLabelsConfigAndValidation(t *testing.T) {
+	env := map[string]string{"HARBORBUDDY_CLEANUP_KEEP_VOLUME_LABELS": "a=b, ,c"}
+	cfg := Default()
+	if err := cfg.ApplyEnvironment(func(k string) string { return env[k] }); err != nil {
+		t.Fatal(err)
+	}
+	if got := strings.Join(cfg.Cleanup.KeepVolumeLabels, ","); got != "a=b,c" {
+		t.Fatalf("KeepVolumeLabels = %q", got)
+	}
+	if err := cfg.Validate(); err != nil {
+		t.Fatalf("Validate() = %v", err)
+	}
+	for _, bad := range []string{"", "=value"} {
+		cfg.Cleanup.KeepVolumeLabels = []string{bad}
+		if err := cfg.Validate(); err == nil || !strings.Contains(err.Error(), "cleanup.keep_volume_labels") {
+			t.Errorf("label %q: Validate() = %v", bad, err)
+		}
+	}
+}

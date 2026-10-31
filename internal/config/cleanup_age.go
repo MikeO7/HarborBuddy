@@ -51,6 +51,9 @@ func validateCleanupOverrides(cfg CleanupConfig) error {
 	if err := validateGlobs("cleanup.cache_volumes", cfg.CacheVolumes); err != nil {
 		return err
 	}
+	if err := validateKeepVolumeLabels(cfg.KeepVolumeLabels); err != nil {
+		return err
+	}
 	return validateGlobs("cleanup.keep_volumes", cfg.KeepVolumes)
 }
 
@@ -105,6 +108,9 @@ func (c *Config) applyCleanupOverrideEnvironment(getenv environmentReader) error
 	}
 	if raw := getenv("HARBORBUDDY_CLEANUP_KEEP_VOLUMES"); raw != "" {
 		c.Cleanup.KeepVolumes = splitList(raw)
+	}
+	if raw := getenv("HARBORBUDDY_CLEANUP_KEEP_VOLUME_LABELS"); raw != "" {
+		c.Cleanup.KeepVolumeLabels = splitList(raw)
 	}
 	return nil
 }
