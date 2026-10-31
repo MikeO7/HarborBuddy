@@ -19,8 +19,13 @@ func (c CleanupConfig) MinAgeFor(kind, name string, dangling bool) int {
 	}
 }
 
-func (c CleanupConfig) isCacheVolume(name string) bool {
-	for _, pattern := range c.CacheVolumes {
+func (c CleanupConfig) isCacheVolume(name string) bool { return matchGlobs(c.CacheVolumes, name) }
+
+// KeepsVolume reports whether a volume name matches cleanup.keep_volumes.
+func (c CleanupConfig) KeepsVolume(name string) bool { return matchGlobs(c.KeepVolumes, name) }
+
+func matchGlobs(patterns []string, name string) bool {
+	for _, pattern := range patterns {
 		if ok, _ := path.Match(pattern, name); ok {
 			return true
 		}
@@ -43,12 +48,22 @@ func validateCleanupOverrides(cfg CleanupConfig) error {
 	if err := validateKeepImages(cfg.KeepImages); err != nil {
 		return err
 	}
-	for _, pattern := range cfg.CacheVolumes {
+	if err := validateGlobs("cleanup.cache_volumes", cfg.CacheVolumes); err != nil {
+		return err
+	}
+	if err := validateKeepVolumeLabels(cfg.KeepVolumeLabels); err != nil {
+		return err
+	}
+	return validateGlobs("cleanup.keep_volumes", cfg.KeepVolumes)
+}
+
+func validateGlobs(setting string, patterns []string) error {
+	for _, pattern := range patterns {
 		if pattern == "" {
-			return fmt.Errorf("cleanup.cache_volumes contains an empty pattern")
+			return fmt.Errorf("%s contains an empty pattern", setting)
 		}
 		if _, err := path.Match(pattern, ""); err != nil {
-			return fmt.Errorf("cleanup.cache_volumes pattern %q is invalid: %w", pattern, err)
+			return fmt.Errorf("%s pattern %q is invalid: %w", setting, pattern, err)
 		}
 	}
 	return nil
@@ -90,6 +105,12 @@ func (c *Config) applyCleanupOverrideEnvironment(getenv environmentReader) error
 	}
 	if raw := getenv("HARBORBUDDY_CLEANUP_KEEP_IMAGES"); raw != "" {
 		c.Cleanup.KeepImages = splitList(raw)
+	}
+	if raw := getenv("HARBORBUDDY_CLEANUP_KEEP_VOLUMES"); raw != "" {
+		c.Cleanup.KeepVolumes = splitList(raw)
+	}
+	if raw := getenv("HARBORBUDDY_CLEANUP_KEEP_VOLUME_LABELS"); raw != "" {
+		c.Cleanup.KeepVolumeLabels = splitList(raw)
 	}
 	return nil
 }

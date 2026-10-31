@@ -179,6 +179,10 @@ cleanup:
   # cache_volume_min_age_hours: 1
   # Images cleanup never removes (allow/deny pattern syntax), e.g. host tools:
   # keep_images: ["openthread/border-router:*"]
+  # Volume-name globs cleanup never removes, e.g. backup stores:
+  # keep_volumes: ["*-backups"]
+  # Volume labels that keep a volume ("key=value", or "key" for any value):
+  # keep_volume_labels: ["com.example.keep=true"]
 
 log:
   level: info
@@ -225,6 +229,8 @@ Environment variables override YAML settings.
 | `HARBORBUDDY_CLEANUP_CACHE_VOLUMES` | empty | Comma-separated volume-name globs treated as caches |
 | `HARBORBUDDY_CLEANUP_CACHE_VOLUME_MIN_AGE_HOURS` | `min_age_hours` | Minimum age for unused volumes matching `cache_volumes` |
 | `HARBORBUDDY_CLEANUP_KEEP_IMAGES` | empty | Comma-separated image patterns cleanup never removes |
+| `HARBORBUDDY_CLEANUP_KEEP_VOLUMES` | empty | Comma-separated volume-name globs cleanup never removes |
+| `HARBORBUDDY_CLEANUP_KEEP_VOLUME_LABELS` | empty | Comma-separated `key=value` or `key` labels that keep a volume |
 | `HARBORBUDDY_CLEANUP_DANGLING_ONLY` | `true` | Restrict image cleanup to untagged images |
 | `HARBORBUDDY_CLEANUP_ALL` | `false` | Enable every broader cleanup category |
 | `HARBORBUDDY_CLEANUP_STOPPED_CONTAINERS` | `false` | Remove old stopped containers |
@@ -301,6 +307,9 @@ The default cleanup policy removes only dangling images older than 24 hours. Eve
 Untagged images and cache volumes can expire sooner than everything else. `dangling_image_min_age_hours` sets the age for untagged images. `cache_volumes` lists volume-name globs (for example `*gocache`), and `cache_volume_min_age_hours` sets the age for unused volumes that match; this applies only when volume cleanup is on. Both default to `min_age_hours`. Build-cache age stays `min_age_hours`.
 
 `keep_images` lists image patterns (the same syntax as `allow_images`) that cleanup never removes. Use it for images that only host tools run, such as a `docker run --rm` helper: no container references them between runs, so they otherwise look unused.
+
+`keep_volumes` lists volume-name globs (the same syntax as `cache_volumes`) that cleanup never removes. Use it for volumes that hold data you cannot recreate but that nothing mounts most of the time, such as a backup store.
+`keep_volume_labels` keeps every volume that carries one of the listed labels: `key=value` needs that value, `key` alone matches any value. Use it when an app creates its own volumes and labels them.
 
 System networks, running containers, attached networks, referenced volumes, active build-cache records, and resources with unknown age or usage are skipped. For containers, networks, and volumes, minimum age is based on creation time, not time since the resource became stopped or unused. An old resource can therefore become eligible as soon as its final reference is gone. Volume cleanup can permanently delete application data, and HarborBuddy cannot know whether an unused volume still matters to you.
 

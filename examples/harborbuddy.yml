@@ -51,6 +51,10 @@ cleanup:
   # cache_volume_min_age_hours: 1
   # Images cleanup never removes (allow/deny pattern syntax), e.g. host tools:
   # keep_images: ["openthread/border-router:*"]
+  # Volume-name globs cleanup never removes, e.g. backup stores:
+  # keep_volumes: ["*-backups"]
+  # Volume labels that keep a volume ("key=value", or "key" for any value):
+  # keep_volume_labels: ["com.example.keep=true"]
 
 log:
   level: info

@@ -22,6 +22,8 @@ func logEffectiveConfig(logger zerolog.Logger, cfg config.Config) {
 		Int("cleanup_dangling_image_min_age_hours", cfg.Cleanup.MinAgeFor("image", "", true)).
 		Str("cleanup_cache_volumes", strings.Join(cfg.Cleanup.CacheVolumes, ",")).
 		Str("cleanup_keep_images", strings.Join(cfg.Cleanup.KeepImages, ",")).
+		Str("cleanup_keep_volumes", strings.Join(cfg.Cleanup.KeepVolumes, ",")).
+		Str("cleanup_keep_volume_labels", strings.Join(cfg.Cleanup.KeepVolumeLabels, ",")).
 		Bool("cleanup_dangling_only", cfg.Cleanup.DanglingOnly).
 		Bool("cleanup_all", cfg.Cleanup.All).
 		Str("cleanup_categories", cleanupCategories(cfg.Cleanup)).
