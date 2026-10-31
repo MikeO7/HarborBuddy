@@ -60,6 +60,9 @@ type CleanupConfig struct {
 	// KeepImages are image patterns (the allow/deny syntax) never removed by cleanup, for
 	// images that only host tools run.
 	KeepImages []string `yaml:"keep_images"`
+	// KeepVolumes are volume-name globs (path.Match) never removed by cleanup, for volumes that
+	// may hold data that cannot be recreated even while nothing mounts them.
+	KeepVolumes []string `yaml:"keep_volumes"`
 }
 
 type LogConfig struct {

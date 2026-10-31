@@ -238,8 +238,8 @@ func classify(resource docker.CleanupResource, cfg config.CleanupConfig, now tim
 		result.Reason = "resource is protected"
 	case resource.InUse:
 		result.Reason = "resource is in use"
-	case resource.Kind == docker.CleanupImage && resource.Name != "" && cfg.KeepsImage(strings.Split(resource.Name, ",")):
-		result.Reason = "image is in cleanup.keep_images"
+	case keepReason(resource, cfg) != "":
+		result.Reason = keepReason(resource, cfg)
 	case referenceTime.IsZero():
 		result.Reason = "resource age is unavailable"
 	case now.Sub(referenceTime) < minAgeDuration(cfg.MinAgeFor(string(resource.Kind), resource.Name, resource.Dangling)):
@@ -250,6 +250,18 @@ func classify(resource docker.CleanupResource, cfg config.CleanupConfig, now tim
 		result.Eligible = true
 	}
 	return result
+}
+
+// keepReason says why a keep list protects resource, or "" when none does.
+func keepReason(resource docker.CleanupResource, cfg config.CleanupConfig) string {
+	switch {
+	case resource.Kind == docker.CleanupImage && resource.Name != "" && cfg.KeepsImage(strings.Split(resource.Name, ",")):
+		return "image is in cleanup.keep_images"
+	case resource.Kind == docker.CleanupVolume && cfg.KeepsVolume(resource.Name):
+		return "volume is in cleanup.keep_volumes"
+	default:
+		return ""
+	}
 }
 
 func minAgeDuration(hours int) time.Duration {

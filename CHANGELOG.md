@@ -8,6 +8,7 @@ All notable changes to HarborBuddy are documented here. The format follows [Keep
 
 - `cleanup.dangling_image_min_age_hours` and `cleanup.cache_volumes` with `cleanup.cache_volume_min_age_hours` (and `HARBORBUDDY_CLEANUP_*` equivalents) let untagged images and unused cache volumes expire sooner than `min_age_hours`. Both default to `min_age_hours`, so existing setups are unchanged.
 - `cleanup.keep_images` (`HARBORBUDDY_CLEANUP_KEEP_IMAGES`): image patterns cleanup never removes, for images only host tools run.
+- `cleanup.keep_volumes` (`HARBORBUDDY_CLEANUP_KEEP_VOLUMES`): volume-name globs cleanup never removes.
 - A container health check: the daemon records a Docker ping every 15 seconds, and `harborbuddy --healthcheck` (the image `HEALTHCHECK`) fails when that heartbeat is over 60 seconds old or an update cycle has run for over two hours. `HARBORBUDDY_HEALTH_FILE` sets the status file path.
 - Staged container replacement with readiness checks and best-effort rollback.
 - `updates.startup_timeout` and `HARBORBUDDY_STARTUP_TIMEOUT` for replacement readiness.

@@ -47,3 +47,19 @@ func TestClassifyKeepsListedImages(t *testing.T) {
 		t.Fatalf("keep list applied to a volume: %+v", vol)
 	}
 }
+
+func TestClassifyKeepsListedVolumes(t *testing.T) {
+	now := time.Date(2026, 10, 30, 12, 0, 0, 0, time.UTC)
+	old := now.Add(-30 * 24 * time.Hour)
+	cfg := config.CleanupConfig{MinAgeHours: 168, All: true, KeepVolumes: []string{"arcane-backups"}}
+	kept := classify(docker.CleanupResource{Kind: docker.CleanupVolume, ID: "arcane-backups", Name: "arcane-backups", CreatedAt: old}, cfg, now)
+	if kept.Eligible || kept.Reason != "volume is in cleanup.keep_volumes" {
+		t.Fatalf("kept volume = %+v", kept)
+	}
+	if other := classify(docker.CleanupResource{Kind: docker.CleanupVolume, Name: "arcane-rustic-cache", CreatedAt: old}, cfg, now); !other.Eligible {
+		t.Fatalf("unlisted volume = %+v", other)
+	}
+	if net := classify(docker.CleanupResource{Kind: docker.CleanupNetwork, Name: "arcane-backups", CreatedAt: old}, cfg, now); !net.Eligible {
+		t.Fatalf("keep list applied to a network: %+v", net)
+	}
+}
