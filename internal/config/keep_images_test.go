@@ -64,3 +64,17 @@ func TestKeepImagesConfigAndValidation(t *testing.T) {
 		t.Fatalf("Validate() = %v", err)
 	}
 }
+
+func TestKeepsImageMatchesNormalizedForms(t *testing.T) {
+	cfg := CleanupConfig{KeepImages: []string{"docker.io/library/nginx:*", "*:latest"}}
+	for tags, want := range map[string]bool{
+		"nginx:1.27":           true,
+		"redis:latest":         true,
+		"ghcr.io/org/app:v1":   false,
+		"localhost:5000/x:dev": false,
+	} {
+		if got := cfg.KeepsImage([]string{tags}); got != want {
+			t.Errorf("KeepsImage(%q) = %v, want %v", tags, got, want)
+		}
+	}
+}
