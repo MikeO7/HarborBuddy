@@ -21,6 +21,9 @@ const (
 	StatusFailed            Status = "failed"
 	StatusCancelled         Status = "cancelled"
 	StatusChangedExternally Status = "changed_externally"
+	// StatusPreviouslyFailed skips a target image whose replacement already
+	// failed readiness and rolled back in this process.
+	StatusPreviouslyFailed Status = "previously_failed"
 )
 
 type ContainerResult struct {
@@ -68,7 +71,7 @@ func logReport(logger zerolog.Logger, report Report, dryRun bool) {
 	event := logger.Info()
 	if report.Count(StatusFailed) > 0 {
 		event = logger.Error()
-	} else if report.WarningCount()+report.Count(StatusUnsupported)+report.Count(StatusCancelled)+report.Count(StatusChangedExternally) > 0 {
+	} else if report.WarningCount()+report.Count(StatusUnsupported)+report.Count(StatusCancelled)+report.Count(StatusChangedExternally)+report.Count(StatusPreviouslyFailed) > 0 {
 		event = logger.Warn()
 	}
 	event.
@@ -85,6 +88,7 @@ func logReport(logger zerolog.Logger, report Report, dryRun bool) {
 		Int("warnings", report.WarningCount()).
 		Int("cancelled", report.Count(StatusCancelled)).
 		Int("changed_externally", report.Count(StatusChangedExternally)).
+		Int("previously_failed", report.Count(StatusPreviouslyFailed)).
 		Int64("duration_ms", report.Duration.Milliseconds()).
 		Bool("dry_run", dryRun).
 		Msg("Update cycle complete")
@@ -134,7 +138,8 @@ func resultEvent(logger zerolog.Logger, result ContainerResult) *zerolog.Event {
 	switch {
 	case result.Status == StatusFailed:
 		return logger.Error()
-	case result.Warning != nil || result.Status == StatusUnsupported || result.Status == StatusCancelled || result.Status == StatusChangedExternally:
+	case result.Warning != nil || result.Status == StatusUnsupported || result.Status == StatusCancelled ||
+		result.Status == StatusChangedExternally || result.Status == StatusPreviouslyFailed:
 		return logger.Warn()
 	case result.Status == StatusCurrent || result.Status == StatusExcluded:
 		return logger.Debug()
@@ -186,6 +191,8 @@ func resultMessage(result ContainerResult, dryRun bool) string {
 		return "Container check cancelled"
 	case StatusChangedExternally:
 		return "Container changed during the cycle; skipping"
+	case StatusPreviouslyFailed:
+		return "Skipping target image that previously failed and rolled back"
 	default:
 		return "Container update result is invalid"
 	}

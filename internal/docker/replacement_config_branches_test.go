@@ -33,7 +33,7 @@ func TestReplacementConfigClearsImageDefaultsAndPreservesDistinctOverrides(t *te
 	current.Config.Healthcheck = &containertypes.HealthConfig{Test: []string{"CMD", "true"}}
 	current.Config.Hostname = " OLD "
 	current.Summary.ID = "old-container"
-	config, host, _ := client.replacementConfig(context.Background(), current)
+	config, host, _, _ := client.replacementConfig(context.Background(), current)
 	if config.Cmd != nil || config.Entrypoint != nil || config.Healthcheck != nil {
 		t.Fatalf("image defaults were not cleared: %+v", config)
 	}
@@ -44,14 +44,14 @@ func TestReplacementConfigClearsImageDefaultsAndPreservesDistinctOverrides(t *te
 	current.Config.Cmd = []string{"custom"}
 	current.Config.Entrypoint = []string{"/custom"}
 	current.Config.Healthcheck = &containertypes.HealthConfig{Test: []string{"CMD", "custom"}}
-	config, _, _ = client.replacementConfig(context.Background(), current)
+	config, _, _, _ = client.replacementConfig(context.Background(), current)
 	if !reflect.DeepEqual(config.Cmd, current.Config.Cmd) || !reflect.DeepEqual(config.Entrypoint, current.Config.Entrypoint) || !reflect.DeepEqual(config.Healthcheck, current.Config.Healthcheck) {
 		t.Fatalf("explicit config was cleared: %+v", config)
 	}
 
 	current = replacementFixture()
 	current.Networks = map[string]*network.EndpointSettings{"bridge": {NetworkID: "network", IPAddress: netip.MustParseAddr("192.0.2.1"), MacAddress: network.HardwareAddr{0x02, 0x42, 0xac, 0x11, 0x00, 0x02}}, "nil": nil}
-	_, _, networking := client.replacementConfig(context.Background(), current)
+	_, _, networking, _ := client.replacementConfig(context.Background(), current)
 	if networking.EndpointsConfig["nil"] != nil || networking.EndpointsConfig["bridge"].IPAddress.IsValid() || networking.EndpointsConfig["bridge"].NetworkID != "" {
 		t.Fatalf("network endpoints were not sanitized: %+v", networking)
 	}

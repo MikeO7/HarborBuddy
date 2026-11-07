@@ -83,6 +83,9 @@ type ReplaceResult struct {
 	FailureStage              string
 	RollbackAttempted         bool
 	RollbackErr               error
+	// ConfigWarning reports that the old image could not be inspected, so its
+	// defaults could not be separated from the container's own settings.
+	ConfigWarning error
 }
 
 type UnsupportedError struct {

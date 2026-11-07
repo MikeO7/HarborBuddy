@@ -2,8 +2,8 @@ package docker
 
 import (
 	"context"
+	"maps"
 	"net/netip"
-	"reflect"
 	"strings"
 
 	containertypes "github.com/moby/moby/api/types/container"
@@ -11,13 +11,16 @@ import (
 	"github.com/moby/moby/api/types/network"
 )
 
-func (d *DockerClient) replacementConfig(ctx context.Context, current ContainerDetails) (*containertypes.Config, *containertypes.HostConfig, *network.NetworkingConfig) {
+// replacementConfig derives the replacement's configuration from inspection.
+// The returned warning reports that old-image defaults could not be separated
+// from user settings; it never prevents the replacement.
+func (d *DockerClient) replacementConfig(ctx context.Context, current ContainerDetails) (*containertypes.Config, *containertypes.HostConfig, *network.NetworkingConfig, error) {
 	containerConfig := cloneContainerConfig(current.Config)
 	containerConfig.Image = current.Summary.ImageRef
 	if hostnameMatchesContainerID(current.Config.Hostname, current.Summary.ID) {
 		containerConfig.Hostname = ""
 	}
-	clearImageDefaults(ctx, d, current, containerConfig)
+	warning := d.stripImageDefaults(ctx, current, containerConfig)
 
 	hostConfig := cloneHostConfig(current.Host)
 	preserveInspectedMounts(hostConfig, current.Mounts)
@@ -26,7 +29,7 @@ func (d *DockerClient) replacementConfig(ctx context.Context, current ContainerD
 	for name, settings := range current.Networks {
 		networks[name] = sanitizedEndpoint(settings)
 	}
-	return containerConfig, hostConfig, &network.NetworkingConfig{EndpointsConfig: networks}
+	return containerConfig, hostConfig, &network.NetworkingConfig{EndpointsConfig: networks}, warning
 }
 
 func cloneHostConfig(source *containertypes.HostConfig) *containertypes.HostConfig {
@@ -53,23 +56,9 @@ func cloneContainerConfig(source *containertypes.Config) *containertypes.Config 
 	cloned.Labels = cloneStringMap(source.Labels)
 	cloned.OnBuild = append([]string(nil), source.OnBuild...)
 	cloned.Shell = append([]string(nil), source.Shell...)
+	cloned.ExposedPorts = maps.Clone(source.ExposedPorts)
+	cloned.Volumes = maps.Clone(source.Volumes)
 	return &cloned
-}
-
-func clearImageDefaults(ctx context.Context, client *DockerClient, current ContainerDetails, config *containertypes.Config) {
-	oldImage, err := client.inspectImage(ctx, current.Summary.ImageID)
-	if err != nil || oldImage.Config == nil {
-		return
-	}
-	if reflect.DeepEqual(current.Config.Cmd, oldImage.Config.Cmd) {
-		config.Cmd = nil
-	}
-	if reflect.DeepEqual(current.Config.Entrypoint, oldImage.Config.Entrypoint) {
-		config.Entrypoint = nil
-	}
-	if reflect.DeepEqual(current.Config.Healthcheck, oldImage.Config.Healthcheck) {
-		config.Healthcheck = nil
-	}
 }
 
 func preserveInspectedMounts(host *containertypes.HostConfig, inspected []containertypes.MountPoint) {

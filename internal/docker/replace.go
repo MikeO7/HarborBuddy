@@ -94,15 +94,34 @@ func (d *DockerClient) ReplaceContainer(ctx context.Context, current ContainerDe
 		return ReplaceResult{FailureStage: "validate_stop_timeout"}, err
 	}
 
-	containerConfig, hostConfig, networkConfig := d.replacementConfig(ctx, current)
-	backupName := fmt.Sprintf("%s-harborbuddy-backup-%d", current.Summary.Name, time.Now().UnixNano())
-	result := ReplaceResult{BackupName: backupName}
+	containerConfig, hostConfig, networkConfig, configWarning := d.replacementConfig(ctx, current)
+	result := ReplaceResult{ConfigWarning: configWarning}
+	if err := ctx.Err(); err != nil {
+		result.FailureStage = FailureStageCancelledBeforeStart
+		return result, fmt.Errorf("replacement not started: %w", err)
+	}
 
+	// From the first mutation on, shutdown must not abandon the transaction
+	// half-way: the original would be left stopped under its backup name.
+	// Finish (or roll back) on a context detached from cancellation but bounded.
+	txCtx, cancel := context.WithTimeout(context.WithoutCancel(ctx), transactionTimeout(options))
+	defer cancel()
+	defer beginTransaction(current.Summary.ID)()
+	return d.replaceInTransaction(txCtx, current, target, options, timeoutSeconds, &containertypes.CreateRequest{
+		Config:           containerConfig,
+		HostConfig:       hostConfig,
+		NetworkingConfig: networkConfig,
+	}, result)
+}
+
+func (d *DockerClient) replaceInTransaction(ctx context.Context, current ContainerDetails, target ImageInfo, options ReplaceOptions, timeoutSeconds int, spec *containertypes.CreateRequest, result ReplaceResult) (ReplaceResult, error) {
 	restartSuppressed, err := d.suppressRestartPolicy(ctx, current)
 	if err != nil {
 		result.FailureStage = "suppress_restart_policy"
 		return result, err
 	}
+	backupName := backupContainerName(current.Summary.Name, time.Now(), restartSuppressed, current.Host.RestartPolicy)
+	result.BackupName = backupName
 	if err := d.ensureContainerStopped(ctx, current.Summary.ID, timeoutSeconds); err != nil {
 		result.FailureStage = "stop_old_container"
 		result.RollbackAttempted = restartSuppressed
@@ -120,9 +139,9 @@ func (d *DockerClient) ReplaceContainer(ctx context.Context, current ContainerDe
 	}
 
 	created, err := d.cli.ContainerCreate(ctx, client.ContainerCreateOptions{
-		Config:           containerConfig,
-		HostConfig:       hostConfig,
-		NetworkingConfig: networkConfig,
+		Config:           spec.Config,
+		HostConfig:       spec.HostConfig,
+		NetworkingConfig: spec.NetworkingConfig,
 		Name:             current.Summary.Name,
 	})
 	if err != nil {

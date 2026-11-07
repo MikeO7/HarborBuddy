@@ -6,7 +6,6 @@ import (
 	"fmt"
 	"sort"
 	"strings"
-	"time"
 
 	"github.com/containerd/errdefs"
 	containertypes "github.com/moby/moby/api/types/container"
@@ -84,7 +83,9 @@ func (d *DockerClient) ensureContainerStopped(ctx context.Context, id string, ti
 }
 
 func (d *DockerClient) restoreOldContainer(parent context.Context, current ContainerDetails, renamed bool, disconnected []string, replacementID string, timeoutSeconds int) error {
-	rollbackCtx, cancel := context.WithTimeout(context.WithoutCancel(parent), 30*time.Second)
+	// Always detached: rollback must not be cut short by shutdown or by the
+	// transaction deadline. Its own budget covers stopping the replacement.
+	rollbackCtx, cancel := context.WithTimeout(context.WithoutCancel(parent), rollbackTimeout(timeoutSeconds))
 	defer cancel()
 
 	var rollbackErrors []error

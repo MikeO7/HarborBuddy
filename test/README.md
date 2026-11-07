@@ -67,7 +67,7 @@ The script:
 5. Starts a target container from the initial revision.
 6. Runs one HarborBuddy dry-run cycle with `HARBORBUDDY_SELF_UPDATE_ENABLED=false` and an allow-list containing only the target image.
 7. Confirms HarborBuddy reports the healthy replacement while leaving the target container ID, image ID, running state, and old image unchanged.
-8. Runs a real update and confirms the target is replaced under its original name, remains running, and uses the healthy replacement image.
+8. Runs a real update and confirms the target is replaced under its original name, remains running, and uses the healthy replacement image, with the new image's `ENV` and labels rather than values inherited from the old image, while keeping a user-set environment variable.
 9. Runs the same cycle again when the target already uses the current image and confirms it is a no-op.
 10. Publishes a revision with `com.harborbuddy.autoupdate=false` and confirms it is excluded even when the image is allow-listed.
 11. Publishes an unhealthy revision with a failing Docker health check.

@@ -73,6 +73,19 @@ fail() {
     exit 1
 }
 
+KEEP_TAGS=()
+# Docker 29's containerd image store can drop an image as soon as a local build
+# or tag moves its only tag, even while a container still uses it (a registry
+# pull keeps it as a dangling image instead). Hold an extra local tag so the
+# suite can restore the pre-pull state that a real host has.
+protect_local_image() {
+    local image_id="$1"
+    local keep_tag="harborbuddy-integration-keep:${RUN_ID}-${#KEEP_TAGS[@]}"
+
+    docker image tag "$image_id" "$keep_tag"
+    KEEP_TAGS+=("$keep_tag")
+}
+
 restore_local_reference() {
     local image_id="$1"
     local image_ref="$2"
@@ -89,6 +102,9 @@ cleanup() {
     set +e
 
     docker rm -f "$DAEMON_NAME" "$OPT_OUT_NAME" "$TARGET_NAME" "$REGISTRY_NAME" >/dev/null 2>&1
+    for keep_tag in ${KEEP_TAGS[@]+"${KEEP_TAGS[@]}"}; do
+        docker image rm "$keep_tag" >/dev/null 2>&1
+    done
 
     if [[ -n "$FIXTURE_REF" ]]; then
         docker image rm -f "$FIXTURE_REF" >/dev/null 2>&1
@@ -198,6 +214,7 @@ printf '%s\n' \
     'ARG REVISION' \
     'LABEL com.harborbuddy.integration=true' \
     "LABEL com.harborbuddy.fixture.revision=\$REVISION" \
+    "ENV HB_FIXTURE_REVISION=\$REVISION" \
     'CMD ["sh", "-c", "trap '\''exit 0'\'' TERM INT; while :; do sleep 1; done"]' \
     > "$TMP_DIR/fixture/Dockerfile"
 
@@ -213,6 +230,7 @@ OLD_IMAGE_ID="$(docker image inspect "$FIXTURE_REF" --format '{{.Id}}')"
 docker run -d \
     --name "$TARGET_NAME" \
     --label "$TEST_LABEL" \
+    --env HB_USER_SETTING=kept \
     "$FIXTURE_REF" >/dev/null
 
 TARGET_CONTAINER_ID="$(docker inspect "$TARGET_NAME" --format '{{.Id}}')"
@@ -220,6 +238,7 @@ TARGET_IMAGE_ID="$(docker inspect "$TARGET_NAME" --format '{{.Image}}')"
 [[ "$TARGET_IMAGE_ID" == "$OLD_IMAGE_ID" ]] || fail "target did not start from the initial image"
 
 log "publishing replacement fixture image"
+protect_local_image "$OLD_IMAGE_ID"
 docker build --no-cache \
     "${FIXTURE_BUILD_ARGS[@]}" \
     --build-arg REVISION=new \
@@ -306,6 +325,11 @@ HEALTHY_RUNNING="$(docker inspect "$TARGET_NAME" --format '{{.State.Running}}')"
 [[ "$HEALTHY_CONTAINER_ID" != "$TARGET_CONTAINER_ID" ]] || fail "real update did not replace the target container"
 [[ "$HEALTHY_IMAGE_ID" == "$NEW_IMAGE_ID" ]] || fail "real update did not use the replacement image"
 [[ "$HEALTHY_RUNNING" == "true" ]] || fail "replacement container is not running"
+HEALTHY_ENV="$(docker inspect "$TARGET_NAME" --format '{{range .Config.Env}}{{println .}}{{end}}')"
+grep -qx 'HB_FIXTURE_REVISION=new' <<< "$HEALTHY_ENV" || fail "replacement inherited the old image's ENV: $HEALTHY_ENV"
+grep -qx 'HB_USER_SETTING=kept' <<< "$HEALTHY_ENV" || fail "replacement lost user-set ENV: $HEALTHY_ENV"
+HEALTHY_REVISION_LABEL="$(docker inspect "$TARGET_NAME" --format '{{ index .Config.Labels "com.harborbuddy.fixture.revision" }}')"
+[[ "$HEALTHY_REVISION_LABEL" == "new" ]] || fail "replacement inherited the old image's label: $HEALTHY_REVISION_LABEL"
 
 log "verifying an already-current container is left untouched"
 if ! output="$(docker run --rm \
@@ -345,6 +369,7 @@ docker run -d \
     "$OPT_OUT_REF" >/dev/null
 OPT_OUT_CONTAINER_ID="$(docker inspect "$OPT_OUT_NAME" --format '{{.Id}}')"
 
+protect_local_image "$OPT_OUT_OLD_IMAGE_ID"
 docker build --no-cache \
     "${FIXTURE_BUILD_ARGS[@]}" \
     --build-arg REVISION=opt-out-new \
@@ -402,6 +427,7 @@ printf '%s\n' \
     'HEALTHCHECK --interval=1s --timeout=1s --retries=1 CMD exit 1' \
     'CMD ["sh", "-c", "trap '\''exit 0'\'' TERM INT; while :; do sleep 1; done"]' \
     > "$TMP_DIR/fixture/Dockerfile"
+protect_local_image "$HEALTHY_IMAGE_ID"
 docker build --no-cache \
     "${FIXTURE_BUILD_ARGS[@]}" \
     --build-arg REVISION=unhealthy \
@@ -498,6 +524,7 @@ if [[ "$initial_cycle" != true ]]; then
 fi
 OLD_DAEMON_ID="$(docker inspect "$DAEMON_NAME" --format '{{.Id}}')"
 
+protect_local_image "$OLD_SELF_IMAGE_ID"
 docker image tag "$SELFUPDATE_NEW_IMAGE" "$SELFUPDATE_REF"
 docker push "$SELFUPDATE_REF" >/dev/null
 restore_local_reference "$OLD_SELF_IMAGE_ID" "$SELFUPDATE_REF"

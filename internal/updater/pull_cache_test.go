@@ -52,6 +52,26 @@ func TestSafePullCacheSharesResult(t *testing.T) {
 	}
 }
 
+func TestSafePullCacheSharesNormalizedReferences(t *testing.T) {
+	cache := NewSafePullCache()
+	var calls atomic.Int32
+	pull := func() (docker.ImageInfo, error) {
+		calls.Add(1)
+		return docker.ImageInfo{ID: "sha256:nginx"}, nil
+	}
+	for _, ref := range []string{"nginx", "nginx:latest", "docker.io/library/nginx:latest"} {
+		if info, err, _ := cache.GetOrPull(context.Background(), ref, pull); err != nil || info.ID != "sha256:nginx" {
+			t.Fatalf("GetOrPull(%q) = %+v, %v", ref, info, err)
+		}
+	}
+	if _, _, shared := cache.GetOrPull(context.Background(), "nginx:1.27", pull); shared {
+		t.Fatal("distinct tag shared a pull")
+	}
+	if calls.Load() != 2 {
+		t.Fatalf("pull calls = %d, want 2", calls.Load())
+	}
+}
+
 func TestSafePullCacheWaiterCanCancel(t *testing.T) {
 	cache := NewSafePullCache()
 	started := make(chan struct{})
