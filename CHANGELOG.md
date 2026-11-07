@@ -75,7 +75,7 @@ First versioned release.
 
 - Self-update looped forever on rootless Podman 5: the helper could not disconnect the `pasta` network, rolled back, and the daemon tried again every cycle. `host`, `none`, `pasta`, and `slirp4netns` are no longer disconnected.
 - Self-update failed every cycle for a daemon with a static IP or MAC address, because the helper copied it and collided.
-- A broken self-update image no longer causes a restart loop in interval mode, and every helper failure restores the old daemon's restart policy and starts it again.
+- A broken self-update image no longer causes a restart loop in interval mode, including on Podman, which briefly lists a just-exited helper as still active. Every helper failure restores the old daemon's restart policy and starts it again.
 - `--once` runs never self-update.
 - A container that another container shares a network, PID, IPC, or UTS namespace with, or links to, is skipped instead of being recreated out from under its dependents.
 - Containers created from an image ID are reported as unsupported instead of failing a pull every cycle.
