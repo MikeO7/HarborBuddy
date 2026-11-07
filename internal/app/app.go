@@ -26,7 +26,9 @@ type DockerClient interface {
 
 // Dependencies contains process-bound operations that tests can replace.
 type Dependencies struct {
-	LookupEnv         func(string) (string, bool)
+	LookupEnv func(string) (string, bool)
+	// Environ lists the process environment for startup warnings; nil skips that check.
+	Environ           func() []string
 	NewDockerClient   func(context.Context, string) (DockerClient, error)
 	NewLogger         func(config.LogConfig, io.Writer) (zerolog.Logger, *logging.LevelController, func() error, error)
 	StartLevelSignals func(context.Context, zerolog.Logger, *logging.LevelController) func()
@@ -95,6 +97,7 @@ func normalizeProcessInputs(ctx context.Context, stdout, stderr io.Writer) (cont
 func defaultDependencies() Dependencies {
 	return Dependencies{
 		LookupEnv: os.LookupEnv,
+		Environ:   os.Environ,
 		NewDockerClient: func(ctx context.Context, host string) (DockerClient, error) {
 			return docker.NewClient(ctx, host)
 		},

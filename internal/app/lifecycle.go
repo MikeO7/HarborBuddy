@@ -34,6 +34,7 @@ func runDaemon(ctx context.Context, stdout io.Writer, deps Dependencies, cfg con
 		Str("build_date", buildinfo.Date).
 		Msg("HarborBuddy starting")
 	logEffectiveConfig(logger, cfg)
+	logConfigWarnings(logger, cfg, deps.Environ)
 
 	client, err := deps.NewDockerClient(ctx, cfg.Docker.Host)
 	if err != nil {

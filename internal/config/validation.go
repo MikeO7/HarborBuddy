@@ -9,6 +9,9 @@ import (
 
 const maxCleanupMinAgeHours = int((1<<63 - 1) / int64(time.Hour))
 
+// MinCheckInterval is the shortest accepted interval; shorter values would spin the scheduler.
+const MinCheckInterval = time.Second
+
 func (c Config) Validate() error {
 	if err := validateUpdates(c.Updates); err != nil {
 		return err
@@ -23,8 +26,8 @@ func (c Config) Validate() error {
 }
 
 func validateUpdates(cfg UpdatesConfig) error {
-	if cfg.ScheduleTime == "" && cfg.CheckInterval <= 0 {
-		return errors.New("updates.check_interval must be positive when schedule_time is not set")
+	if cfg.ScheduleTime == "" && cfg.CheckInterval < MinCheckInterval {
+		return fmt.Errorf("updates.check_interval must be at least %s when schedule_time is not set", MinCheckInterval)
 	}
 	if cfg.StopTimeout <= 0 {
 		return errors.New("updates.stop_timeout must be positive")
@@ -84,14 +87,14 @@ func validateLog(cfg LogConfig) error {
 	if cfg.MaxSize <= 0 {
 		return errors.New("log.max_size must be positive")
 	}
-	if cfg.MaxBackups < 0 {
-		return errors.New("log.max_backups cannot be negative")
+	if cfg.MaxBackups < 1 {
+		return errors.New("log.max_backups must be at least 1 (the rotation library treats 0 as keep every rotated file)")
 	}
 	return nil
 }
 
 func validLogLevel(level string) bool {
-	switch level {
+	switch strings.ToLower(level) {
 	case "debug", "info", "warn", "error":
 		return true
 	default:

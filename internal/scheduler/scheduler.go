@@ -209,11 +209,29 @@ func gracefulResult(ctx context.Context, err error) error {
 
 func calculateNextRun(now time.Time, scheduleTime string, location *time.Location) time.Time {
 	scheduled, _ := time.Parse("15:04", scheduleTime)
-	next := time.Date(now.Year(), now.Month(), now.Day(), scheduled.Hour(), scheduled.Minute(), 0, 0, location)
+	next := dailyRun(now.Year(), now.Month(), now.Day(), scheduled, location)
 	if !next.After(now) {
-		next = time.Date(now.Year(), now.Month(), now.Day()+1, scheduled.Hour(), scheduled.Minute(), 0, 0, location)
+		next = dailyRun(now.Year(), now.Month(), now.Day()+1, scheduled, location)
 	}
 	return next
+}
+
+// dailyRun returns the scheduled wall-clock time on a day. When a daylight-saving change
+// skips that time, it returns the first instant after the gap, as cron does; time.Date alone
+// would move it an hour earlier or later depending on the zone. A repeated wall-clock time
+// resolves to its first occurrence, so the schedule still runs once on fall-back days.
+func dailyRun(year int, month time.Month, day int, scheduled time.Time, location *time.Location) time.Time {
+	next := time.Date(year, month, day, scheduled.Hour(), scheduled.Minute(), 0, 0, location)
+	if next.Hour() == scheduled.Hour() && next.Minute() == scheduled.Minute() {
+		return next
+	}
+	// The skipped time lands just before or just after the transition that caused the gap;
+	// that transition is the nearer bound of the zone period it landed in.
+	start, end := next.ZoneBounds()
+	if !end.IsZero() && end.Sub(next) < next.Sub(start) {
+		return end
+	}
+	return start
 }
 
 func generateCycleID(now time.Time) string {
