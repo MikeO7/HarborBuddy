@@ -35,7 +35,9 @@ func (d *DockerClient) RemoveImage(ctx context.Context, imageID string) error {
 }
 
 // untagExtraReferences removes every tag but the first from an image that no
-// container uses. It reports false when there was nothing safe to untag.
+// container or child image uses. It reports false when there was nothing safe
+// to untag, because stripping tags from an image Docker still refuses to
+// delete would only lose the user's references.
 func (d *DockerClient) untagExtraReferences(ctx context.Context, imageID string) (bool, error) {
 	image, err := d.inspectImage(ctx, imageID)
 	if err != nil {
@@ -44,7 +46,7 @@ func (d *DockerClient) untagExtraReferences(ctx context.Context, imageID string)
 	if len(image.RepoTags) < 2 {
 		return false, nil
 	}
-	inUse, err := d.imageUsedByAnyContainer(ctx, image.ID)
+	inUse, err := d.imageInUse(ctx, image.ID)
 	if err != nil || inUse {
 		return false, err
 	}

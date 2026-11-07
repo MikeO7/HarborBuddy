@@ -34,6 +34,18 @@ func logEffectiveConfig(logger zerolog.Logger, cfg config.Config) {
 		Msg("Effective configuration loaded")
 }
 
+// logConfigWarnings reports valid but suspicious settings, such as unrecognized
+// HARBORBUDDY_* variables. They warn instead of failing so existing deployments keep running.
+func logConfigWarnings(logger zerolog.Logger, cfg config.Config, environ func() []string) {
+	var env []string
+	if environ != nil {
+		env = environ()
+	}
+	for _, warning := range config.StartupWarnings(cfg, env) {
+		logger.Warn().Str("event", "configuration_warning").Str("setting", warning.Setting).Msg(warning.Message)
+	}
+}
+
 func cleanupCategories(cfg config.CleanupConfig) string {
 	categories := []string{"images"}
 	if cfg.All || cfg.StoppedContainers {

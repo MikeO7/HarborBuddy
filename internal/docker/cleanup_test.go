@@ -41,7 +41,7 @@ func TestCleanupAdapterListsAndRemovesEveryResourceKind(t *testing.T) {
 		})
 	})
 	transport.register("GET", "/v1.41/containers/json", func(r *http.Request) (*http.Response, error) {
-		if r.URL.Query().Get("all") != "1" || r.URL.Query().Get("size") != "1" {
+		if r.URL.Query().Get("all") != "1" {
 			t.Fatalf("container list query = %q", r.URL.RawQuery)
 		}
 		return jsonResponse(http.StatusOK, []containertypes.Summary{
@@ -161,6 +161,9 @@ func TestCleanupAdapterReportsDockerFailures(t *testing.T) {
 		})
 		transport.register("GET", "/v1.41/networks/custom", func(*http.Request) (*http.Response, error) {
 			return jsonResponse(http.StatusInternalServerError, map[string]string{"message": "failed"})
+		})
+		transport.register("GET", "/v1.41/containers/json", func(*http.Request) (*http.Response, error) {
+			return jsonResponse(http.StatusOK, []containertypes.Summary{})
 		})
 		client := testDockerClient(t, transport)
 		if _, err := client.ListCleanupResources(context.Background(), CleanupNetwork); err == nil || !strings.Contains(err.Error(), "inspect network") {

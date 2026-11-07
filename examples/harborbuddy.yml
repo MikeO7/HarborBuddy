@@ -1,4 +1,5 @@
-# HarborBuddy configuration example. Environment variables override these values.
+# HarborBuddy configuration example. HARBORBUDDY_* environment variables override
+# these values; TZ is used only when timezone is not set here or by HARBORBUDDY_TIMEZONE.
 # Safe helper-based self-update is enabled by default. Set the environment variable
 # HARBORBUDDY_SELF_UPDATE_ENABLED=false to opt out while retaining other updates.
 
@@ -10,7 +11,8 @@ docker:
 updates:
   enabled: true
 
-  # Set schedule_time for a daily run, or leave it empty to use check_interval.
+  # Set schedule_time for a daily run, or leave it empty to use check_interval
+  # (at least 1s; below 1m logs a warning). A daily run does not run at startup.
   check_interval: 12h
   schedule_time: "03:00"
   timezone: America/Los_Angeles
@@ -62,4 +64,5 @@ log:
   json: false
   file: ""
   max_size: 10
+  # Rotated files to keep; must be at least 1.
   max_backups: 1

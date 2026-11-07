@@ -73,21 +73,29 @@ func (d *DockerClient) inspectImage(ctx context.Context, imageRef string) (Image
 	}, nil
 }
 
+// ListImages lists every image. InUse marks images a container (running or
+// stopped) or a child image depends on, so cleanup never tries to delete them.
 func (d *DockerClient) ListImages(ctx context.Context) ([]ImageInfo, error) {
 	images, err := d.cli.ImageList(ctx, client.ImageListOptions{All: true})
 	if err != nil {
 		return nil, fmt.Errorf("list images: %w", err)
 	}
-	return imageSummaries(images.Items, false), nil
+	return d.markImagesInUse(ctx, imageSummaries(images.Items, false), images.Items)
 }
 
+// ListDanglingImages lists the images the daemon itself reports as dangling,
+// with InUse set as in ListImages.
 func (d *DockerClient) ListDanglingImages(ctx context.Context) ([]ImageInfo, error) {
 	args := make(client.Filters).Add("dangling", "true")
 	images, err := d.cli.ImageList(ctx, client.ImageListOptions{All: true, Filters: args})
 	if err != nil {
 		return nil, fmt.Errorf("list dangling images: %w", err)
 	}
-	return imageSummaries(images.Items, true), nil
+	all, err := d.cli.ImageList(ctx, client.ImageListOptions{All: true})
+	if err != nil {
+		return nil, fmt.Errorf("list images: %w", err)
+	}
+	return d.markImagesInUse(ctx, imageSummaries(images.Items, true), all.Items)
 }
 
 func imageSummaries(images []imagetypes.Summary, forceDangling bool) []ImageInfo {
@@ -95,13 +103,15 @@ func imageSummaries(images []imagetypes.Summary, forceDangling bool) []ImageInfo
 	for _, current := range images {
 		dangling := forceDangling || len(current.RepoTags) == 0 || (len(current.RepoTags) == 1 && current.RepoTags[0] == "<none>:<none>")
 		result = append(result, ImageInfo{
-			ID:        current.ID,
-			RepoTags:  append([]string(nil), current.RepoTags...),
-			Dangling:  dangling,
-			Protected: hasRollbackImageTag(current.RepoTags),
-			CreatedAt: time.Unix(current.Created, 0),
-			Size:      current.Size,
-			Labels:    cloneStringMap(current.Labels),
+			ID:          current.ID,
+			RepoTags:    append([]string(nil), current.RepoTags...),
+			RepoDigests: repoDigests(current.RepoDigests),
+			Dangling:    dangling,
+			Protected:   hasRollbackImageTag(current.RepoTags),
+			InUse:       current.Containers > 0,
+			CreatedAt:   time.Unix(current.Created, 0),
+			Size:        current.Size,
+			Labels:      cloneStringMap(current.Labels),
 		})
 	}
 	return result

@@ -24,6 +24,9 @@ type LevelController struct {
 
 var closeLogFile = func(file *os.File) error { return file.Close() }
 
+// textTimeFormat keeps the date in human-readable logs so long-running daemons stay traceable.
+const textTimeFormat = time.RFC3339
+
 // ToggleDebug enables debug logging, or restores the configured base level if
 // debug logging is already enabled.
 func (c *LevelController) ToggleDebug() zerolog.Level {
@@ -66,7 +69,7 @@ func New(cfg config.LogConfig, stdout io.Writer) (zerolog.Logger, *LevelControll
 
 	output := stdout
 	if !cfg.JSON {
-		output = zerolog.ConsoleWriter{Out: stdout, TimeFormat: time.TimeOnly}
+		output = zerolog.ConsoleWriter{Out: stdout, TimeFormat: textTimeFormat, NoColor: !useColor(stdout)}
 	}
 
 	var fileWriter *lumberjack.Logger
@@ -96,6 +99,20 @@ func New(cfg config.LogConfig, stdout io.Writer) (zerolog.Logger, *LevelControll
 		return fileWriter.Close()
 	}
 	return logger, controller, closeFn, nil
+}
+
+// useColor enables ANSI colors only for a terminal and honors the NO_COLOR convention
+// (https://no-color.org): any non-empty NO_COLOR value disables color.
+func useColor(out io.Writer) bool {
+	if value, ok := os.LookupEnv("NO_COLOR"); ok && value != "" {
+		return false
+	}
+	file, ok := out.(*os.File)
+	if !ok {
+		return false
+	}
+	info, err := file.Stat()
+	return err == nil && info.Mode()&os.ModeCharDevice != 0
 }
 
 // NotifyLevelSignals handles SIGUSR1 until ctx is canceled. Repeated signals

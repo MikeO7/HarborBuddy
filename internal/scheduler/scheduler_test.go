@@ -8,9 +8,11 @@ import (
 	"testing"
 	"time"
 
+	"github.com/MikeO7/HarborBuddy/internal/cleanup"
 	"github.com/MikeO7/HarborBuddy/internal/config"
 	"github.com/MikeO7/HarborBuddy/internal/docker"
 	"github.com/MikeO7/HarborBuddy/internal/selfupdate"
+	"github.com/MikeO7/HarborBuddy/internal/updater"
 	"github.com/rs/zerolog"
 )
 
@@ -19,11 +21,11 @@ func TestRunCycleRunsUpdateAndCleanupIndependently(t *testing.T) {
 	cleanupErr := errors.New("cleanup failed")
 	var calls []string
 	s := newScheduler(fixedClock{now: time.Now()})
-	s.runUpdate = func(context.Context, config.Config, docker.Client, zerolog.Logger) error {
+	s.runUpdate = func(context.Context, config.Config, docker.Client, zerolog.Logger) (updater.Report, error) {
 		calls = append(calls, "update")
-		return updateErr
+		return updater.Report{}, updateErr
 	}
-	s.runCleanup = func(context.Context, config.Config, docker.Client, zerolog.Logger) error {
+	s.runCleanup = func(context.Context, config.Config, docker.Client, zerolog.Logger, cleanup.Options) error {
 		calls = append(calls, "cleanup")
 		return cleanupErr
 	}
@@ -41,10 +43,10 @@ func TestRunCycleRunsUpdateAndCleanupIndependently(t *testing.T) {
 func TestRunPropagatesSelfUpdateSignalWithoutCleanup(t *testing.T) {
 	s := newScheduler(fixedClock{now: time.Now()})
 	cleanupCalled := false
-	s.runUpdate = func(context.Context, config.Config, docker.Client, zerolog.Logger) error {
-		return &selfupdate.ShutdownRequiredError{TargetContainerID: "target", HelperContainerID: "helper"}
+	s.runUpdate = func(context.Context, config.Config, docker.Client, zerolog.Logger) (updater.Report, error) {
+		return updater.Report{}, &selfupdate.ShutdownRequiredError{TargetContainerID: "target", HelperContainerID: "helper"}
 	}
-	s.runCleanup = func(context.Context, config.Config, docker.Client, zerolog.Logger) error {
+	s.runCleanup = func(context.Context, config.Config, docker.Client, zerolog.Logger, cleanup.Options) error {
 		cleanupCalled = true
 		return nil
 	}
@@ -64,8 +66,10 @@ func TestRunPropagatesSelfUpdateSignalWithoutCleanup(t *testing.T) {
 func TestRunOnceReturnsOrdinaryCycleError(t *testing.T) {
 	want := errors.New("update failed")
 	s := newScheduler(fixedClock{now: time.Now()})
-	s.runUpdate = func(context.Context, config.Config, docker.Client, zerolog.Logger) error { return want }
-	s.runCleanup = func(context.Context, config.Config, docker.Client, zerolog.Logger) error { return nil }
+	s.runUpdate = func(context.Context, config.Config, docker.Client, zerolog.Logger) (updater.Report, error) {
+		return updater.Report{}, want
+	}
+	s.runCleanup = func(context.Context, config.Config, docker.Client, zerolog.Logger, cleanup.Options) error { return nil }
 	cfg := config.Default()
 	cfg.RunOnce = true
 
@@ -104,10 +108,10 @@ func TestDefaultSchedulerIntegrationsAndRunWrapper(t *testing.T) {
 		t.Fatalf("Run() error = %v", err)
 	}
 	s := newScheduler(fixedClock{now: time.Now()})
-	if err := s.runUpdate(context.Background(), cfg, noopClient{}, zerolog.Nop()); err != nil {
+	if _, err := s.runUpdate(context.Background(), cfg, noopClient{}, zerolog.Nop()); err != nil {
 		t.Fatalf("default runUpdate error = %v", err)
 	}
-	if err := s.runCleanup(context.Background(), cfg, noopClient{}, zerolog.Nop()); err != nil {
+	if err := s.runCleanup(context.Background(), cfg, noopClient{}, zerolog.Nop(), cleanup.Options{}); err != nil {
 		t.Fatalf("default runCleanup error = %v", err)
 	}
 }
@@ -144,8 +148,10 @@ func TestContinuousCycleClassifiesErrors(t *testing.T) {
 	} {
 		t.Run(test.name, func(t *testing.T) {
 			s := newScheduler(fixedClock{now: time.Now()})
-			s.runUpdate = func(context.Context, config.Config, docker.Client, zerolog.Logger) error { return test.cycleErr }
-			s.runCleanup = func(context.Context, config.Config, docker.Client, zerolog.Logger) error { return nil }
+			s.runUpdate = func(context.Context, config.Config, docker.Client, zerolog.Logger) (updater.Report, error) {
+				return updater.Report{}, test.cycleErr
+			}
+			s.runCleanup = func(context.Context, config.Config, docker.Client, zerolog.Logger, cleanup.Options) error { return nil }
 			cfg := config.Default()
 			cfg.Cleanup.Enabled = false
 
@@ -167,11 +173,11 @@ func TestCleanupOnlySkipsUpdate(t *testing.T) {
 	s := newScheduler(fixedClock{now: time.Now()})
 	updateCalled := false
 	cleanupCalled := false
-	s.runUpdate = func(context.Context, config.Config, docker.Client, zerolog.Logger) error {
+	s.runUpdate = func(context.Context, config.Config, docker.Client, zerolog.Logger) (updater.Report, error) {
 		updateCalled = true
-		return nil
+		return updater.Report{}, nil
 	}
-	s.runCleanup = func(context.Context, config.Config, docker.Client, zerolog.Logger) error {
+	s.runCleanup = func(context.Context, config.Config, docker.Client, zerolog.Logger, cleanup.Options) error {
 		cleanupCalled = true
 		return nil
 	}
@@ -198,7 +204,7 @@ func TestIntervalRunsImmediatelyThenOnTicker(t *testing.T) {
 	var mu sync.Mutex
 	calls := 0
 	second := make(chan struct{})
-	s.runUpdate = func(context.Context, config.Config, docker.Client, zerolog.Logger) error {
+	s.runUpdate = func(context.Context, config.Config, docker.Client, zerolog.Logger) (updater.Report, error) {
 		mu.Lock()
 		calls++
 		current := calls
@@ -207,9 +213,9 @@ func TestIntervalRunsImmediatelyThenOnTicker(t *testing.T) {
 			close(second)
 			cancel()
 		}
-		return nil
+		return updater.Report{}, nil
 	}
-	s.runCleanup = func(context.Context, config.Config, docker.Client, zerolog.Logger) error { return nil }
+	s.runCleanup = func(context.Context, config.Config, docker.Client, zerolog.Logger, cleanup.Options) error { return nil }
 	cfg := config.Default()
 	cfg.Cleanup.Enabled = false
 
@@ -234,15 +240,15 @@ func TestIntervalStopsWhenTickerCycleRequestsSelfUpdate(t *testing.T) {
 	s := newScheduler(clock)
 	var mu sync.Mutex
 	var calls int
-	s.runUpdate = func(context.Context, config.Config, docker.Client, zerolog.Logger) error {
+	s.runUpdate = func(context.Context, config.Config, docker.Client, zerolog.Logger) (updater.Report, error) {
 		mu.Lock()
 		calls++
 		current := calls
 		mu.Unlock()
 		if current == 2 {
-			return &selfupdate.ShutdownRequiredError{TargetContainerID: "target", HelperContainerID: "helper"}
+			return updater.Report{}, &selfupdate.ShutdownRequiredError{TargetContainerID: "target", HelperContainerID: "helper"}
 		}
-		return nil
+		return updater.Report{}, nil
 	}
 	cfg := config.Default()
 	cfg.Cleanup.Enabled = false
@@ -259,8 +265,8 @@ func TestIntervalStopsWhenTickerCycleRequestsSelfUpdate(t *testing.T) {
 
 func TestIntervalStopsWhenImmediateCycleRequestsSelfUpdate(t *testing.T) {
 	s := newScheduler(fixedClock{now: time.Now()})
-	s.runUpdate = func(context.Context, config.Config, docker.Client, zerolog.Logger) error {
-		return &selfupdate.ShutdownRequiredError{TargetContainerID: "target", HelperContainerID: "helper"}
+	s.runUpdate = func(context.Context, config.Config, docker.Client, zerolog.Logger) (updater.Report, error) {
+		return updater.Report{}, &selfupdate.ShutdownRequiredError{TargetContainerID: "target", HelperContainerID: "helper"}
 	}
 	cfg := config.Default()
 	cfg.Cleanup.Enabled = false
@@ -282,12 +288,12 @@ func TestScheduledModeWaitsBeforeFirstCycle(t *testing.T) {
 	defer cancel()
 
 	called := make(chan struct{})
-	s.runUpdate = func(context.Context, config.Config, docker.Client, zerolog.Logger) error {
+	s.runUpdate = func(context.Context, config.Config, docker.Client, zerolog.Logger) (updater.Report, error) {
 		close(called)
 		cancel()
-		return nil
+		return updater.Report{}, nil
 	}
-	s.runCleanup = func(context.Context, config.Config, docker.Client, zerolog.Logger) error { return nil }
+	s.runCleanup = func(context.Context, config.Config, docker.Client, zerolog.Logger, cleanup.Options) error { return nil }
 	cfg := config.Default()
 	cfg.Cleanup.Enabled = false
 	cfg.Updates.ScheduleTime = "11:00"
@@ -334,8 +340,8 @@ func TestScheduledModeStopsWhenTimerCycleRequestsSelfUpdate(t *testing.T) {
 	timerChannel := make(chan time.Time, 1)
 	clock := fixedClock{now: time.Now(), timer: &fakeTimer{channel: timerChannel}}
 	s := newScheduler(clock)
-	s.runUpdate = func(context.Context, config.Config, docker.Client, zerolog.Logger) error {
-		return &selfupdate.ShutdownRequiredError{TargetContainerID: "target", HelperContainerID: "helper"}
+	s.runUpdate = func(context.Context, config.Config, docker.Client, zerolog.Logger) (updater.Report, error) {
+		return updater.Report{}, &selfupdate.ShutdownRequiredError{TargetContainerID: "target", HelperContainerID: "helper"}
 	}
 	cfg := config.Default()
 	cfg.Updates.ScheduleTime = "11:00"

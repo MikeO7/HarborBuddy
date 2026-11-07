@@ -13,7 +13,11 @@ function seed(docker: any) {
   docker.volumes = [{ Name: "vol-free", CreatedAt: created, UsageData: { RefCount: 0, Size: 100 } }, { Name: "vol-used", CreatedAt: created, UsageData: { RefCount: 1, Size: 100 } }, { Name: "vol-unknown", CreatedAt: created }];
   docker.caches = [{ ID: "cache-free", CreatedAt: created, LastUsedAt: created, Size: 100, InUse: false }, { ID: "cache-used", CreatedAt: created, LastUsedAt: created, Size: 100, InUse: true }];
   const c = structuredClone(docker.containers.get(oldID)); c.Id = "stopped"; c.Name = "/stopped"; c.State.Running = false; c.State.Status = "exited";
+  c.HostConfig.RestartPolicy = { Name: "no", MaximumRetryCount: 0 };
   docker.containers.set(c.Id, c);
+  const kept = structuredClone(c); kept.Id = "stopped-service"; kept.Name = "/stopped-service";
+  kept.HostConfig.RestartPolicy = { Name: "unless-stopped", MaximumRetryCount: 0 };
+  docker.containers.set(kept.Id, kept);
 }
 const config = (all: boolean) => `updates:\n  enabled: false\ncleanup:\n  enabled: true\n  all: ${all}\n  min_age_hours: 24\nlog:\n  json: true\n  level: debug\n`;
 
@@ -33,6 +37,7 @@ for (const all of [false, true]) {
           expect(removed).not.toContain("DELETE /images/sha256:used");
           expect(removed).not.toContain("DELETE /images/sha256:rollback");
           expect(removed).toContain("DELETE /containers/stopped");
+          expect(removed).not.toContain("DELETE /containers/stopped-service");
           expect(removed).toContain("DELETE /networks/net-free");
           expect(removed).not.toContain("DELETE /networks/net-default");
           expect(removed).toContain("DELETE /volumes/vol-free");
