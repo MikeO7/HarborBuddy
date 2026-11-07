@@ -38,8 +38,8 @@ SOFTWARE_ID = BASE_URL + "#software"
 WEBSITE_ID = BASE_URL + "#website"
 
 BRAND_MARK = (
-    '<svg class="brand-mark" viewBox="0 0 48 48" aria-hidden="true"><path d="M24 4v28M14 13h20'
-    "M11 24c0 12 5 18 13 20 8-2 13-8 13-20M6 27c4 2 7 2 10 0M32 27c3 2 6 2 10 0\"/></svg>"
+    '<svg class="brand-mark" viewBox="0 0 48 48" aria-hidden="true">'
+    '<path d="M38.5 13.5A17 17 0 1 0 41 24M41 9.5v6h-6M15 18.5h18v12H15zM21 18.5v12M27 18.5v12"/></svg>'
 )
 NAV = [
     ("docs/", "Docs"),
