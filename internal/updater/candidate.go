@@ -20,10 +20,12 @@ func processCandidates(
 	selfID string,
 	logger zerolog.Logger,
 ) error {
-	if err := settleActiveHelper(ctx, client, results, selfID, logger); err != nil {
+	settledHelper, err := settleActiveHelper(ctx, client, results, selfID, logger)
+	if err != nil {
 		return err
 	}
 	history := loadHelperHistory(ctx, cfg, client, selfID, logger)
+	markFinished(history, settledHelper)
 	selfIndex := -1
 	for index := range results {
 		if selfID != "" && results[index].Container.ID == selfID {

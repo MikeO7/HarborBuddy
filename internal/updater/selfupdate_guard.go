@@ -16,19 +16,29 @@ var helperClock = time.Now
 // helper that rolled back restarts the daemon moments before it exits, so the
 // daemon waits briefly for it; only a helper that keeps running is treated as a
 // handoff in progress, which requires this process to shut down.
-func settleActiveHelper(ctx context.Context, client docker.Client, results []ContainerResult, selfID string, logger zerolog.Logger) error {
+func settleActiveHelper(ctx context.Context, client docker.Client, results []ContainerResult, selfID string, logger zerolog.Logger) (string, error) {
 	helperID := activeSelfUpdateHelper(results, selfID)
 	if helperID == "" {
-		return nil
+		return "", nil
 	}
 	if !selfupdate.AwaitHelperExit(ctx, client, helperID) {
-		return &selfupdate.ShutdownRequiredError{TargetContainerID: selfID, HelperContainerID: helperID}
+		return "", &selfupdate.ShutdownRequiredError{TargetContainerID: selfID, HelperContainerID: helperID}
 	}
 	logger.Info().Str("event", "self_update_helper_finished").
 		Str("helper_container_id", shortID(helperID)).
 		Str("container_id", shortID(selfID)).
 		Msg("A self-update helper for this container finished without replacing it; continuing")
-	return nil
+	return helperID, nil
+}
+
+// markFinished records that a helper the daemon just watched exit has
+// finished, even if the engine still lists it in a transitional state.
+func markFinished(records []docker.SelfUpdateHelperRecord, helperID string) {
+	for index := range records {
+		if helperID != "" && records[index].ID == helperID {
+			records[index].Finished = true
+		}
+	}
 }
 
 func activeSelfUpdateHelper(results []ContainerResult, selfID string) string {

@@ -49,11 +49,25 @@ func (d *DockerClient) ListSelfUpdateHelpers(ctx context.Context) ([]SelfUpdateH
 			Name:              name,
 			TargetContainerID: current.Labels[SelfUpdateTargetLabel],
 			TargetImageID:     current.Labels[SelfUpdateImageLabel],
-			Finished:          current.State == containertypes.StateExited || current.State == containertypes.StateDead,
+			Finished:          helperFinished(current.State),
 			CreatedAt:         time.Unix(current.Created, 0),
 		})
 	}
 	return records, nil
+}
+
+// helperFinished reports whether a helper has run and stopped. Podman briefly
+// reports a helper that just exited as "stopped" before its cleanup, so any
+// state other than an active or never-started one counts as finished.
+func helperFinished(state containertypes.ContainerState) bool {
+	switch state {
+	case containertypes.StateRunning, containertypes.StateRestarting, containertypes.StatePaused, containertypes.StateCreated, "":
+		return false
+	case containertypes.StateExited, containertypes.StateDead, containertypes.StateRemoving:
+		return true
+	default:
+		return true
+	}
 }
 
 // RemoveSelfUpdateHelper removes a finished helper. It never forces removal,
