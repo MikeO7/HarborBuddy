@@ -81,3 +81,27 @@ func TestHelperRejectsInvalidLoggingEnvironment(t *testing.T) {
 		t.Fatalf("runHelper() error = %v", err)
 	}
 }
+
+func TestHelperFailureLogReportsDaemonRecovery(t *testing.T) {
+	for _, test := range []struct {
+		err  error
+		want string
+	}{
+		{err: &selfupdate.HandoffError{Err: errors.New("daemon never exited")}, want: `"recovery_outcome":"succeeded"`},
+		{err: &selfupdate.HandoffError{Err: errors.New("replace failed"), RecoveryErr: errors.New("start refused")}, want: `"recovery_outcome":"failed"`},
+		{err: errors.New("invalid request"), want: `"recovery_outcome":"not_attempted"`},
+	} {
+		var output bytes.Buffer
+		deps := testDependencies(nil)
+		deps.NewLogger = func(config.LogConfig, io.Writer) (zerolog.Logger, *logging.LevelController, func() error, error) {
+			return zerolog.New(&output), &logging.LevelController{}, func() error { return nil }, nil
+		}
+		deps.RunHelper = func(context.Context, docker.Client, selfupdate.UpdaterRequest) (docker.ReplaceResult, error) {
+			return docker.ReplaceResult{}, test.err
+		}
+		err := runHelper(context.Background(), &output, deps, &flagValues{targetContainer: "target", newImage: "image"})
+		if text := output.String(); err == nil || !strings.Contains(text, "self_update_helper_failed") || !strings.Contains(text, test.want) {
+			t.Fatalf("helper failure log = %q err %v, want %s", text, err, test.want)
+		}
+	}
+}

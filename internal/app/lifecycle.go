@@ -116,6 +116,7 @@ func runHelper(ctx context.Context, stdout io.Writer, deps Dependencies, values 
 			Str("failure_stage", result.FailureStage).
 			Bool("rollback_attempted", result.RollbackAttempted).
 			Str("rollback_outcome", rollbackOutcome(result)).
+			Str("recovery_outcome", selfupdate.RecoveryOutcome(helperErr)).
 			Int64("duration_ms", time.Since(started).Milliseconds()).Err(helperErr).
 			Msg("Self-update helper failed")
 		return fmt.Errorf("run self-update helper: %w", helperErr)

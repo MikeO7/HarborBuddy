@@ -9,6 +9,7 @@ import (
 	"github.com/MikeO7/HarborBuddy/internal/config"
 	"github.com/MikeO7/HarborBuddy/internal/docker"
 	"github.com/MikeO7/HarborBuddy/internal/selfupdate"
+	"github.com/rs/zerolog"
 )
 
 func processCandidates(
@@ -17,10 +18,14 @@ func processCandidates(
 	client docker.Client,
 	results []ContainerResult,
 	selfID string,
+	logger zerolog.Logger,
 ) error {
-	if helperID := activeSelfUpdateHelper(results, selfID); helperID != "" {
-		return &selfupdate.ShutdownRequiredError{TargetContainerID: selfID, HelperContainerID: helperID}
+	settledHelper, err := settleActiveHelper(ctx, client, results, selfID, logger)
+	if err != nil {
+		return err
 	}
+	history := loadHelperHistory(ctx, cfg, client, selfID, logger)
+	markFinished(history, settledHelper)
 	selfIndex := -1
 	for index := range results {
 		if selfID != "" && results[index].Container.ID == selfID {
@@ -29,21 +34,10 @@ func processCandidates(
 		}
 		_ = processCandidate(ctx, cfg, client, &results[index], false)
 	}
-	if selfIndex < 0 {
+	if selfIndex < 0 || skipSelfCandidate(cfg, &results[selfIndex], history, logger) {
 		return nil
 	}
 	return processCandidate(ctx, cfg, client, &results[selfIndex], true)
-}
-
-func activeSelfUpdateHelper(results []ContainerResult, selfID string) string {
-	if selfID == "" {
-		return ""
-	}
-	containers := make([]docker.ContainerSummary, len(results))
-	for index := range results {
-		containers[index] = results[index].Container
-	}
-	return docker.ActiveSelfUpdateHelper(containers, selfID)
 }
 
 func processCandidate(ctx context.Context, cfg config.Config, client docker.Client, result *ContainerResult, isSelf bool) error {
