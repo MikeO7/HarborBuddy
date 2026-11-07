@@ -87,8 +87,12 @@ func validateLog(cfg LogConfig) error {
 	if cfg.MaxSize <= 0 {
 		return errors.New("log.max_size must be positive")
 	}
-	if cfg.MaxBackups < 1 {
-		return errors.New("log.max_backups must be at least 1 (the rotation library treats 0 as keep every rotated file)")
+	if cfg.MaxBackups < 0 {
+		return errors.New("log.max_backups must not be negative")
+	}
+	// Only file logging rotates, so 0 is harmless without a log file.
+	if cfg.File != "" && cfg.MaxBackups < 1 {
+		return errors.New("log.max_backups must be at least 1 when log.file is set (the rotation library treats 0 as keep every rotated file)")
 	}
 	return nil
 }

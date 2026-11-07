@@ -205,7 +205,7 @@ volumes:
 
 YAML parsing is strict. Unknown fields and a second non-empty YAML document cause startup to fail; a trailing `---` is accepted. When `updates.schedule_time` is set, HarborBuddy uses that daily `HH:MM` time in `updates.timezone`; otherwise it uses `updates.check_interval`, which must be at least `1s`. Intervals below `1m` log a startup warning because every cycle pulls each eligible image and can hit registry rate limits. If a daylight-saving change skips the daily time, that day's run starts at the first instant after the gap; a repeated time runs once.
 
-`log.max_backups` must be at least `1`. The rotation library treats `0` as "keep every rotated file", so HarborBuddy rejects it rather than letting old logs grow without limit.
+When `log.file` is set, `log.max_backups` must be at least `1`. The rotation library treats `0` as "keep every rotated file", so HarborBuddy rejects it rather than letting old logs grow without limit.
 
 Set `updates.rollback_image_retention` to `N` to keep `N` prior images that completed a successful update, independently for each full registry/repository/tag reference. The default `0` performs no retention work. HarborBuddy uses deterministic local `localhost/harborbuddy-rollback/<sha256>:<slot>` tags, rotates them only after the replacement is ready, and treats retention errors as warnings. It never deliberately removes an overflow image referenced by any running or stopped container. Container-referenced images can therefore remain on disk beyond the configured slots.
 

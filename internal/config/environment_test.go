@@ -112,7 +112,8 @@ func TestValidateIntervalAndBackupLimits(t *testing.T) {
 		{name: "sub-second interval", edit: func(c *Config) { c.Updates.CheckInterval = 999 * time.Millisecond }, want: "at least 1s"},
 		{name: "one second interval", edit: func(c *Config) { c.Updates.CheckInterval = time.Second }},
 		{name: "daily schedule ignores interval", edit: func(c *Config) { c.Updates.CheckInterval = 0; c.Updates.ScheduleTime = "03:00" }},
-		{name: "zero backups", edit: func(c *Config) { c.Log.MaxBackups = 0 }, want: "log.max_backups must be at least 1"},
+		{name: "zero backups with file", edit: func(c *Config) { c.Log.File = "/logs/hb.log"; c.Log.MaxBackups = 0 }, want: "log.max_backups must be at least 1"},
+		{name: "zero backups without file", edit: func(c *Config) { c.Log.MaxBackups = 0 }},
 		{name: "one backup", edit: func(c *Config) { c.Log.MaxBackups = 1 }},
 	} {
 		t.Run(test.name, func(t *testing.T) {
