@@ -1,7 +1,7 @@
 services:
   harborbuddy:
     # HarborBuddy is pre-release; edge and latest currently both follow main.
-    image: ghcr.io/mikeo7/harborbuddy:edge
+    image: ghcr.io/mikeo7/harborbuddy:0.1
     container_name: harborbuddy
     restart: unless-stopped
     volumes:
