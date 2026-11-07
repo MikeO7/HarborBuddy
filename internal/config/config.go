@@ -14,6 +14,9 @@ import (
 
 const DefaultPath = "/config/harborbuddy.yml"
 
+// DefaultTimezone is the schedule timezone when neither configuration nor TZ names one.
+const DefaultTimezone = "UTC"
+
 type Config struct {
 	Docker  DockerConfig  `yaml:"docker"`
 	Updates UpdatesConfig `yaml:"updates"`
@@ -40,6 +43,9 @@ type UpdatesConfig struct {
 	StopTimeout            time.Duration `yaml:"stop_timeout"`
 	StartupTimeout         time.Duration `yaml:"startup_timeout"`
 	RollbackImageRetention int           `yaml:"rollback_image_retention"`
+
+	// timezoneConfigured records that the YAML file set timezone, so TZ stays a fallback.
+	timezoneConfigured bool
 }
 
 type CleanupConfig struct {
@@ -81,7 +87,7 @@ func Default() Config {
 		Updates: UpdatesConfig{
 			Enabled:        true,
 			CheckInterval:  12 * time.Hour,
-			Timezone:       "UTC",
+			Timezone:       DefaultTimezone,
 			SelfUpdate:     true,
 			AllowImages:    []string{"*"},
 			StopTimeout:    10 * time.Second,
@@ -114,28 +120,46 @@ func LoadFile(path string, required bool) (Config, error) {
 		return Config{}, fmt.Errorf("open config file %q: %w", path, err)
 	}
 
+	// An empty timezone after decoding means the file did not set one.
+	cfg.Updates.Timezone = ""
 	decoder := yaml.NewDecoder(bytes.NewReader(data))
 	decoder.KnownFields(true)
-	if err := decoder.Decode(&cfg); err != nil {
-		if errors.Is(err, io.EOF) {
-			return cfg, nil
-		}
+	if err := decoder.Decode(&cfg); err != nil && !errors.Is(err, io.EOF) {
 		return Config{}, fmt.Errorf("decode config file %q: %w", path, migrationHint(err))
 	}
 	if err := ensureSingleDocument(decoder); err != nil {
 		return Config{}, fmt.Errorf("decode config file %q: %w", path, err)
 	}
+	cfg.Updates.timezoneConfigured = cfg.Updates.Timezone != ""
+	if !cfg.Updates.timezoneConfigured {
+		cfg.Updates.Timezone = DefaultTimezone
+	}
 	return cfg, nil
 }
 
+// ensureSingleDocument rejects a second non-empty YAML document. Empty trailing documents,
+// such as a file that ends with "---", are accepted.
 func ensureSingleDocument(decoder *yaml.Decoder) error {
-	var extra any
-	if err := decoder.Decode(&extra); errors.Is(err, io.EOF) {
-		return nil
-	} else if err != nil {
-		return err
+	for {
+		var extra yaml.Node
+		if err := decoder.Decode(&extra); errors.Is(err, io.EOF) {
+			return nil
+		} else if err != nil {
+			return err
+		}
+		if !emptyDocument(extra) {
+			return errors.New("multiple YAML documents are not supported")
+		}
 	}
-	return errors.New("multiple YAML documents are not supported")
+}
+
+func emptyDocument(document yaml.Node) bool {
+	for _, child := range document.Content {
+		if child.Tag != "!!null" {
+			return false
+		}
+	}
+	return true
 }
 
 func migrationHint(err error) error {

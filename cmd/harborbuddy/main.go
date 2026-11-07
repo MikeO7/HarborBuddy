@@ -2,12 +2,14 @@ package main
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"os"
 	"os/signal"
 	"syscall"
 
 	"github.com/MikeO7/HarborBuddy/internal/app"
+	"github.com/spf13/pflag"
 )
 
 func main() {
@@ -20,7 +22,9 @@ func main() {
 		stop()
 	}()
 
-	if err := app.Run(ctx, os.Args[1:], os.Stdout, os.Stderr); err != nil {
+	err := app.Run(ctx, os.Args[1:], os.Stdout, os.Stderr)
+	// --help already printed usage; asking for help is not a failure.
+	if err != nil && !errors.Is(err, pflag.ErrHelp) {
 		fmt.Fprintln(os.Stderr, err)
 		os.Exit(1)
 	}
