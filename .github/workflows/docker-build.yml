@@ -261,6 +261,8 @@ jobs:
       - name: Create GitHub release after image publication
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          # This job has no checkout, so gh needs the repository named.
+          GH_REPO: ${{ github.repository }}
           VERSION: ${{ needs.publish.outputs.version }}
           STABLE: ${{ needs.publish.outputs.stable }}
         shell: bash
