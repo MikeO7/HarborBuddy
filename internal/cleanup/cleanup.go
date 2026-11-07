@@ -37,10 +37,19 @@ type resourceCleaner interface {
 }
 
 func RunCleanup(ctx context.Context, cfg config.Config, client docker.Client, logger zerolog.Logger) (Report, error) {
-	return runCleanupAt(ctx, cfg, client, logger, time.Now())
+	return RunCleanupWithOptions(ctx, cfg, client, logger, Options{})
 }
 
-func runCleanupAt(ctx context.Context, cfg config.Config, client docker.Client, logger zerolog.Logger, now time.Time) (report Report, returnErr error) {
+// RunCleanupWithOptions runs cleanup with facts the same cycle's update phase reported.
+func RunCleanupWithOptions(ctx context.Context, cfg config.Config, client docker.Client, logger zerolog.Logger, options Options) (Report, error) {
+	return runCleanupOptionsAt(ctx, cfg, client, logger, time.Now(), options)
+}
+
+func runCleanupAt(ctx context.Context, cfg config.Config, client docker.Client, logger zerolog.Logger, now time.Time) (Report, error) {
+	return runCleanupOptionsAt(ctx, cfg, client, logger, now, Options{})
+}
+
+func runCleanupOptionsAt(ctx context.Context, cfg config.Config, client docker.Client, logger zerolog.Logger, now time.Time, options Options) (report Report, returnErr error) {
 	started := time.Now()
 	defer func() {
 		report.Duration = time.Since(started)
@@ -64,7 +73,7 @@ func runCleanupAt(ctx context.Context, cfg config.Config, client docker.Client, 
 			return report, errors.Join(err, ctxErr)
 		}
 		var kindErr error
-		report, kindErr = cleanupResourceKind(ctx, cfg, cleaner, logger, now, kind, report)
+		report, kindErr = cleanupResourceKind(ctx, cfg, cleaner, logger, now, kind, report, options)
 		err = errors.Join(err, kindErr)
 	}
 	if ctxErr := ctx.Err(); ctxErr != nil {
@@ -98,8 +107,8 @@ func cleanupImages(ctx context.Context, cfg config.Config, client docker.Client,
 	for _, image := range images {
 		resources = append(resources, docker.CleanupResource{
 			Kind: docker.CleanupImage, ID: image.ID, Name: strings.Join(image.RepoTags, ","),
-			CreatedAt: image.CreatedAt, Size: image.Size, Dangling: image.Dangling,
-			Protected: image.Protected,
+			RepoDigests: image.RepoDigests, CreatedAt: image.CreatedAt, Size: image.Size,
+			Dangling: image.Dangling, InUse: image.InUse, Protected: image.Protected,
 		})
 	}
 	return removeResources(ctx, cfg, legacyImageCleaner{client}, logger, now, docker.CleanupImage, resources, Report{}), nil
@@ -119,11 +128,13 @@ func cleanupResourceKind(
 	now time.Time,
 	kind docker.CleanupResourceKind,
 	report Report,
+	options Options,
 ) (Report, error) {
 	resources, err := cleaner.ListCleanupResources(ctx, kind)
 	if err != nil {
 		return report, fmt.Errorf("list %s resources: %w", kind, err)
 	}
+	resources = options.protect(resources)
 	if kind != docker.CleanupBuildCache || cfg.Updates.DryRun {
 		return removeResources(ctx, cfg, cleaner, logger, now, kind, resources, report), nil
 	}
@@ -172,57 +183,6 @@ func removeResources(
 	return report
 }
 
-func pruneBuildCache(
-	ctx context.Context,
-	cfg config.Config,
-	cleaner resourceCleaner,
-	logger zerolog.Logger,
-	now time.Time,
-	resources []docker.CleanupResource,
-	report Report,
-) (Report, error) {
-	eligible := make(map[string]struct{})
-	start := len(report.Results)
-	report = removeResources(ctx, cfg, cleaner, logger, now, docker.CleanupBuildCache, resources, report)
-	for _, result := range report.Results[start:] {
-		if result.Eligible {
-			eligible[result.Resource.ID] = struct{}{}
-		}
-	}
-	if len(eligible) == 0 {
-		for index := start; index < len(report.Results); index++ {
-			logResult(logger, report.Results[index])
-		}
-		return report, nil
-	}
-	pruned, err := cleaner.PruneBuildCache(ctx, now.Add(-minAgeDuration(cfg.Cleanup.MinAgeHours)))
-	if err != nil {
-		for index := start; index < len(report.Results); index++ {
-			if report.Results[index].Eligible {
-				report.Results[index].Err = err
-				report.Results[index].Reason = ""
-			}
-			logResult(logger, report.Results[index])
-		}
-		return report, err
-	}
-	deleted := make(map[string]struct{}, len(pruned.Deleted))
-	for _, id := range pruned.Deleted {
-		deleted[id] = struct{}{}
-	}
-	for index := start; index < len(report.Results); index++ {
-		if _, ok := deleted[report.Results[index].Resource.ID]; ok {
-			report.Results[index].Removed = true
-			report.Results[index].Reason = ""
-		} else if report.Results[index].Eligible {
-			report.Results[index].Reason = "Docker prune retained the eligible cache record"
-		}
-		logResult(logger, report.Results[index])
-	}
-	report.ReclaimedBytes += pruned.ReclaimedBytes
-	return report, nil
-}
-
 func classify(resource docker.CleanupResource, cfg config.CleanupConfig, now time.Time) Result {
 	result := Result{Resource: resource}
 	referenceTime := resource.CreatedAt
@@ -234,6 +194,8 @@ func classify(resource docker.CleanupResource, cfg config.CleanupConfig, now tim
 		result.AgeHours = int64(now.Sub(referenceTime).Hours())
 	}
 	switch {
+	case resource.Protected && resource.ProtectedReason != "":
+		result.Reason = resource.ProtectedReason
 	case resource.Protected:
 		result.Reason = "resource is protected"
 	case resource.InUse:

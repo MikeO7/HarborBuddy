@@ -69,18 +69,22 @@ func (d *DockerClient) listCleanupImages(ctx context.Context) ([]CleanupResource
 	if err != nil {
 		return nil, fmt.Errorf("list images for cleanup: %w", err)
 	}
-	resources := make([]CleanupResource, 0, len(usage.Images.Items))
-	for _, image := range usage.Images.Items {
-		dangling := len(image.RepoTags) == 0 || (len(image.RepoTags) == 1 && image.RepoTags[0] == "<none>:<none>")
+	images, err := d.markImagesInUse(ctx, imageSummaries(usage.Images.Items, false), usage.Images.Items)
+	if err != nil {
+		return nil, fmt.Errorf("list images for cleanup: %w", err)
+	}
+	resources := make([]CleanupResource, 0, len(images))
+	for _, image := range images {
 		resources = append(resources, CleanupResource{
-			Kind:      CleanupImage,
-			ID:        image.ID,
-			Name:      strings.Join(image.RepoTags, ","),
-			CreatedAt: time.Unix(image.Created, 0),
-			Size:      nonNegative(image.Size),
-			Dangling:  dangling,
-			InUse:     image.Containers > 0,
-			Protected: hasRollbackImageTag(image.RepoTags),
+			Kind:        CleanupImage,
+			ID:          image.ID,
+			Name:        strings.Join(image.RepoTags, ","),
+			RepoDigests: image.RepoDigests,
+			CreatedAt:   image.CreatedAt,
+			Size:        nonNegative(image.Size),
+			Dangling:    image.Dangling,
+			InUse:       image.InUse,
+			Protected:   image.Protected,
 		})
 	}
 	return resources, nil
@@ -102,14 +106,18 @@ func (d *DockerClient) listCleanupContainers(ctx context.Context) ([]CleanupReso
 	}
 	resources := make([]CleanupResource, 0, len(listed.Items))
 	for _, container := range listed.Items {
-		resources = append(resources, CleanupResource{
+		resource := CleanupResource{
 			Kind:      CleanupContainer,
 			ID:        container.ID,
 			Name:      firstContainerName(container.Names),
 			CreatedAt: time.Unix(container.Created, 0),
 			Size:      nonNegative(container.SizeRw),
 			InUse:     !removableContainerState(container.State),
-		})
+		}
+		if isBackupContainerName(resource.Name) {
+			resource.Protected, resource.ProtectedReason = true, "container is a HarborBuddy update backup"
+		}
+		resources = append(resources, resource)
 	}
 	return resources, nil
 }
@@ -119,11 +127,17 @@ func (d *DockerClient) listCleanupNetworks(ctx context.Context) ([]CleanupResour
 	if err != nil {
 		return nil, fmt.Errorf("list networks for cleanup: %w", err)
 	}
+	// Network inspection lists only running containers, so a network that only
+	// stopped containers use would otherwise look unused.
+	usage, err := d.listContainerUsage(ctx)
+	if err != nil {
+		return nil, fmt.Errorf("list networks for cleanup: %w", err)
+	}
 	resources := make([]CleanupResource, 0, len(listed.Items))
 	for _, network := range listed.Items {
 		protected := network.Scope != "local" || network.Ingress || network.ConfigOnly || isDefaultNetwork(network.Name)
 		inUse := true
-		if !protected {
+		if !protected && !usage.usesNetwork(network.ID, network.Name) {
 			inspected, inspectErr := d.cli.NetworkInspect(ctx, network.ID, client.NetworkInspectOptions{})
 			if inspectErr != nil {
 				return nil, fmt.Errorf("inspect network %s for cleanup: %w", network.Name, inspectErr)

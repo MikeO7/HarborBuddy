@@ -25,8 +25,8 @@ func Run(ctx context.Context, cfg config.Config, client docker.Client, logger ze
 
 type scheduler struct {
 	clock      clock
-	runUpdate  func(context.Context, config.Config, docker.Client, zerolog.Logger) error
-	runCleanup func(context.Context, config.Config, docker.Client, zerolog.Logger) error
+	runUpdate  func(context.Context, config.Config, docker.Client, zerolog.Logger) (updater.Report, error)
+	runCleanup func(context.Context, config.Config, docker.Client, zerolog.Logger, cleanup.Options) error
 	cycleID    func(time.Time) string
 }
 
@@ -34,13 +34,10 @@ var randomRead = rand.Read
 
 func newScheduler(clock clock) *scheduler {
 	return &scheduler{
-		clock: clock,
-		runUpdate: func(ctx context.Context, cfg config.Config, client docker.Client, logger zerolog.Logger) error {
-			_, err := updater.RunUpdateCycle(ctx, cfg, client, logger)
-			return err
-		},
-		runCleanup: func(ctx context.Context, cfg config.Config, client docker.Client, logger zerolog.Logger) error {
-			_, err := cleanup.RunCleanup(ctx, cfg, client, logger)
+		clock:     clock,
+		runUpdate: updater.RunUpdateCycle,
+		runCleanup: func(ctx context.Context, cfg config.Config, client docker.Client, logger zerolog.Logger, options cleanup.Options) error {
+			_, err := cleanup.RunCleanupWithOptions(ctx, cfg, client, logger, options)
 			return err
 		},
 		cycleID: generateCycleID,
@@ -135,9 +132,12 @@ func (s *scheduler) runCycle(ctx context.Context, cfg config.Config, client dock
 		Msg("Cycle started")
 
 	var cycleErrors []error
+	var cleanupOptions cleanup.Options
 	if cfg.Updates.Enabled {
 		updateLogger := cycleLogger.With().Str("operation", "update").Logger()
-		if err := s.runUpdate(ctx, cfg, client, updateLogger); err != nil {
+		report, err := s.runUpdate(ctx, cfg, client, updateLogger)
+		cleanupOptions = cleanupOptionsFrom(report)
+		if err != nil {
 			if signal, ok := selfupdate.AsShutdownRequired(err); ok {
 				cycleLogger.Info().Str("event", "cycle_complete").Str("outcome", "self_update_handoff").
 					Str("target_container_id", shortID(signal.TargetContainerID)).Str("helper_container_id", shortID(signal.HelperContainerID)).
@@ -152,7 +152,7 @@ func (s *scheduler) runCycle(ctx context.Context, cfg config.Config, client dock
 
 	if cfg.Cleanup.Enabled {
 		cleanupLogger := cycleLogger.With().Str("operation", "cleanup").Logger()
-		if err := s.runCleanup(ctx, cfg, client, cleanupLogger); err != nil {
+		if err := s.runCleanup(ctx, cfg, client, cleanupLogger, cleanupOptions); err != nil {
 			cycleErrors = append(cycleErrors, fmt.Errorf("cleanup cycle: %w", err))
 		}
 	} else {
@@ -178,7 +178,7 @@ func (s *scheduler) runCleanupOnly(ctx context.Context, cfg config.Config, clien
 	cycleLogger := logger.With().Str("cycle_id", s.cycleID(s.clock.Now())).Str("operation", "cleanup").Logger()
 	cycleLogger.Info().Str("event", "cycle_started").Str("mode", "cleanup_only").Bool("dry_run", cfg.Updates.DryRun).
 		Bool("cleanup_all", cfg.Cleanup.All).Int("cleanup_min_age_hours", cfg.Cleanup.MinAgeHours).Msg("Cleanup-only cycle started")
-	err := s.runCleanup(ctx, cfg, client, cycleLogger)
+	err := s.runCleanup(ctx, cfg, client, cycleLogger, cleanup.Options{})
 	event := cycleLogger.Info()
 	outcome := "completed"
 	if err != nil {
@@ -188,6 +188,19 @@ func (s *scheduler) runCleanupOnly(ctx context.Context, cfg config.Config, clien
 	event.Str("event", "cycle_complete").Str("mode", "cleanup_only").Str("outcome", outcome).
 		Int64("duration_ms", time.Since(started).Milliseconds()).Msg("Cleanup-only cycle complete")
 	return err
+}
+
+// cleanupOptionsFrom keeps containers whose update failed or was rolled back
+// this cycle away from stopped-container cleanup: a failed rollback can leave
+// the user's original container stopped.
+func cleanupOptionsFrom(report updater.Report) cleanup.Options {
+	var options cleanup.Options
+	for _, result := range report.Results {
+		if result.Status == updater.StatusFailed || result.RollbackTried {
+			options.ProtectedContainerIDs = append(options.ProtectedContainerIDs, result.Container.ID)
+		}
+	}
+	return options
 }
 
 func shortID(id string) string {

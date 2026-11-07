@@ -8,6 +8,7 @@ import (
 	"testing"
 	"time"
 
+	"github.com/MikeO7/HarborBuddy/internal/cleanup"
 	"github.com/MikeO7/HarborBuddy/internal/config"
 	"github.com/MikeO7/HarborBuddy/internal/docker"
 	"github.com/rs/zerolog"
@@ -16,7 +17,7 @@ import (
 func TestCleanupOnlyFailureKeepsCycleCorrelation(t *testing.T) {
 	s := newScheduler(fixedClock{now: time.Now()})
 	s.cycleID = func(time.Time) string { return "cycle-123" }
-	s.runCleanup = func(context.Context, config.Config, docker.Client, zerolog.Logger) error {
+	s.runCleanup = func(context.Context, config.Config, docker.Client, zerolog.Logger, cleanup.Options) error {
 		return errors.New("cleanup failed")
 	}
 	var output bytes.Buffer

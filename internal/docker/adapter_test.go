@@ -147,6 +147,9 @@ func TestImageAdapterOperationsAndSummaries(t *testing.T) {
 	transport.register("DELETE", "/v1.41/images/sha256:tagged", func(*http.Request) (*http.Response, error) {
 		return jsonResponse(http.StatusOK, []imagetypes.DeleteResponse{{Deleted: "sha256:tagged"}})
 	})
+	transport.register("GET", "/v1.41/containers/json", func(*http.Request) (*http.Response, error) {
+		return jsonResponse(http.StatusOK, []containertypes.Summary{})
+	})
 	client := testDockerClient(t, transport)
 	info, err := client.PullImage(context.Background(), "app:latest")
 	if err != nil {

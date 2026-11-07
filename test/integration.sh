@@ -428,6 +428,10 @@ if ! output="$(docker run --rm \
 fi
 printf '%s\n' "$output"
 grep -Eq '"result":"failed"|Container update failed|did not become ready' <<< "$output" || fail "readiness failure was not reported"
+# The rolled-back container still runs the image the pull just untagged, so
+# cleanup must skip that dangling image as in use rather than fail on it.
+! grep -q 'Cleanup resource failed' <<< "$output" || fail "cleanup tried to remove an image that a container still uses"
+docker image inspect "$HEALTHY_IMAGE_ID" >/dev/null || fail "cleanup removed the image of the rolled-back container"
 
 ROLLED_BACK_CONTAINER_ID="$(docker inspect "$TARGET_NAME" --format '{{.Id}}')"
 ROLLED_BACK_IMAGE_ID="$(docker inspect "$TARGET_NAME" --format '{{.Image}}')"
