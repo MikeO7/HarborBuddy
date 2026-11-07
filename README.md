@@ -86,6 +86,8 @@ docker compose logs -f harborbuddy
 
 The example runs every day at 03:00 UTC in dry-run mode. Review the logs and set your allow/deny filters before removing `HARBORBUDDY_DRY_RUN`. Remove `HARBORBUDDY_SCHEDULE_TIME` to use the default 12-hour interval instead.
 
+In daily mode no cycle runs at startup, so until the first scheduled time the logs show only startup and the next run time; interval mode runs its first cycle immediately.
+
 For a fuller starting point, see [examples/docker-compose.yml](examples/docker-compose.yml) and [examples/harborbuddy.yml](examples/harborbuddy.yml).
 
 ### Try a dry run first
@@ -98,6 +100,8 @@ docker run --rm \
   ghcr.io/mikeo7/harborbuddy:edge \
   --once --dry-run
 ```
+
+One-shot runs (`--once`, `--cleanup-only`) do not write the health file, so the image's health check reports them unhealthy once its 30-second start period passes. Add `--no-healthcheck` to `docker run`, or `healthcheck: { disable: true }` in Compose, for one-shot containers.
 
 Or add this to the Compose environment:
 
@@ -199,22 +203,26 @@ volumes:
   - ./harborbuddy.yml:/config/harborbuddy.yml:ro
 ```
 
-YAML parsing is strict. Unknown fields and multiple YAML documents cause startup to fail. When `updates.schedule_time` is set, HarborBuddy uses that daily `HH:MM` time in `updates.timezone`; otherwise it uses `updates.check_interval`.
+YAML parsing is strict. Unknown fields and a second non-empty YAML document cause startup to fail; a trailing `---` is accepted. When `updates.schedule_time` is set, HarborBuddy uses that daily `HH:MM` time in `updates.timezone`; otherwise it uses `updates.check_interval`, which must be at least `1s`. Intervals below `1m` log a startup warning because every cycle pulls each eligible image and can hit registry rate limits. If a daylight-saving change skips the daily time, that day's run starts at the first instant after the gap; a repeated time runs once.
+
+When `log.file` is set, `log.max_backups` must be at least `1`. The rotation library treats `0` as "keep every rotated file", so HarborBuddy rejects it rather than letting old logs grow without limit.
 
 Set `updates.rollback_image_retention` to `N` to keep `N` prior images that completed a successful update, independently for each full registry/repository/tag reference. The default `0` performs no retention work. HarborBuddy uses deterministic local `localhost/harborbuddy-rollback/<sha256>:<slot>` tags, rotates them only after the replacement is ready, and treats retention errors as warnings. It never deliberately removes an overflow image referenced by any running or stopped container. Container-referenced images can therefore remain on disk beyond the configured slots.
 
 ### Environment variables
 
-Environment variables override YAML settings.
+Command-line flags override environment variables, and `HARBORBUDDY_*` environment variables override YAML settings. `TZ` is the exception: it is only a fallback, used when neither `updates.timezone` nor `HARBORBUDDY_TIMEZONE` is set, so the schedule timezone comes from `--timezone`, then `HARBORBUDDY_TIMEZONE`, then `updates.timezone`, then `TZ`, then `UTC`.
+
+Boolean variables accept `true`/`false`, `yes`/`no`, `on`/`off`, or `1`/`0`, in any case, like YAML. `HARBORBUDDY_LOG_LEVEL` is case-insensitive. HarborBuddy logs a startup warning for any `HARBORBUDDY_*` variable it does not recognize, with a suggestion for common mistakes such as `HARBORBUDDY_SELF_UPDATE` or `HARBORBUDDY_CHECK_INTERVAL`.
 
 | Variable | Default | What it controls |
 | --- | --- | --- |
 | `HARBORBUDDY_CONFIG` | `/config/harborbuddy.yml` | Configuration file path |
 | `HARBORBUDDY_DOCKER_HOST` | empty | Explicit Docker endpoint; overrides `DOCKER_HOST` |
-| `HARBORBUDDY_INTERVAL` | `12h` | Update interval |
+| `HARBORBUDDY_INTERVAL` | `12h` | Update interval; at least `1s` |
 | `HARBORBUDDY_SCHEDULE_TIME` | empty | Daily run time in `HH:MM` |
-| `HARBORBUDDY_TIMEZONE` | `UTC` | IANA timezone; takes precedence over `TZ` |
-| `TZ` | empty | Standard timezone fallback |
+| `HARBORBUDDY_TIMEZONE` | `UTC` | IANA timezone; overrides `updates.timezone` and `TZ` |
+| `TZ` | empty | Timezone fallback, used only when `updates.timezone` and `HARBORBUDDY_TIMEZONE` are unset |
 | `HARBORBUDDY_DRY_RUN` | `false` | Pull and report without replacement or cleanup deletion |
 | `HARBORBUDDY_UPDATES_ENABLED` | `true` | Enable update checks |
 | `HARBORBUDDY_SELF_UPDATE_ENABLED` | `true` | Let HarborBuddy update its own container |
@@ -241,7 +249,7 @@ Environment variables override YAML settings.
 | `HARBORBUDDY_LOG_JSON` | `false` | Write JSON logs |
 | `HARBORBUDDY_LOG_FILE` | empty | Optional rotating log path; stdout stays enabled |
 | `HARBORBUDDY_LOG_MAX_SIZE` | `10` | Rotation size in MiB |
-| `HARBORBUDDY_LOG_MAX_BACKUPS` | `1` | Number of rotated files to keep |
+| `HARBORBUDDY_LOG_MAX_BACKUPS` | `1` | Number of rotated files to keep; at least `1` |
 | `HARBORBUDDY_HEALTH_FILE` | `/tmp/harborbuddy-health.json` | Status file shared by the daemon and `--healthcheck` |
 
 Invalid environment values and invalid configured schedules are rejected at startup instead of silently falling back.
@@ -317,7 +325,7 @@ System networks, running containers, attached networks, referenced volumes, acti
 
 ## Logs and CLI
 
-Logs go to standard output. Set `HARBORBUDDY_LOG_JSON=true` for JSON or `HARBORBUDDY_LOG_FILE` for an additional rotating file. Update records include container, image, transaction, failure, and rollback fields; scheduled work shares a `cycle_id`. Send `SIGUSR1` to switch temporarily to debug logging, then send it again to restore the configured level.
+Logs go to standard output. Set `HARBORBUDDY_LOG_JSON=true` for JSON or `HARBORBUDDY_LOG_FILE` for an additional rotating file. Update records include container, image, transaction, failure, and rollback fields; scheduled work shares a `cycle_id`. Send `SIGUSR1` to switch temporarily to debug logging, then send it again to restore the configured level. Text logs carry RFC 3339 timestamps with the date, and use color only when standard output is a terminal and `NO_COLOR` is unset or empty.
 
 ```text
 --config PATH          configuration file
@@ -334,9 +342,9 @@ Logs go to standard output. Set `HARBORBUDDY_LOG_JSON=true` for JSON or `HARBORB
 
 ### Container health check
 
-The image defines a Docker `HEALTHCHECK` that runs `/harborbuddy --healthcheck`. A long-running daemon pings Docker every 15 seconds and writes the result to `HARBORBUDDY_HEALTH_FILE`. The check fails when the last successful ping is more than 60 seconds old or when an update cycle has run for more than two hours, so Docker, and any tool that watches container health, sees a daemon that lost Docker or got stuck. `--once` and `--cleanup-only` runs do not write the file. With a read-only root filesystem, mount a tmpfs at `/tmp` or point `HARBORBUDDY_HEALTH_FILE` at a writable path. Self-update helpers run with the health check disabled.
+The image defines a Docker `HEALTHCHECK` that runs `/harborbuddy --healthcheck`. A long-running daemon pings Docker every 15 seconds and writes the result to `HARBORBUDDY_HEALTH_FILE`. The check fails when the last successful ping is more than 60 seconds old or when an update cycle has run for more than two hours, so Docker, and any tool that watches container health, sees a daemon that lost Docker or got stuck. The two-hour cycle limit is fixed; it matters only when a single cycle legitimately runs that long, such as many large pulls over a slow link or long startup timeouts across many containers, and the container then reports unhealthy until the cycle ends. `--once` and `--cleanup-only` runs do not write the file, so disable the health check for one-shot containers (`docker run --no-healthcheck`, or `healthcheck: { disable: true }` in Compose). With a read-only root filesystem, mount a tmpfs at `/tmp` or point `HARBORBUDDY_HEALTH_FILE` at a writable path. Self-update helpers run with the health check disabled.
 
-## Development)
+## Development
 
 HarborBuddy is written in Go. To run the full local verification suite:
 

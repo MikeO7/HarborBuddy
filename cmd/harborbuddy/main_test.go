@@ -14,6 +14,23 @@ func TestMainVersion(t *testing.T) {
 	main()
 }
 
+func TestMainHelpExitsSuccessfully(t *testing.T) {
+	if os.Getenv("HARBORBUDDY_MAIN_HELP") == "1" {
+		os.Args = []string{"harborbuddy", "--help"}
+		main()
+		return
+	}
+	command := exec.Command(os.Args[0], "-test.run=^TestMainHelpExitsSuccessfully$") //nolint:gosec // Re-executes the trusted current test binary.
+	command.Env = append(os.Environ(), "HARBORBUDDY_MAIN_HELP=1")
+	output, err := command.CombinedOutput()
+	if err != nil {
+		t.Fatalf("--help subprocess failed: %v; output=%q", err, output)
+	}
+	if text := string(output); !strings.Contains(text, "--config") || strings.Contains(text, "help requested") {
+		t.Fatalf("--help output = %q", text)
+	}
+}
+
 func TestMainReportsApplicationError(t *testing.T) {
 	if os.Getenv("HARBORBUDDY_MAIN_ERROR") == "1" {
 		os.Args = []string{"harborbuddy", "--config", "/definitely/missing/harborbuddy.yml"}
