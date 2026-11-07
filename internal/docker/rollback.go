@@ -15,7 +15,9 @@ import (
 func (d *DockerClient) disconnectNetworks(ctx context.Context, current ContainerDetails) ([]string, error) {
 	names := make([]string, 0, len(current.Networks))
 	for name := range current.Networks {
-		names = append(names, name)
+		if detachableNetwork(name) {
+			names = append(names, name)
+		}
 	}
 	sort.Strings(names)
 
@@ -27,6 +29,18 @@ func (d *DockerClient) disconnectNetworks(ctx context.Context, current Container
 		disconnected = append(disconnected, name)
 	}
 	return disconnected, nil
+}
+
+// detachableNetwork reports whether an endpoint holds addresses the
+// replacement may need. Host, none, and Podman's rootless pasta and
+// slirp4netns modes hold none, and Podman refuses to disconnect them.
+func detachableNetwork(name string) bool {
+	switch name {
+	case "host", "none", "pasta", "slirp4netns":
+		return false
+	default:
+		return true
+	}
 }
 
 func (d *DockerClient) suppressRestartPolicy(ctx context.Context, current ContainerDetails) (bool, error) {
