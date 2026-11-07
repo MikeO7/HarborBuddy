@@ -63,6 +63,7 @@ OPT_OUT_NEW_IMAGE_ID=""
 SELFUPDATE_REF=""
 OLD_SELF_IMAGE_ID=""
 NEW_SELF_IMAGE_ID=""
+BROKEN_SELF_IMAGE_ID=""
 
 log() {
     printf '[integration] %s\n' "$*"
@@ -89,6 +90,11 @@ cleanup() {
     set +e
 
     docker rm -f "$DAEMON_NAME" "$OPT_OUT_NAME" "$TARGET_NAME" "$REGISTRY_NAME" >/dev/null 2>&1
+    # Self-update helpers are kept after they exit so their logs stay readable.
+    local leftover
+    while IFS= read -r leftover; do
+        [[ -n "$leftover" ]] && docker rm -f "$leftover" >/dev/null 2>&1
+    done < <(docker ps -a --format '{{.Names}}' 2>/dev/null | grep "^${DAEMON_NAME}-harborbuddy-")
 
     if [[ -n "$FIXTURE_REF" ]]; then
         docker image rm -f "$FIXTURE_REF" >/dev/null 2>&1
@@ -116,6 +122,9 @@ cleanup() {
     fi
     if [[ -n "$OLD_SELF_IMAGE_ID" ]]; then
         docker image rm -f "$OLD_SELF_IMAGE_ID" >/dev/null 2>&1
+    fi
+    if [[ -n "$BROKEN_SELF_IMAGE_ID" ]]; then
+        docker image rm -f "$BROKEN_SELF_IMAGE_ID" >/dev/null 2>&1
     fi
     if [[ -n "$NEW_SELF_IMAGE_ID" ]]; then
         docker image rm -f "$NEW_SELF_IMAGE_ID" >/dev/null 2>&1
@@ -478,6 +487,7 @@ docker run -d "${CONTAINER_SECURITY_ARGS[@]}" \
     --restart unless-stopped \
     --label "$TEST_LABEL" \
     --env "HARBORBUDDY_CONTAINER_NAME=$DAEMON_NAME" \
+    --env HARBORBUDDY_LOG_JSON=true \
     --volume "$DOCKER_SOCKET:/var/run/docker.sock" \
     --volume "$TMP_DIR/self-update.yml:/config/harborbuddy.yml:$BIND_READ_ONLY" \
     "$SELFUPDATE_REF" >/dev/null
@@ -522,15 +532,79 @@ fi
 RESTART_POLICY="$(docker inspect "$DAEMON_NAME" --format '{{.HostConfig.RestartPolicy.Name}}')"
 [[ "$RESTART_POLICY" == "unless-stopped" ]] || fail "self-update did not preserve restart policy: $RESTART_POLICY"
 
-helper_cleaned=false
-for _ in {1..30}; do
-    leftovers="$(docker ps -a --format '{{.Names}}' | grep "^${DAEMON_NAME}-harborbuddy-" || true)"
-    if [[ -z "$leftovers" ]]; then
-        helper_cleaned=true
+helper_kept=false
+backups=""
+helper_state=""
+for _ in {1..60}; do
+    backups="$(docker ps -a --format '{{.Names}}' | grep "^${DAEMON_NAME}-harborbuddy-backup-" || true)"
+    helper_ids="$(docker ps -aq --filter "label=com.harborbuddy.self-update-target=$OLD_DAEMON_ID")"
+    helper_state=""
+    if [[ -n "$helper_ids" ]]; then
+        helper_state="$(docker inspect "$helper_ids" --format '{{.State.Status}} {{.State.ExitCode}}' 2>/dev/null || true)"
+    fi
+    if [[ -z "$backups" && "$helper_state" == "exited 0" ]]; then
+        helper_kept=true
         break
     fi
     sleep 0.25
 done
-[[ "$helper_cleaned" == true ]] || fail "self-update left helper or backup containers behind: $leftovers"
+[[ "$helper_kept" == true ]] || fail "self-update left a backup or did not keep its finished helper: backups=$backups helper=$helper_state"
 
-log "passed: image smoke, dry-run non-mutation, healthy replacement, readiness rollback, and automatic self-update"
+log "verifying a broken self-update image rolls back once and is not retried"
+UPDATED_DAEMON_ID="$CURRENT_DAEMON_ID"
+mkdir -p "$TMP_DIR/broken-self"
+# The helper runs from the new image, so it must work; only the replacement
+# daemon's healthcheck fails, which forces a readiness rollback.
+printf '%s\n' \
+    "FROM $SELFUPDATE_NEW_IMAGE" \
+    'LABEL com.harborbuddy.integration=true' \
+    'HEALTHCHECK --interval=1s --timeout=1s --retries=1 CMD ["/harborbuddy", "--not-a-healthcheck"]' \
+    > "$TMP_DIR/broken-self/Dockerfile"
+docker build \
+    "${FIXTURE_BUILD_ARGS[@]}" \
+    --tag "$SELFUPDATE_REF" \
+    "$TMP_DIR/broken-self" >/dev/null
+docker push "$SELFUPDATE_REF" >/dev/null
+BROKEN_SELF_IMAGE_ID="$(docker image inspect "$SELFUPDATE_REF" --format '{{.Id}}')"
+[[ "$BROKEN_SELF_IMAGE_ID" != "$NEW_SELF_IMAGE_ID" ]] || fail "broken self-update fixture did not produce a new image"
+# The running image stays tagged as $SELFUPDATE_NEW_IMAGE, so the mutable tag
+# can move back without pinning; the daemon must pull the broken revision.
+docker image tag "$NEW_SELF_IMAGE_ID" "$SELFUPDATE_REF"
+[[ "$(docker image inspect "$SELFUPDATE_REF" --format '{{.Id}}')" == "$NEW_SELF_IMAGE_ID" ]] || fail "could not restore $SELFUPDATE_REF before the broken self-update"
+
+self_update_blocked=false
+for _ in {1..240}; do
+    daemon_logs="$(docker logs "$DAEMON_NAME" 2>&1 || true)"
+    if grep -q '"event":"self_update_blocked"' <<< "$daemon_logs"; then
+        self_update_blocked=true
+        break
+    fi
+    sleep 0.5
+done
+if [[ "$self_update_blocked" != true ]]; then
+    docker ps -a >&2 || true
+    docker logs "$DAEMON_NAME" >&2 || true
+    for helper in $(docker ps -aq --filter "label=com.harborbuddy.self-update-target=$UPDATED_DAEMON_ID"); do
+        docker logs "$helper" >&2 || true
+    done
+    fail "daemon did not block a retry of the failed self-update image"
+fi
+
+[[ "$(docker inspect "$DAEMON_NAME" --format '{{.Id}}')" == "$UPDATED_DAEMON_ID" ]] || fail "broken self-update replaced the daemon"
+[[ "$(docker inspect "$DAEMON_NAME" --format '{{.Image}}')" == "$NEW_SELF_IMAGE_ID" ]] || fail "daemon is not running its previous image after rollback"
+[[ "$(docker inspect "$DAEMON_NAME" --format '{{.State.Running}}')" == true ]] || fail "daemon is not running after rollback"
+RESTART_POLICY="$(docker inspect "$DAEMON_NAME" --format '{{.HostConfig.RestartPolicy.Name}}')"
+[[ "$RESTART_POLICY" == "unless-stopped" ]] || fail "rollback did not restore the daemon restart policy: $RESTART_POLICY"
+
+# Several more 5s cycles must not start another helper for the same image.
+sleep 12
+failed_helpers="$(docker ps -aq --filter "label=com.harborbuddy.self-update-target=$UPDATED_DAEMON_ID")"
+failed_helper_count="$(grep -c . <<< "$failed_helpers" || true)"
+[[ "$failed_helper_count" == 1 ]] || fail "daemon retried the failed self-update image: $failed_helper_count helpers"
+FAILED_HELPER_EXIT="$(docker inspect "$failed_helpers" --format '{{.State.Status}} {{.State.ExitCode}}')"
+[[ "$FAILED_HELPER_EXIT" == "exited 1" ]] || fail "failed helper was not kept with a failure exit code: $FAILED_HELPER_EXIT"
+helper_logs="$(docker logs "$failed_helpers" 2>&1 || true)"
+grep -q '"recovery_outcome":"succeeded"' <<< "$helper_logs" || fail "failed helper did not report daemon recovery"
+[[ "$(docker inspect "$DAEMON_NAME" --format '{{.Id}}')" == "$UPDATED_DAEMON_ID" ]] || fail "daemon changed after blocking the failed image"
+
+log "passed: image smoke, dry-run non-mutation, healthy replacement, readiness rollback, automatic self-update, and failed self-update rollback"

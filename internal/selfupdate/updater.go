@@ -13,7 +13,7 @@ import (
 const helperExitTimeout = 5 * time.Minute
 
 // HelperStarter is implemented by Docker clients that can launch the
-// short-lived, auto-removed self-update helper.
+// short-lived self-update helper.
 type HelperStarter interface {
 	StartSelfUpdateHelper(context.Context, docker.ContainerDetails, docker.SelfUpdateHelperRequest) (string, error)
 }
@@ -96,11 +96,24 @@ func Trigger(ctx context.Context, client HelperStarter, current docker.Container
 
 // RunUpdater is the entry point for helper mode. It waits for the original
 // HarborBuddy process to exit, re-inspects the target, and delegates replacement
-// to the same transactional path used for ordinary containers.
+// to the same transactional path used for ordinary containers. Every failure is
+// followed by a bounded recovery that restores the daemon's original restart
+// policy and starts it again, because the daemon disabled that policy before it
+// exited and would otherwise stay stopped.
 func RunUpdater(ctx context.Context, client docker.Client, request UpdaterRequest) (docker.ReplaceResult, error) {
 	if request.TargetContainerID == "" || request.TargetImageID == "" {
 		return docker.ReplaceResult{}, errors.New("self-update helper requires target container and image IDs")
 	}
+	result, err := replaceTarget(ctx, client, request)
+	if err != nil {
+		return result, &HandoffError{Err: err, RecoveryErr: recoverTarget(ctx, client, request)}
+	}
+	// Backup cleanup failures are warnings for ordinary updates and remain
+	// non-fatal here so a healthy replacement is not reported as failed.
+	return result, nil
+}
+
+func replaceTarget(ctx context.Context, client docker.Client, request UpdaterRequest) (docker.ReplaceResult, error) {
 	waiter, ok := client.(ContainerExitWaiter)
 	if !ok {
 		return docker.ReplaceResult{}, fmt.Errorf("docker client %T cannot wait for the target container to exit", client)
@@ -130,7 +143,5 @@ func RunUpdater(ctx context.Context, client docker.Client, request UpdaterReques
 	if err != nil {
 		return result, fmt.Errorf("transactionally replace HarborBuddy container: %w", err)
 	}
-	// Backup cleanup failures are warnings for ordinary updates and remain
-	// non-fatal here so a healthy replacement is not reported as failed.
 	return result, nil
 }

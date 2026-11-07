@@ -83,7 +83,7 @@ export const test = base.extend<{ docker: Fixture }>({
       if (path === "/networks" && r.method === "GET") return reply(f.networks);
       if (path === "/build/prune") return reply({ CachesDeleted: f.caches.filter(c => !c.InUse).map(c => c.ID), SpaceReclaimed: 100 });
       if (path === "/containers/create") {
-        const helper = r.body.HostConfig.AutoRemove;
+        const helper = r.body.Labels?.["com.harborbuddy.self-update-helper"] === "true";
         const id = helper ? "c".repeat(64) : newID;
         const c = container(id, r.query.get("name")!, f.createdImage ?? f.targetImage);
         c.Config = { ...r.body }; delete c.Config.HostConfig; delete c.Config.NetworkingConfig;

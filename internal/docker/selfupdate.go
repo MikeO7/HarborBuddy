@@ -16,10 +16,13 @@ const (
 	selfUpdateBinary            = "/harborbuddy"
 	SelfUpdateHelperLabel       = "com.harborbuddy.self-update-helper"
 	SelfUpdateTargetLabel       = "com.harborbuddy.self-update-target"
+	SelfUpdateImageLabel        = "com.harborbuddy.self-update-image"
 	SelfUpdateHelperReadyMarker = "HARBORBUDDY_SELF_UPDATE_HELPER_READY"
 )
 
 // ActiveSelfUpdateHelper returns the running helper responsible for targetID.
+// Callers pass the running-container listing, so finished helpers that are
+// kept for their logs are never mistaken for an in-progress handoff.
 func ActiveSelfUpdateHelper(containers []ContainerSummary, targetID string) string {
 	for _, current := range containers {
 		if current.Labels[SelfUpdateHelperLabel] == "true" && current.Labels[SelfUpdateTargetLabel] == targetID {
@@ -41,9 +44,10 @@ type SelfUpdateHelperRequest struct {
 	RollbackImageRetention int
 }
 
-// StartSelfUpdateHelper creates and starts an auto-removed helper from the
-// already-pulled target image. It intentionally copies only Docker connection
-// state from the current HarborBuddy container.
+// StartSelfUpdateHelper creates and starts a helper from the already-pulled
+// target image. It intentionally copies only Docker connection and security
+// state from the current HarborBuddy container. The helper is kept after it
+// exits so its logs remain available; the daemon prunes finished helpers.
 func (d *DockerClient) StartSelfUpdateHelper(ctx context.Context, current ContainerDetails, request SelfUpdateHelperRequest) (string, error) {
 	containerConfig, hostConfig, networkConfig, err := selfUpdateHelperConfig(current, request)
 	if err != nil {

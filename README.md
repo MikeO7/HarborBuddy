@@ -276,6 +276,12 @@ The current schema no longer accepts `docker.tls`, `updates.update_all`, or the 
 
 Self-update is enabled by default. HarborBuddy cannot replace its own running container directly, so it starts a short-lived helper from the new image and then exits cleanly. The helper performs the same replacement and readiness process, keeping the old HarborBuddy container as a backup until the new one starts successfully.
 
+The helper gets only what it needs to reach Docker with the daemon's privileges: the Docker socket and certificate mounts, the Docker connection and logging variables, and the daemon's user, groups, security options, capabilities, privileged mode, user namespace, runtime, and read-only root filesystem setting. With a Unix socket it runs with networking disabled. With a remote `DOCKER_HOST` it joins the daemon's networks with dynamic addresses only, so static IPs, MAC addresses, and aliases never collide with the daemon.
+
+If the helper fails at any point after the daemon exits, including a failed readiness check, it restores the daemon's original restart policy and starts the old container again. The daemon then does not retry that same image; it logs `self_update_blocked` on each cycle until a different image is published. Remove the failed helper container to allow a retry of the same image. `--once` runs never self-update.
+
+Helpers are kept after they exit so their logs stay readable. List them with `docker ps -a --filter label=com.harborbuddy.self-update-helper=true`. The daemon removes finished helpers older than 24 hours during its update cycle, except a helper that records a failed update of the running daemon.
+
 Set `HARBORBUDDY_CONTAINER_NAME` to the stable Compose container name so HarborBuddy can identify itself. Set it explicitly when managing a remote daemon because local Linux runtime identity cannot reliably identify a remote container. The `com.harborbuddy.role=daemon` label protects an unidentified HarborBuddy container from the ordinary update path, but it is not treated as proof of identity.
 
 To keep HarborBuddy itself under manual change control:

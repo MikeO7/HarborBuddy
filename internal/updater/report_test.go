@@ -14,6 +14,7 @@ func TestResultMessageCoversEveryStatus(t *testing.T) {
 		{status: StatusWouldUpdate, dryRun: true, want: "Container would be updated"},
 		{status: StatusUpdated, want: "Container updated"},
 		{status: StatusSelfUpdateStarted, want: "Self-update helper started; HarborBuddy will shut down gracefully"},
+		{status: StatusSelfUpdateBlocked, want: "Self-update skipped: reason"},
 		{status: StatusUnsupported, want: "Container cannot be updated safely: reason"},
 		{status: StatusFailed, want: "Container update failed"},
 		{status: StatusCancelled, want: "Container check cancelled"},
