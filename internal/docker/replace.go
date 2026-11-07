@@ -115,16 +115,26 @@ func (d *DockerClient) ReplaceContainer(ctx context.Context, current ContainerDe
 }
 
 func (d *DockerClient) replaceInTransaction(ctx context.Context, current ContainerDetails, target ImageInfo, options ReplaceOptions, timeoutSeconds int, spec *containertypes.CreateRequest, result ReplaceResult) (ReplaceResult, error) {
+	// Rename first: the backup name records the restart policy, so if
+	// HarborBuddy dies at any later step, recovery can find the original and
+	// restore it. Docker renames running containers.
+	backupName := backupContainerName(current.Summary.Name, time.Now(), !restartPolicyDisabled(current), current.Host.RestartPolicy)
+	result.BackupName = backupName
+	if _, err := d.cli.ContainerRename(ctx, current.Summary.ID, client.ContainerRenameOptions{NewName: backupName}); err != nil {
+		result.FailureStage = "rename_old_container"
+		return result, fmt.Errorf("rename old container to %s: %w", backupName, err)
+	}
+
 	restartSuppressed, err := d.suppressRestartPolicy(ctx, current)
 	if err != nil {
 		result.FailureStage = "suppress_restart_policy"
-		return result, err
+		result.RollbackAttempted = true
+		result.RollbackErr = d.undoRename(ctx, current)
+		return result, errors.Join(err, result.RollbackErr)
 	}
-	backupName := backupContainerName(current.Summary.Name, time.Now(), restartSuppressed, current.Host.RestartPolicy)
-	result.BackupName = backupName
 	if err := d.ensureContainerStopped(ctx, current.Summary.ID, timeoutSeconds); err != nil {
 		result.FailureStage = "stop_old_container"
-		result.RollbackAttempted = restartSuppressed
+		result.RollbackAttempted = true
 		failure, rollbackErr := d.handleStopFailureDetails(ctx, current, restartSuppressed, err)
 		result.RollbackErr = rollbackErr
 		return result, failure
@@ -132,10 +142,7 @@ func (d *DockerClient) replaceInTransaction(ctx context.Context, current Contain
 
 	disconnected, err := d.disconnectNetworks(ctx, current)
 	if err != nil {
-		return d.failedReplacement(ctx, result, current, false, disconnected, "", timeoutSeconds, "disconnect_old_networks", "release old container network endpoints", err)
-	}
-	if _, err := d.cli.ContainerRename(ctx, current.Summary.ID, client.ContainerRenameOptions{NewName: backupName}); err != nil {
-		return d.failedReplacement(ctx, result, current, false, disconnected, "", timeoutSeconds, "rename_old_container", "rename old container to "+backupName, err)
+		return d.failedReplacement(ctx, result, current, true, disconnected, "", timeoutSeconds, "disconnect_old_networks", "release old container network endpoints", err)
 	}
 
 	created, err := d.cli.ContainerCreate(ctx, client.ContainerCreateOptions{
@@ -186,13 +193,23 @@ func (d *DockerClient) handleStopFailure(ctx context.Context, current ContainerD
 }
 
 func (d *DockerClient) handleStopFailureDetails(ctx context.Context, current ContainerDetails, restartSuppressed bool, stopErr error) (error, error) {
-	if !restartSuppressed {
-		return stopErr, nil
-	}
 	rollbackCtx, cancel := context.WithTimeout(context.WithoutCancel(ctx), 30*time.Second)
 	defer cancel()
-	rollbackErr := d.restoreRestartPolicy(rollbackCtx, current)
+	var rollbackErrors []error
+	if restartSuppressed {
+		rollbackErrors = appendError(rollbackErrors, d.restoreRestartPolicy(rollbackCtx, current))
+	}
+	rollbackErrors = appendError(rollbackErrors, d.restoreContainerName(rollbackCtx, current))
+	rollbackErr := errors.Join(rollbackErrors...)
 	return errors.Join(stopErr, rollbackErr), rollbackErr
+}
+
+// undoRename gives the still-running original its name back after a failure
+// before it was stopped.
+func (d *DockerClient) undoRename(ctx context.Context, current ContainerDetails) error {
+	rollbackCtx, cancel := context.WithTimeout(context.WithoutCancel(ctx), 30*time.Second)
+	defer cancel()
+	return d.restoreContainerName(rollbackCtx, current)
 }
 
 func (d *DockerClient) failedReplacement(ctx context.Context, result ReplaceResult, current ContainerDetails, renamed bool, disconnected []string, replacementID string, timeoutSeconds int, stage string, action string, cause error) (ReplaceResult, error) {

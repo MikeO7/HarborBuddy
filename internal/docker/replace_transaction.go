@@ -26,7 +26,7 @@ const (
 // backupNamePattern matches "<name>-harborbuddy-backup-<nanos>" with an
 // optional ".<restart policy>[.<max retries>]" suffix that records the policy
 // HarborBuddy suppressed, so a stranded backup can be restored after a crash.
-var backupNamePattern = regexp.MustCompile(`^(.+)` + backupNameMarker + `[0-9]+(?:\.(always|unless-stopped|on-failure)(?:\.([0-9]+))?)?$`)
+var backupNamePattern = regexp.MustCompile(`^(.+)` + backupNameMarker + `([0-9]+)(?:\.(always|unless-stopped|on-failure)(?:\.([0-9]+))?)?$`)
 
 var activeTransactions sync.Map
 
@@ -71,16 +71,29 @@ func parseBackupName(backup string) (string, *containertypes.RestartPolicy, bool
 	if match == nil {
 		return "", nil, false
 	}
-	if match[2] == "" {
+	if match[3] == "" {
 		return match[1], nil, true
 	}
-	policy := &containertypes.RestartPolicy{Name: containertypes.RestartPolicyMode(match[2])}
-	if match[3] != "" {
-		retries, err := strconv.Atoi(match[3])
+	policy := &containertypes.RestartPolicy{Name: containertypes.RestartPolicyMode(match[3])}
+	if match[4] != "" {
+		retries, err := strconv.Atoi(match[4])
 		if err != nil {
 			return "", nil, false
 		}
 		policy.MaximumRetryCount = retries
 	}
 	return match[1], policy, true
+}
+
+// backupNameTime returns when HarborBuddy created a backup name.
+func backupNameTime(backup string) (time.Time, bool) {
+	match := backupNamePattern.FindStringSubmatch(backup)
+	if match == nil {
+		return time.Time{}, false
+	}
+	nanos, err := strconv.ParseInt(match[2], 10, 64)
+	if err != nil {
+		return time.Time{}, false
+	}
+	return time.Unix(0, nanos), true
 }

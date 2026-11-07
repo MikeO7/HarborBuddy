@@ -4,8 +4,10 @@ import (
 	"context"
 	"net/http"
 	"slices"
+	"strconv"
 	"strings"
 	"testing"
+	"time"
 
 	containertypes "github.com/moby/moby/api/types/container"
 	"github.com/moby/moby/api/types/network"
@@ -18,6 +20,15 @@ func strandedBackup(id, name, mode string) containertypes.InspectResponse {
 	return inspected
 }
 
+// withRecoveryClock pins recovery time near the fixture backup timestamps,
+// which are small nanosecond counts.
+func withRecoveryClock(t *testing.T, now time.Time) {
+	t.Helper()
+	previous := recoveryClock
+	recoveryClock = func() time.Time { return now }
+	t.Cleanup(func() { recoveryClock = previous })
+}
+
 func registerInspect(transport *mockTransport, inspected containertypes.InspectResponse) {
 	transport.register("GET", "/v1.41/containers/"+inspected.ID+"/json", func(*http.Request) (*http.Response, error) {
 		return jsonResponse(http.StatusOK, inspected)
@@ -25,13 +36,14 @@ func registerInspect(transport *mockTransport, inspected containertypes.InspectR
 }
 
 func TestRecoverStrandedBackupsRestoresOnlyUnambiguousBackups(t *testing.T) {
+	withRecoveryClock(t, time.Unix(0, 0).Add(time.Hour))
 	transport := newMockTransport()
 	transport.register("GET", "/v1.41/containers/json", func(*http.Request) (*http.Response, error) {
 		return jsonResponse(http.StatusOK, []containertypes.Summary{
 			{ID: "web-backup", Names: []string{"/consumer/web-harborbuddy-backup-9", "/web-harborbuddy-backup-1.unless-stopped"}, State: containertypes.StateExited},
 			{ID: "db", Names: []string{"/db"}, State: containertypes.StateRunning},
 			{ID: "db-backup", Names: []string{"/db-harborbuddy-backup-2"}, State: containertypes.StateExited},
-			{ID: "run-backup", Names: []string{"/run-harborbuddy-backup-3"}, State: containertypes.StateRunning},
+			{ID: "run-backup", Names: []string{"/run-harborbuddy-backup-3.always"}, State: containertypes.StateRunning},
 			{ID: "busy-backup", Names: []string{"/busy-harborbuddy-backup-4"}, State: containertypes.StateExited},
 			{ID: "plain", Names: []string{"/plain"}, State: containertypes.StateExited},
 			{ID: "nameless"},
@@ -59,6 +71,20 @@ func TestRecoverStrandedBackupsRestoresOnlyUnambiguousBackups(t *testing.T) {
 		return jsonResponse(http.StatusOK, containertypes.UpdateResponse{})
 	})
 	transport.register("POST", "/v1.41/containers/web-backup/start", noContent)
+	// A running backup was renamed just before a crash: it only needs its name
+	// and recorded policy back, and must not be reconnected or restarted.
+	registerInspect(transport, strandedBackup("run-backup", "run-harborbuddy-backup-3.always", "proj_default"))
+	var runRenamed, runPolicy string
+	transport.register("POST", "/v1.41/containers/run-backup/rename", func(request *http.Request) (*http.Response, error) {
+		runRenamed = request.URL.Query().Get("name")
+		return noContent(request)
+	})
+	transport.register("POST", "/v1.41/containers/run-backup/update", func(request *http.Request) (*http.Response, error) {
+		var body containertypes.UpdateConfig
+		_ = decodeJSON(request, &body)
+		runPolicy = string(body.RestartPolicy.Name)
+		return jsonResponse(http.StatusOK, containertypes.UpdateResponse{})
+	})
 	client := testDockerClient(t, transport)
 	defer beginTransaction("busy-backup")()
 
@@ -73,14 +99,38 @@ func TestRecoverStrandedBackupsRestoresOnlyUnambiguousBackups(t *testing.T) {
 	if web.Warning == nil || !strings.Contains(web.Warning.Error(), "primary network proj_default") {
 		t.Fatalf("web recovery warning = %v", web.Warning)
 	}
-	for index, want := range map[int]string{1: "original name db is in use", 2: "backup container is running", 3: "in progress"} {
+	if run := recoveries[2]; !run.Restored || run.Err != nil || run.Warning != nil || runRenamed != "run" || runPolicy != "always" {
+		t.Fatalf("running backup recovery = %+v renamed=%q policy=%q", run, runRenamed, runPolicy)
+	}
+	for index, want := range map[int]string{1: "original name db is in use", 3: "in progress"} {
 		if recoveries[index].Restored || !strings.Contains(recoveries[index].Reason, want) {
 			t.Fatalf("recovery %d = %+v, want reason %q", index, recoveries[index], want)
 		}
 	}
 }
 
+func TestRecoverStrandedBackupsLeavesStaleBackups(t *testing.T) {
+	created := time.Date(2026, 11, 1, 12, 0, 0, 0, time.UTC)
+	withRecoveryClock(t, created.Add(staleBackupAge+time.Minute))
+	items := []containertypes.Summary{
+		{ID: "old", Names: []string{"/web" + backupNameMarker + strconv.FormatInt(created.UnixNano(), 10)}, State: containertypes.StateExited},
+	}
+	transport := newMockTransport()
+	transport.register("GET", "/v1.41/containers/json", func(*http.Request) (*http.Response, error) { return jsonResponse(http.StatusOK, items) })
+	recoveries, err := testDockerClient(t, transport).RecoverStrandedBackups(context.Background(), false)
+	if err != nil || len(recoveries) != 1 || recoveries[0].Restored || !strings.Contains(recoveries[0].Reason, "older than 48 hours") {
+		t.Fatalf("stale backup recovery = %+v, %v", recoveries, err)
+	}
+	if _, ok := backupNameTime("plain-name"); ok {
+		t.Fatal("a non-backup name must not parse")
+	}
+	if _, ok := backupNameTime("web" + backupNameMarker + "99999999999999999999"); ok {
+		t.Fatal("an overflowing backup timestamp must not parse")
+	}
+}
+
 func TestRecoverStrandedBackupsDefersToDryRunHelpersAndShutdown(t *testing.T) {
+	withRecoveryClock(t, time.Unix(0, 0).Add(time.Hour))
 	items := []containertypes.Summary{{ID: "web-backup", Names: []string{"/web-harborbuddy-backup-1"}, State: containertypes.StateExited}}
 	transport := newMockTransport()
 	transport.register("GET", "/v1.41/containers/json", func(*http.Request) (*http.Response, error) { return jsonResponse(http.StatusOK, items) })
@@ -144,7 +194,7 @@ func TestRestoreBackupReportsEachFailure(t *testing.T) {
 			transport := newMockTransport()
 			test.register(transport)
 			client := testDockerClient(t, transport)
-			restored, warning, err := client.restoreBackup(context.Background(), "b", "web", policy)
+			restored, warning, err := client.restoreBackup(context.Background(), "b", "web", policy, false)
 			if restored != test.restored || err == nil || !strings.Contains(err.Error(), test.err) {
 				t.Fatalf("restoreBackup() = %v, %v, %v; want restored=%v err %q", restored, warning, err, test.restored, test.err)
 			}

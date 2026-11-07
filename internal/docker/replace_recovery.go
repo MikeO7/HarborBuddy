@@ -15,7 +15,14 @@ import (
 const (
 	recoveryTimeout     = 2 * time.Minute
 	composeServiceLabel = "com.docker.compose.service"
+	// staleBackupAge limits recovery to backups from a recent transaction. A
+	// daily schedule reaches its next cycle within a day, so this covers a
+	// crash; an older backup whose original is gone was more likely left
+	// behind on purpose, for example after removing the replacement by hand.
+	staleBackupAge = 48 * time.Hour
 )
+
+var recoveryClock = time.Now
 
 // BackupRecovery describes one "<name>-harborbuddy-backup-*" container found
 // by RecoverStrandedBackups. Restored is true once the backup was renamed back;
@@ -38,10 +45,12 @@ type BackupRecoverer interface {
 	RecoverStrandedBackups(ctx context.Context, dryRun bool) ([]BackupRecovery, error)
 }
 
-// RecoverStrandedBackups restores stopped HarborBuddy backups whose original
-// name is free: it renames each back, reconnects its primary network, restores
-// the restart policy recorded in the backup name, and starts it. It leaves a
-// backup alone when its original name is taken, it is running, this process is
+// RecoverStrandedBackups restores recent HarborBuddy backups whose original
+// name is free: it renames each back, restores the restart policy recorded in
+// the backup name, and, when the backup is stopped, reconnects its primary
+// network and starts it. A backup that is still running was renamed just
+// before a crash and only needs its name back. It leaves a backup alone when
+// its original name is taken, it is older than staleBackupAge, this process is
 // replacing it, or a self-update helper is running. Dry-run only reports.
 func (d *DockerClient) RecoverStrandedBackups(ctx context.Context, dryRun bool) ([]BackupRecovery, error) {
 	listed, err := d.cli.ContainerList(ctx, client.ContainerListOptions{All: true})
@@ -73,7 +82,7 @@ func (d *DockerClient) RecoverStrandedBackups(ctx context.Context, dryRun bool) 
 			recovery.Reason = recoveryBlocker(item, original, names, dryRun)
 		}
 		if recovery.Reason == "" {
-			recovery.Restored, recovery.Warning, recovery.Err = d.restoreBackup(ctx, item.ID, original, policy)
+			recovery.Restored, recovery.Warning, recovery.Err = d.restoreBackup(ctx, item.ID, original, policy, backupActive(item))
 		}
 		recoveries = append(recoveries, recovery)
 	}
@@ -105,13 +114,18 @@ func deferredRecovery(ctx context.Context, id string, helperRunning bool) string
 	}
 }
 
+func backupActive(item containertypes.Summary) bool {
+	return item.State == containertypes.StateRunning || item.State == containertypes.StateRestarting || item.State == containertypes.StatePaused
+}
+
 func recoveryBlocker(item containertypes.Summary, original string, names map[string]struct{}, dryRun bool) string {
 	_, nameTaken := names[original]
+	created, known := backupNameTime(primaryName(item.Names))
 	switch {
 	case nameTaken:
 		return "original name " + original + " is in use; remove the backup after confirming the replacement"
-	case item.State == containertypes.StateRunning || item.State == containertypes.StateRestarting || item.State == containertypes.StatePaused:
-		return "backup container is " + string(item.State)
+	case !known || recoveryClock().Sub(created) > staleBackupAge:
+		return "backup is older than 48 hours; rename it to " + original + " and start it, or remove it"
 	case dryRun:
 		return "dry-run; would restore " + original
 	default:
@@ -121,7 +135,7 @@ func recoveryBlocker(item containertypes.Summary, original string, names map[str
 
 // restoreBackup finishes on a detached, bounded context so shutdown cannot
 // leave a half-restored container.
-func (d *DockerClient) restoreBackup(parent context.Context, id, original string, policy *containertypes.RestartPolicy) (bool, error, error) {
+func (d *DockerClient) restoreBackup(parent context.Context, id, original string, policy *containertypes.RestartPolicy, active bool) (bool, error, error) {
 	ctx, cancel := context.WithTimeout(context.WithoutCancel(parent), recoveryTimeout)
 	defer cancel()
 
@@ -135,12 +149,18 @@ func (d *DockerClient) restoreBackup(parent context.Context, id, original string
 	if _, err := d.cli.ContainerRename(ctx, id, client.ContainerRenameOptions{NewName: original}); err != nil {
 		return false, nil, fmt.Errorf("rename stranded backup to %s: %w", original, err)
 	}
-	warning := d.reconnectPrimaryNetwork(ctx, details)
+	var warning error
+	if !active {
+		warning = d.reconnectPrimaryNetwork(ctx, details)
+	}
 	if policy != nil {
 		details.Host.RestartPolicy = *policy
 		if err := d.restoreRestartPolicy(ctx, details); err != nil {
 			warning = errors.Join(warning, err)
 		}
+	}
+	if active {
+		return true, warning, nil
 	}
 	if err := d.restartOldContainer(ctx, id); err != nil {
 		return true, warning, err
