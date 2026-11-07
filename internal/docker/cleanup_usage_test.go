@@ -174,6 +174,7 @@ func TestCleanupContainersProtectUpdateBackups(t *testing.T) {
 			{ID: "plain", Names: []string{"/web"}, State: containertypes.StateExited},
 		})
 	})
+	registerInspectWithRestart(transport, "plain", "no")
 	containers, err := testDockerClient(t, transport).ListCleanupResources(context.Background(), CleanupContainer)
 	if err != nil || len(containers) != 2 {
 		t.Fatalf("cleanup containers = %+v, %v", containers, err)

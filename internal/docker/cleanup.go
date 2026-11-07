@@ -114,8 +114,8 @@ func (d *DockerClient) listCleanupContainers(ctx context.Context) ([]CleanupReso
 			Size:      nonNegative(container.SizeRw),
 			InUse:     !removableContainerState(container.State),
 		}
-		if isBackupContainerName(resource.Name) {
-			resource.Protected, resource.ProtectedReason = true, "container is a HarborBuddy update backup"
+		if !resource.InUse {
+			resource.Protected, resource.ProtectedReason = d.stoppedContainerProtection(ctx, container, resource.Name)
 		}
 		resources = append(resources, resource)
 	}
