@@ -1,0 +1,33 @@
+<!--page {"title": "How Container Updates and Rollback Work | HarborBuddy", "description": "How HarborBuddy detects new Docker images by image ID, replaces containers in stages, checks readiness, rolls back failed updates, and recovers after a crash.", "updated": "2026-11-06", "kind": "docs", "crumb": "How updates work", "order": 2, "headline": "How HarborBuddy updates containers and rolls back failures"} -->
+          <p class="eyebrow"><span></span> Updates and rollback</p>
+          <h1>How updates and rollback work</h1>
+          <p class="lede">HarborBuddy updates a container only when the image behind its reference has a new image ID. It keeps the original container as a stopped backup until the replacement is ready, and puts the original back if the replacement fails.</p>
+
+          <h2 id="detection">How a new image is detected</h2>
+          <p>Each cycle, HarborBuddy pulls the exact image reference stored in each eligible container, such as <code>nginx:1.27</code>, and compares the pulled image ID with the image ID the container runs. A changed tag alone is not enough: the image itself must differ. Identical references are pulled once per cycle, and pulls run concurrently.</p>
+
+          <h2 id="steps">The replacement, step by step</h2>
+          <ol class="step-list">
+            <li><strong>Pull</strong> the image reference stored in the container configuration.</li>
+            <li><strong>Compare</strong> the pulled image ID with the running image ID.</li>
+            <li><strong>Re-inspect</strong> the container to make sure it did not change during the cycle.</li>
+            <li><strong>Back up</strong> the original: rename it to <code>&lt;name&gt;-harborbuddy-backup-&lt;n&gt;</code> (the name records its restart policy), disable the restart policy temporarily, stop it, and disconnect its networks.</li>
+            <li><strong>Create</strong> the replacement with the original name, host configuration, reusable mounts, and network attachments. Settings that came from the old image, such as its <code>ENV</code> entries, labels, command, and health check, are dropped so the new image's defaults apply. Values you set yourself are kept.</li>
+            <li><strong>Start and wait</strong> for Docker to report the replacement <code>healthy</code>, or for two seconds of process stability when the image has no health check.</li>
+            <li><strong>Remove the backup</strong> once the replacement is ready.</li>
+          </ol>
+          <p>The old container stops before the new one starts, so each update causes a brief interruption. HarborBuddy is not a rolling or zero-downtime updater.</p>
+
+          <h2 id="rollback">What happens when an update fails</h2>
+          <p>If creation, startup, or the readiness check fails, HarborBuddy removes the failed replacement, restores the original container's name, networks, and restart policy, and starts it again. The failed image is remembered: HarborBuddy reports <code>previously_failed</code> and does not retry that image for that container until a different image is published or HarborBuddy restarts.</p>
+          <p>Rollback is best-effort. Docker or the host can also fail during recovery, so keep backups of stateful data and opt migration-sensitive services out of unattended updates.</p>
+
+          <h2 id="retention">Keep a known-good image</h2>
+          <p>Set <code>updates.rollback_image_retention</code> (or <code>HARBORBUDDY_ROLLBACK_IMAGE_RETENTION</code>) to keep that many previous working images per image reference, tagged as <code>localhost/harborbuddy-rollback/&lt;sha256&gt;:&lt;slot&gt;</code>. That lets you roll back by hand later, even after the registry tag moved on. The default is <code>0</code>.</p>
+
+          <h2 id="shutdown">Shutdown and crash recovery</h2>
+          <p>On <code>SIGTERM</code>, HarborBuddy starts no new replacements but finishes, or rolls back, the one in progress. Give it time to do that with <code>stop_grace_period: 2m</code> in Compose; Docker's default of 10 seconds can cut a transaction short.</p>
+          <p>If HarborBuddy is killed anyway, the original can be left as a stopped backup. At the start of each cycle HarborBuddy looks for backups from the last 48 hours whose original name is free, renames them back, restores the recorded restart policy, reconnects the primary network, and starts them. Older backups and backups whose name is taken are only logged.</p>
+
+          <h2 id="logs">Following an update in the logs</h2>
+          <p>Every update logs stable event names with container, image, transaction, failure, and rollback fields. All work in one scheduled run shares a <code>cycle_id</code>. Set <code>HARBORBUDDY_LOG_JSON=true</code> to ship logs to a collector, or send <code>SIGUSR1</code> to switch to debug logging temporarily.</p>

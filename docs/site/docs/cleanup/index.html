@@ -1,0 +1,197 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <title>Clean Up Old Docker Images Automatically | HarborBuddy</title>
+    <meta name="description" content="HarborBuddy removes dangling Docker images after updates and can also prune stopped containers, unused networks, volumes, and build cache, with keep rules.">
+    <meta name="robots" content="index,follow,max-image-preview:large,max-snippet:-1">
+    <link rel="canonical" href="https://mikeo7.github.io/HarborBuddy/docs/cleanup/">
+    <meta name="theme-color" content="#071923">
+    <link rel="stylesheet" href="/HarborBuddy/styles.css">
+    <link rel="icon" href="/HarborBuddy/assets/favicon.svg" type="image/svg+xml">
+    <link rel="apple-touch-icon" href="/HarborBuddy/assets/apple-touch-icon.png">
+    <link rel="alternate" href="/HarborBuddy/llms.txt" type="text/plain" title="HarborBuddy facts for language models">
+    <link rel="alternate" type="application/atom+xml" title="HarborBuddy releases" href="https://github.com/MikeO7/HarborBuddy/releases.atom">
+    <meta property="og:type" content="article">
+    <meta property="og:locale" content="en_US">
+    <meta property="og:site_name" content="HarborBuddy">
+    <meta property="og:title" content="Clean Up Old Docker Images Automatically | HarborBuddy">
+    <meta property="og:description" content="HarborBuddy removes dangling Docker images after updates and can also prune stopped containers, unused networks, volumes, and build cache, with keep rules.">
+    <meta property="og:url" content="https://mikeo7.github.io/HarborBuddy/docs/cleanup/">
+    <meta property="og:image" content="https://mikeo7.github.io/HarborBuddy/assets/harborbuddy-social.png">
+    <meta property="og:image:type" content="image/png">
+    <meta property="og:image:width" content="1200">
+    <meta property="og:image:height" content="630">
+    <meta property="og:image:alt" content="HarborBuddy guiding Docker containers through an update and rollback path">
+    <meta name="twitter:card" content="summary_large_image">
+    <meta name="twitter:title" content="Clean Up Old Docker Images Automatically | HarborBuddy">
+    <meta name="twitter:description" content="HarborBuddy removes dangling Docker images after updates and can also prune stopped containers, unused networks, volumes, and build cache, with keep rules.">
+    <meta name="twitter:image" content="https://mikeo7.github.io/HarborBuddy/assets/harborbuddy-social.png">
+    <meta name="twitter:image:alt" content="HarborBuddy guiding Docker containers through an update and rollback path">
+    <script type="application/ld+json">
+{
+  "@context": "https://schema.org",
+  "@graph": [
+    {
+      "@type": "Person",
+      "@id": "https://github.com/MikeO7#person",
+      "name": "MikeO7",
+      "url": "https://github.com/MikeO7"
+    },
+    {
+      "@type": "WebSite",
+      "@id": "https://mikeo7.github.io/HarborBuddy/#website",
+      "url": "https://mikeo7.github.io/HarborBuddy/",
+      "name": "HarborBuddy",
+      "description": "Documentation and comparisons for HarborBuddy, a self-hosted Docker container updater with rollback.",
+      "inLanguage": "en",
+      "publisher": {
+        "@id": "https://github.com/MikeO7#person"
+      }
+    },
+    {
+      "@type": "TechArticle",
+      "@id": "https://mikeo7.github.io/HarborBuddy/docs/cleanup/#webpage",
+      "url": "https://mikeo7.github.io/HarborBuddy/docs/cleanup/",
+      "name": "Clean Up Old Docker Images Automatically | HarborBuddy",
+      "headline": "Automatic Docker image and resource cleanup",
+      "description": "HarborBuddy removes dangling Docker images after updates and can also prune stopped containers, unused networks, volumes, and build cache, with keep rules.",
+      "isPartOf": {
+        "@id": "https://mikeo7.github.io/HarborBuddy/#website"
+      },
+      "about": {
+        "@id": "https://mikeo7.github.io/HarborBuddy/#software"
+      },
+      "inLanguage": "en",
+      "dateModified": "2026-11-06",
+      "author": {
+        "@id": "https://github.com/MikeO7#person"
+      },
+      "breadcrumb": {
+        "@id": "https://mikeo7.github.io/HarborBuddy/docs/cleanup/#breadcrumb"
+      }
+    },
+    {
+      "@type": "BreadcrumbList",
+      "@id": "https://mikeo7.github.io/HarborBuddy/docs/cleanup/#breadcrumb",
+      "itemListElement": [
+        {
+          "@type": "ListItem",
+          "position": 1,
+          "name": "HarborBuddy",
+          "item": "https://mikeo7.github.io/HarborBuddy/"
+        },
+        {
+          "@type": "ListItem",
+          "position": 2,
+          "name": "Docs",
+          "item": "https://mikeo7.github.io/HarborBuddy/docs/"
+        },
+        {
+          "@type": "ListItem",
+          "position": 3,
+          "name": "Cleanup",
+          "item": "https://mikeo7.github.io/HarborBuddy/docs/cleanup/"
+        }
+      ]
+    }
+  ]
+}
+    </script>
+  </head>
+  <body>
+    <a class="skip-link" href="#main">Skip to content</a>
+    <header class="site-header">
+      <a class="brand" href="/HarborBuddy/" aria-label="HarborBuddy home"><svg class="brand-mark" viewBox="0 0 48 48" aria-hidden="true"><path d="M24 4v28M14 13h20M11 24c0 12 5 18 13 20 8-2 13-8 13-20M6 27c4 2 7 2 10 0M32 27c3 2 6 2 10 0"/></svg><span>HarborBuddy</span></a>
+      <a class="release-chip" href="https://github.com/MikeO7/HarborBuddy/releases/tag/v0.1.0">v0.1.0</a>
+      <nav aria-label="Main navigation">
+        <a href="/HarborBuddy/docs/" aria-current="page">Docs</a>
+        <a href="/HarborBuddy/compare/">Compare</a>
+        <a href="/HarborBuddy/compare/watchtower/">Watchtower alternative</a>
+        <a href="/HarborBuddy/#faq">FAQ</a>
+        <a class="nav-cta" href="https://github.com/MikeO7/HarborBuddy">GitHub</a>
+      </nav>
+    </header>
+
+    <main id="main">
+      <div class="docs-layout">
+        <nav class="docs-nav" aria-label="Documentation">
+          <p class="docs-nav-title">Documentation</p>
+          <ul>
+            <li><a href="/HarborBuddy/docs/">Overview</a></li>
+            <li><a href="/HarborBuddy/docs/quick-start/">Quick start</a></li>
+            <li><a href="/HarborBuddy/docs/how-updates-work/">How updates work</a></li>
+            <li><a href="/HarborBuddy/docs/choosing-containers/">Choose what updates</a></li>
+            <li><a href="/HarborBuddy/docs/configuration/">Configuration reference</a></li>
+            <li><a href="/HarborBuddy/docs/self-update/">Self-update</a></li>
+            <li><a href="/HarborBuddy/docs/cleanup/" aria-current="page">Cleanup</a></li>
+            <li><a href="/HarborBuddy/docs/limitations/">Limits and requirements</a></li>
+          </ul>
+        </nav>
+        <article class="prose">
+          <nav class="breadcrumbs" aria-label="Breadcrumb"><ol><li><a href="/HarborBuddy/">HarborBuddy</a></li><li><a href="/HarborBuddy/docs/">Docs</a></li><li aria-current="page">Cleanup</li></ol></nav>
+          <p class="eyebrow"><span></span> Cleanup</p>
+          <h1>Clean up old images and unused resources</h1>
+          <p class="lede">Updates leave old images behind. By default HarborBuddy removes dangling images older than 24 hours and nothing else. Broader cleanup is opt-in, one category at a time, and never touches anything in use.</p>
+
+          <h2 id="categories">What can be cleaned</h2>
+          <div class="table-wrap">
+            <table>
+              <thead><tr><th scope="col">Category</th><th scope="col">Setting</th><th scope="col">Default</th></tr></thead>
+              <tbody>
+                <tr><td>Dangling (untagged) images</td><td><code>cleanup.enabled</code></td><td>On</td></tr>
+                <tr><td>Unused tagged images</td><td><code>dangling_only: false</code></td><td>Off</td></tr>
+                <tr><td>Stopped containers</td><td><code>stopped_containers</code></td><td>Off</td></tr>
+                <tr><td>Unused local networks</td><td><code>unused_networks</code></td><td>Off</td></tr>
+                <tr><td>Unused volumes</td><td><code>unused_volumes</code></td><td>Off</td></tr>
+                <tr><td>Build cache</td><td><code>build_cache</code></td><td>Off</td></tr>
+              </tbody>
+            </table>
+          </div>
+          <p><code>all: true</code> (<code>HARBORBUDDY_CLEANUP_ALL=true</code>) turns on every category. Individual switches are safer on shared hosts. Preview candidates with dry-run first: unused-volume cleanup can permanently delete application data.</p>
+
+          <h2 id="protected">What is never removed</h2>
+          <ul>
+            <li>Images used by any container, running or stopped, and images other images are built on.</li>
+            <li>Networks any container is attached to, and system networks.</li>
+            <li>Volumes any container references.</li>
+            <li>Stopped containers with a restart policy (<code>always</code>, <code>unless-stopped</code>, <code>on-failure</code>), such as a stopped Compose service. Only stopped containers with policy <code>no</code> are removed.</li>
+            <li>HarborBuddy's own update backups and self-update helper records.</li>
+            <li>After a failed or rolled-back update, the affected container and its volumes for that cycle.</li>
+            <li>Anything whose age or usage Docker cannot report.</li>
+          </ul>
+
+          <h2 id="keep">Keep rules</h2>
+<pre class="code-block"><code>cleanup:
+  keep_images: ["ghcr.io/org/tool*"]       # same syntax as allow_images
+  keep_volumes: ["*-backups"]              # volume-name globs
+  keep_volume_labels: ["com.example.keep=true"]</code></pre>
+          <p><code>keep_images</code> is for images only host tools run, such as a <code>docker run --rm</code> helper, which otherwise look unused between runs. Patterns match tags, digest references, and the repository of a digest reference.</p>
+
+          <h2 id="ages">Ages</h2>
+          <p><code>min_age_hours</code> (default 24) applies to everything. Untagged images and cache volumes can expire sooner with <code>dangling_image_min_age_hours</code>, and <code>cache_volumes</code> with <code>cache_volume_min_age_hours</code>. For containers, networks, and volumes, age means time since creation, not time since the resource became unused.</p>
+
+          <h2 id="cleanup-only">Run cleanup on its own</h2>
+<pre class="code-block"><code>docker run --rm --no-healthcheck \
+  -v /var/run/docker.sock:/var/run/docker.sock \
+  ghcr.io/mikeo7/harborbuddy:0.1 --cleanup-only --dry-run</code></pre>
+          <p>Drop <code>--dry-run</code> to delete what it reports.</p>
+        </article>
+      </div>
+    </main>
+
+    <footer class="site-footer">
+      <div class="footer-brand">
+        <a class="brand" href="/HarborBuddy/"><svg class="brand-mark" viewBox="0 0 48 48" aria-hidden="true"><path d="M24 4v28M14 13h20M11 24c0 12 5 18 13 20 8-2 13-8 13-20M6 27c4 2 7 2 10 0M32 27c3 2 6 2 10 0"/></svg><span>HarborBuddy</span></a>
+        <p>Careful, self-hosted container updates for standalone Docker Engine. Built by <a href="https://github.com/MikeO7">MikeO7</a>.</p>
+        <p class="footer-license">Noncommercial source-available software under the <a rel="license" href="https://github.com/MikeO7/HarborBuddy/blob/main/LICENSE">PolyForm Noncommercial License 1.0.0</a>.</p>
+      </div>
+      <div class="footer-groups">
+        <div><p class="footer-title">Product</p><ul><li><a href="/HarborBuddy/docs/quick-start/">Quick start</a></li><li><a href="/HarborBuddy/docs/">Documentation</a></li><li><a href="/HarborBuddy/docs/configuration/">Configuration reference</a></li><li><a href="/HarborBuddy/#faq">FAQ</a></li></ul></div>
+        <div><p class="footer-title">Compare</p><ul><li><a href="/HarborBuddy/compare/">Docker update tools compared</a></li><li><a href="/HarborBuddy/compare/watchtower/">Watchtower alternative</a></li><li><a href="/HarborBuddy/compare/watchtower/#migrate">Migrate from Watchtower</a></li><li><a href="/HarborBuddy/compare/whats-up-docker/">HarborBuddy vs What's Up Docker</a></li><li><a href="/HarborBuddy/compare/diun/">HarborBuddy vs Diun</a></li></ul></div>
+        <div><p class="footer-title">Project</p><ul><li><a href="https://github.com/MikeO7/HarborBuddy">Source code</a></li><li><a href="https://github.com/MikeO7/HarborBuddy/releases">Releases</a></li><li><a href="https://github.com/MikeO7/HarborBuddy/blob/main/CHANGELOG.md">Changelog</a></li><li><a href="https://github.com/MikeO7/HarborBuddy/issues">Issues</a></li><li><a href="https://github.com/MikeO7/HarborBuddy/security/policy">Security policy</a></li></ul></div>
+      </div>
+    </footer>
+  </body>
+</html>

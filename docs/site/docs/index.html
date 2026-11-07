@@ -1,0 +1,171 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <title>HarborBuddy Documentation | Docker Container Updater</title>
+    <meta name="description" content="Install, configure, and operate HarborBuddy: automatic Docker container updates with readiness checks, rollback, dry runs, filters, self-update, and cleanup.">
+    <meta name="robots" content="index,follow,max-image-preview:large,max-snippet:-1">
+    <link rel="canonical" href="https://mikeo7.github.io/HarborBuddy/docs/">
+    <meta name="theme-color" content="#071923">
+    <link rel="stylesheet" href="/HarborBuddy/styles.css">
+    <link rel="icon" href="/HarborBuddy/assets/favicon.svg" type="image/svg+xml">
+    <link rel="apple-touch-icon" href="/HarborBuddy/assets/apple-touch-icon.png">
+    <link rel="alternate" href="/HarborBuddy/llms.txt" type="text/plain" title="HarborBuddy facts for language models">
+    <link rel="alternate" type="application/atom+xml" title="HarborBuddy releases" href="https://github.com/MikeO7/HarborBuddy/releases.atom">
+    <meta property="og:type" content="article">
+    <meta property="og:locale" content="en_US">
+    <meta property="og:site_name" content="HarborBuddy">
+    <meta property="og:title" content="HarborBuddy Documentation | Docker Container Updater">
+    <meta property="og:description" content="Install, configure, and operate HarborBuddy: automatic Docker container updates with readiness checks, rollback, dry runs, filters, self-update, and cleanup.">
+    <meta property="og:url" content="https://mikeo7.github.io/HarborBuddy/docs/">
+    <meta property="og:image" content="https://mikeo7.github.io/HarborBuddy/assets/harborbuddy-social.png">
+    <meta property="og:image:type" content="image/png">
+    <meta property="og:image:width" content="1200">
+    <meta property="og:image:height" content="630">
+    <meta property="og:image:alt" content="HarborBuddy guiding Docker containers through an update and rollback path">
+    <meta name="twitter:card" content="summary_large_image">
+    <meta name="twitter:title" content="HarborBuddy Documentation | Docker Container Updater">
+    <meta name="twitter:description" content="Install, configure, and operate HarborBuddy: automatic Docker container updates with readiness checks, rollback, dry runs, filters, self-update, and cleanup.">
+    <meta name="twitter:image" content="https://mikeo7.github.io/HarborBuddy/assets/harborbuddy-social.png">
+    <meta name="twitter:image:alt" content="HarborBuddy guiding Docker containers through an update and rollback path">
+    <script type="application/ld+json">
+{
+  "@context": "https://schema.org",
+  "@graph": [
+    {
+      "@type": "Person",
+      "@id": "https://github.com/MikeO7#person",
+      "name": "MikeO7",
+      "url": "https://github.com/MikeO7"
+    },
+    {
+      "@type": "WebSite",
+      "@id": "https://mikeo7.github.io/HarborBuddy/#website",
+      "url": "https://mikeo7.github.io/HarborBuddy/",
+      "name": "HarborBuddy",
+      "description": "Documentation and comparisons for HarborBuddy, a self-hosted Docker container updater with rollback.",
+      "inLanguage": "en",
+      "publisher": {
+        "@id": "https://github.com/MikeO7#person"
+      }
+    },
+    {
+      "@type": "TechArticle",
+      "@id": "https://mikeo7.github.io/HarborBuddy/docs/#webpage",
+      "url": "https://mikeo7.github.io/HarborBuddy/docs/",
+      "name": "HarborBuddy Documentation | Docker Container Updater",
+      "headline": "HarborBuddy Documentation | Docker Container Updater",
+      "description": "Install, configure, and operate HarborBuddy: automatic Docker container updates with readiness checks, rollback, dry runs, filters, self-update, and cleanup.",
+      "isPartOf": {
+        "@id": "https://mikeo7.github.io/HarborBuddy/#website"
+      },
+      "about": {
+        "@id": "https://mikeo7.github.io/HarborBuddy/#software"
+      },
+      "inLanguage": "en",
+      "dateModified": "2026-11-06",
+      "author": {
+        "@id": "https://github.com/MikeO7#person"
+      },
+      "breadcrumb": {
+        "@id": "https://mikeo7.github.io/HarborBuddy/docs/#breadcrumb"
+      }
+    },
+    {
+      "@type": "BreadcrumbList",
+      "@id": "https://mikeo7.github.io/HarborBuddy/docs/#breadcrumb",
+      "itemListElement": [
+        {
+          "@type": "ListItem",
+          "position": 1,
+          "name": "HarborBuddy",
+          "item": "https://mikeo7.github.io/HarborBuddy/"
+        },
+        {
+          "@type": "ListItem",
+          "position": 2,
+          "name": "Overview",
+          "item": "https://mikeo7.github.io/HarborBuddy/docs/"
+        }
+      ]
+    }
+  ]
+}
+    </script>
+  </head>
+  <body>
+    <a class="skip-link" href="#main">Skip to content</a>
+    <header class="site-header">
+      <a class="brand" href="/HarborBuddy/" aria-label="HarborBuddy home"><svg class="brand-mark" viewBox="0 0 48 48" aria-hidden="true"><path d="M24 4v28M14 13h20M11 24c0 12 5 18 13 20 8-2 13-8 13-20M6 27c4 2 7 2 10 0M32 27c3 2 6 2 10 0"/></svg><span>HarborBuddy</span></a>
+      <a class="release-chip" href="https://github.com/MikeO7/HarborBuddy/releases/tag/v0.1.0">v0.1.0</a>
+      <nav aria-label="Main navigation">
+        <a href="/HarborBuddy/docs/" aria-current="page">Docs</a>
+        <a href="/HarborBuddy/compare/">Compare</a>
+        <a href="/HarborBuddy/compare/watchtower/">Watchtower alternative</a>
+        <a href="/HarborBuddy/#faq">FAQ</a>
+        <a class="nav-cta" href="https://github.com/MikeO7/HarborBuddy">GitHub</a>
+      </nav>
+    </header>
+
+    <main id="main">
+      <div class="docs-layout">
+        <nav class="docs-nav" aria-label="Documentation">
+          <p class="docs-nav-title">Documentation</p>
+          <ul>
+            <li><a href="/HarborBuddy/docs/" aria-current="page">Overview</a></li>
+            <li><a href="/HarborBuddy/docs/quick-start/">Quick start</a></li>
+            <li><a href="/HarborBuddy/docs/how-updates-work/">How updates work</a></li>
+            <li><a href="/HarborBuddy/docs/choosing-containers/">Choose what updates</a></li>
+            <li><a href="/HarborBuddy/docs/configuration/">Configuration reference</a></li>
+            <li><a href="/HarborBuddy/docs/self-update/">Self-update</a></li>
+            <li><a href="/HarborBuddy/docs/cleanup/">Cleanup</a></li>
+            <li><a href="/HarborBuddy/docs/limitations/">Limits and requirements</a></li>
+          </ul>
+        </nav>
+        <article class="prose">
+          <nav class="breadcrumbs" aria-label="Breadcrumb"><ol><li><a href="/HarborBuddy/">HarborBuddy</a></li><li aria-current="page">Overview</li></ol></nav>
+          <p class="eyebrow"><span></span> Documentation</p>
+          <h1>HarborBuddy documentation</h1>
+          <p class="lede">HarborBuddy is a self-hosted service that keeps the containers on a standalone Docker Engine up to date. It pulls each container's image reference, compares image IDs, and replaces a container only when the image changed. The original stays as a backup until the replacement is ready, so a bad image gets rolled back instead of left broken.</p>
+
+          <div class="doc-cards">
+            <a class="doc-card" href="/HarborBuddy/docs/quick-start/"><strong>Quick start</strong><span>Run HarborBuddy with Docker Compose in dry-run mode, read the logs, then let it update.</span></a>
+            <a class="doc-card" href="/HarborBuddy/docs/how-updates-work/"><strong>How updates work</strong><span>The seven-step replacement, readiness checks, rollback, and crash recovery.</span></a>
+            <a class="doc-card" href="/HarborBuddy/docs/choosing-containers/"><strong>Choose what updates</strong><span>Opt-out labels, allow and deny patterns, and safe defaults for databases.</span></a>
+            <a class="doc-card" href="/HarborBuddy/docs/configuration/"><strong>Configuration reference</strong><span>Every YAML key, environment variable, and command-line flag, with defaults.</span></a>
+            <a class="doc-card" href="/HarborBuddy/docs/self-update/"><strong>Self-update</strong><span>How HarborBuddy replaces its own container through a helper, and how failures recover.</span></a>
+            <a class="doc-card" href="/HarborBuddy/docs/cleanup/"><strong>Image and resource cleanup</strong><span>Dangling images by default; containers, networks, volumes, and build cache by opt-in.</span></a>
+            <a class="doc-card" href="/HarborBuddy/docs/limitations/"><strong>Limits and requirements</strong><span>What HarborBuddy skips on purpose, and what it needs from your host.</span></a>
+          </div>
+
+          <h2 id="at-a-glance">At a glance</h2>
+          <dl class="facts">
+            <div><dt>Latest release</dt><dd><a href="https://github.com/MikeO7/HarborBuddy/releases/tag/v0.1.0">v0.1.0</a></dd></div>
+            <div><dt>Image</dt><dd><code>ghcr.io/mikeo7/harborbuddy:0.1</code></dd></div>
+            <div><dt>Platforms</dt><dd><code>linux/amd64</code>, <code>linux/arm64</code>, <code>linux/arm/v7</code></dd></div>
+            <div><dt>Targets</dt><dd>One standalone Docker Engine per HarborBuddy; Podman's Docker-compatible API is tested in CI</dd></div>
+            <div><dt>Default schedule</dt><dd>Every 12 hours, or once a day at a set time and timezone</dd></div>
+            <div><dt>License</dt><dd><a href="https://github.com/MikeO7/HarborBuddy/blob/main/LICENSE">PolyForm Noncommercial 1.0.0</a>, free for personal and other noncommercial use</dd></div>
+          </dl>
+
+          <h2 id="need-help">Need help?</h2>
+          <p>Search or open an issue on <a href="https://github.com/MikeO7/HarborBuddy/issues">GitHub Issues</a>. For security problems, follow the <a href="https://github.com/MikeO7/HarborBuddy/security/policy">security policy</a> instead of opening a public issue. Changes in each release are listed in the <a href="https://github.com/MikeO7/HarborBuddy/blob/main/CHANGELOG.md">changelog</a>.</p>
+        </article>
+      </div>
+    </main>
+
+    <footer class="site-footer">
+      <div class="footer-brand">
+        <a class="brand" href="/HarborBuddy/"><svg class="brand-mark" viewBox="0 0 48 48" aria-hidden="true"><path d="M24 4v28M14 13h20M11 24c0 12 5 18 13 20 8-2 13-8 13-20M6 27c4 2 7 2 10 0M32 27c3 2 6 2 10 0"/></svg><span>HarborBuddy</span></a>
+        <p>Careful, self-hosted container updates for standalone Docker Engine. Built by <a href="https://github.com/MikeO7">MikeO7</a>.</p>
+        <p class="footer-license">Noncommercial source-available software under the <a rel="license" href="https://github.com/MikeO7/HarborBuddy/blob/main/LICENSE">PolyForm Noncommercial License 1.0.0</a>.</p>
+      </div>
+      <div class="footer-groups">
+        <div><p class="footer-title">Product</p><ul><li><a href="/HarborBuddy/docs/quick-start/">Quick start</a></li><li><a href="/HarborBuddy/docs/">Documentation</a></li><li><a href="/HarborBuddy/docs/configuration/">Configuration reference</a></li><li><a href="/HarborBuddy/#faq">FAQ</a></li></ul></div>
+        <div><p class="footer-title">Compare</p><ul><li><a href="/HarborBuddy/compare/">Docker update tools compared</a></li><li><a href="/HarborBuddy/compare/watchtower/">Watchtower alternative</a></li><li><a href="/HarborBuddy/compare/watchtower/#migrate">Migrate from Watchtower</a></li><li><a href="/HarborBuddy/compare/whats-up-docker/">HarborBuddy vs What's Up Docker</a></li><li><a href="/HarborBuddy/compare/diun/">HarborBuddy vs Diun</a></li></ul></div>
+        <div><p class="footer-title">Project</p><ul><li><a href="https://github.com/MikeO7/HarborBuddy">Source code</a></li><li><a href="https://github.com/MikeO7/HarborBuddy/releases">Releases</a></li><li><a href="https://github.com/MikeO7/HarborBuddy/blob/main/CHANGELOG.md">Changelog</a></li><li><a href="https://github.com/MikeO7/HarborBuddy/issues">Issues</a></li><li><a href="https://github.com/MikeO7/HarborBuddy/security/policy">Security policy</a></li></ul></div>
+      </div>
+    </footer>
+  </body>
+</html>

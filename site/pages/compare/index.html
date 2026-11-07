@@ -1,0 +1,69 @@
+<!--page {"title": "Docker Container Update Tools Compared (2026) | HarborBuddy", "social_title": "Docker container update tools compared: Watchtower, WUD, Diun, and more", "description": "Compare Docker auto-update tools in 2026: HarborBuddy, Watchtower and its fork, What's Up Docker, Tugtainer, dockcheck, Diun, Cup, and podman auto-update.", "updated": "2026-11-06", "kind": "article", "crumb": "Compare", "headline": "Docker container update tools compared (2026)",
+"faq": [
+  ["What is the best tool to auto-update Docker containers?", "There is no single best tool. For unattended updates that roll back on failure, HarborBuddy, What's Up Docker with rollback enabled, and Tugtainer all qualify. For a drop-in Watchtower replacement, use the nicholas-fedor/watchtower fork. For notifications only, use Diun or Cup. For Podman with systemd, use the built-in podman auto-update."],
+  ["Which Docker updaters roll back a failed update?", "As of November 2026: HarborBuddy (automatic), What's Up Docker (opt-in rollback on its Docker trigger), Tugtainer (health-gated rollback), and podman auto-update (rollback on by default). dockcheck can keep image backups for a manual rollback. The original Watchtower has no rollback."],
+  ["Should I auto-update containers or just get notified?", "Auto-update the stateless services you trust, such as reverse proxies and dashboards, and use notifications for databases and services that need manual migrations. Most tools, including HarborBuddy, let you exclude containers by label or image pattern."],
+  ["What about pinned versions in Docker Compose files?", "Updaters follow the tag a container already uses, so a pinned tag like <code>app:2.4.1</code> only changes if that tag is rebuilt. To move pinned versions forward, use Renovate, which opens pull requests that bump image tags in Compose files."]
+]} -->
+<article class="article">
+        <header class="article-header">
+          <p class="eyebrow"><span></span> Comparison</p>
+          <h1>Docker container update tools compared</h1>
+          <p class="lede">Tools that keep Docker containers up to date fall into two groups: <strong>updaters</strong> that pull new images and recreate containers, and <strong>notifiers</strong> that only tell you an update exists. This page compares the main options in each group, including where HarborBuddy falls short.</p>
+          <p class="reviewed">Last reviewed November 6, 2026 against each project's own repository and documentation.</p>
+        </header>
+
+        <section class="article-section" id="matrix">
+          <h2>Feature comparison</h2>
+          <div class="table-wrap">
+            <table class="compare-table">
+              <thead><tr><th scope="col">Feature</th><th scope="col">HarborBuddy</th><th scope="col">Watchtower fork</th><th scope="col">What's Up Docker</th><th scope="col">Tugtainer</th><th scope="col">dockcheck</th><th scope="col">Diun</th><th scope="col">podman auto-update</th></tr></thead>
+              <tbody>
+                <tr><th scope="row">Applies updates</th><td class="yes">Yes</td><td class="yes">Yes</td><td class="yes">Via trigger</td><td class="yes">Yes, off by default</td><td class="yes">Yes</td><td class="no">Notify only</td><td class="yes">Yes</td></tr>
+                <tr><th scope="row">Detects changes by</th><td>Image ID after pull</td><td>Registry digest</td><td>Tags, semver, digest</td><td>Registry digest</td><td>Registry check before pull</td><td>Tags, digest</td><td>Digest</td></tr>
+                <tr><th scope="row">Waits for readiness</th><td class="yes">Yes</td><td class="partial">Rolling restarts only</td><td class="yes">With rollback on</td><td class="yes">Yes</td><td>Not documented</td><td>n/a</td><td class="partial">With sd_notify</td></tr>
+                <tr><th scope="row">Automatic rollback</th><td class="yes">Yes</td><td class="no">Not documented</td><td class="yes">Opt-in</td><td class="yes">Yes</td><td class="partial">Manual, from image backups</td><td>n/a</td><td class="yes">Yes, default</td></tr>
+                <tr><th scope="row">Recovers interrupted updates</th><td class="yes">Yes</td><td>Not documented</td><td>Not documented</td><td class="partial">Self-update only</td><td>n/a</td><td>n/a</td><td>Not documented</td></tr>
+                <tr><th scope="row">Dry run</th><td class="yes">Yes</td><td class="yes">Yes</td><td class="yes">Yes</td><td class="yes">Check-only mode</td><td class="yes">Yes</td><td>n/a</td><td class="yes">Yes</td></tr>
+                <tr><th scope="row">Minimum image age</th><td class="no">No</td><td class="yes">Yes</td><td>Not documented</td><td class="yes">Yes</td><td class="yes">Yes</td><td>n/a</td><td class="no">No</td></tr>
+                <tr><th scope="row">Notifications</th><td class="no">No</td><td class="yes">Yes</td><td class="yes">30+</td><td class="yes">Yes</td><td class="yes">Yes</td><td class="yes">17</td><td class="no">No</td></tr>
+                <tr><th scope="row">Web UI</th><td class="no">No</td><td class="partial">HTTP API</td><td class="yes">Yes</td><td class="yes">Yes</td><td class="no">No</td><td class="no">No</td><td class="no">No</td></tr>
+                <tr><th scope="row">Private registries</th><td class="no">Not yet</td><td class="yes">Yes</td><td class="yes">Yes</td><td class="yes">Yes</td><td>Not documented</td><td class="yes">Yes</td><td>Not documented</td></tr>
+                <tr><th scope="row">Platforms</th><td>Docker Engine; Podman API tested</td><td>Docker, Podman</td><td>Docker, Swarm, Kubernetes, Nomad</td><td>Docker, Swarm, multi-host</td><td>Docker</td><td>Docker, Swarm, Kubernetes, Nomad</td><td>Podman with systemd</td></tr>
+                <tr><th scope="row">License</th><td>PolyForm Noncommercial</td><td>Apache-2.0</td><td>MIT</td><td>MIT</td><td>GPL-3.0</td><td>MIT</td><td>Apache-2.0</td></tr>
+              </tbody>
+            </table>
+          </div>
+          <p class="table-note">“Not documented” means we could not find the feature in the project's own documentation; it may still exist. Corrections are welcome as <a href="{{repo}}/issues">GitHub issues</a>.</p>
+        </section>
+
+        <section class="article-section" id="tools">
+          <h2>The tools at a glance</h2>
+          <dl class="tool-list">
+            <div><dt><a href="{{base}}">HarborBuddy</a></dt><dd>A Go updater for one Docker host that replaces a container only when its image ID changed, waits for the health check, rolls back automatically, and recovers updates interrupted by a crash. No notifications, UI, or private registry support yet; free for noncommercial use.</dd></div>
+            <div><dt><a href="https://github.com/containrrr/watchtower">Watchtower</a> and <a href="https://github.com/nicholas-fedor/watchtower">its fork</a></dt><dd>The best-known updater. The original was archived in December 2025; the nicholas-fedor fork is actively maintained, keeps the same settings, and adds an HTTP API, metrics, and image cooldowns. <a href="{{base}}compare/watchtower/">HarborBuddy vs Watchtower</a>.</dd></div>
+            <div><dt><a href="https://getwud.app/">What's Up Docker</a></dt><dd>A web UI that watches Docker, Swarm, Kubernetes, and Nomad, with semver rules, many notification services, and a Docker trigger that can update, prune, and roll back. <a href="{{base}}compare/whats-up-docker/">HarborBuddy vs What's Up Docker</a>.</dd></div>
+            <div><dt><a href="https://github.com/Quenary/tugtainer">Tugtainer</a></dt><dd>A web UI updater with multi-host agents, Compose dependency ordering, and health-gated rollback. Auto-update is off by default, and its README says it is not intended for production.</dd></div>
+            <div><dt><a href="https://github.com/mag37/dockcheck">dockcheck</a></dt><dd>A Bash script that checks registries before pulling, which avoids Docker Hub rate limits, then updates through Docker Compose. Interactive or unattended.</dd></div>
+            <div><dt><a href="https://crazymax.dev/diun/">Diun</a> and <a href="https://github.com/sergi0g/cup">Cup</a></dt><dd>Notifiers. Diun sends update alerts to 17 services from Docker, Kubernetes, Swarm, and Nomad; Cup is a fast checker with a web UI and JSON output. Neither changes containers. <a href="{{base}}compare/diun/">HarborBuddy vs Diun</a>.</dd></div>
+            <div><dt><a href="https://docs.podman.io/en/latest/markdown/podman-auto-update.1.html">podman auto-update</a></dt><dd>Podman's built-in updater for containers run by systemd or Quadlet, with rollback on by default. The natural choice on Podman hosts.</dd></div>
+          </dl>
+        </section>
+
+        <section class="article-section" id="choose">
+          <h2>How to choose</h2>
+          <ul>
+            <li><strong>You want updates to fix themselves when they go wrong:</strong> HarborBuddy, or What's Up Docker with rollback enabled.</li>
+            <li><strong>You want Watchtower, maintained:</strong> the nicholas-fedor fork.</li>
+            <li><strong>You want a dashboard and alerts:</strong> What's Up Docker, Tugtainer, or Cup.</li>
+            <li><strong>You only want to be told:</strong> Diun or Cup, alongside manual updates.</li>
+            <li><strong>You run Podman with systemd:</strong> podman auto-update.</li>
+            <li><strong>You pin versions in Compose files:</strong> Renovate, to bump tags through pull requests.</li>
+          </ul>
+        </section>
+
+        <section class="article-section faq" id="faq">
+          <h2>Comparison FAQ</h2>
+          {{faq}}
+        </section>
+      </article>

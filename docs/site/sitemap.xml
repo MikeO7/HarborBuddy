@@ -2,6 +2,54 @@
 <urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9">
   <url>
     <loc>https://mikeo7.github.io/HarborBuddy/</loc>
-    <lastmod>2026-08-09</lastmod>
+    <lastmod>2026-11-06</lastmod>
+  </url>
+  <url>
+    <loc>https://mikeo7.github.io/HarborBuddy/compare/</loc>
+    <lastmod>2026-11-06</lastmod>
+  </url>
+  <url>
+    <loc>https://mikeo7.github.io/HarborBuddy/compare/diun/</loc>
+    <lastmod>2026-11-06</lastmod>
+  </url>
+  <url>
+    <loc>https://mikeo7.github.io/HarborBuddy/compare/watchtower/</loc>
+    <lastmod>2026-11-06</lastmod>
+  </url>
+  <url>
+    <loc>https://mikeo7.github.io/HarborBuddy/compare/whats-up-docker/</loc>
+    <lastmod>2026-11-06</lastmod>
+  </url>
+  <url>
+    <loc>https://mikeo7.github.io/HarborBuddy/docs/</loc>
+    <lastmod>2026-11-06</lastmod>
+  </url>
+  <url>
+    <loc>https://mikeo7.github.io/HarborBuddy/docs/choosing-containers/</loc>
+    <lastmod>2026-11-06</lastmod>
+  </url>
+  <url>
+    <loc>https://mikeo7.github.io/HarborBuddy/docs/cleanup/</loc>
+    <lastmod>2026-11-06</lastmod>
+  </url>
+  <url>
+    <loc>https://mikeo7.github.io/HarborBuddy/docs/configuration/</loc>
+    <lastmod>2026-11-06</lastmod>
+  </url>
+  <url>
+    <loc>https://mikeo7.github.io/HarborBuddy/docs/how-updates-work/</loc>
+    <lastmod>2026-11-06</lastmod>
+  </url>
+  <url>
+    <loc>https://mikeo7.github.io/HarborBuddy/docs/limitations/</loc>
+    <lastmod>2026-11-06</lastmod>
+  </url>
+  <url>
+    <loc>https://mikeo7.github.io/HarborBuddy/docs/quick-start/</loc>
+    <lastmod>2026-11-06</lastmod>
+  </url>
+  <url>
+    <loc>https://mikeo7.github.io/HarborBuddy/docs/self-update/</loc>
+    <lastmod>2026-11-06</lastmod>
   </url>
 </urlset>

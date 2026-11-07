@@ -1,0 +1,214 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <title>Quick Start: Auto-Update Docker Containers | HarborBuddy</title>
+    <meta name="description" content="Set up HarborBuddy with Docker Compose in five minutes. Start with a dry run, review what would change, then enable automatic container updates with rollback.">
+    <meta name="robots" content="index,follow,max-image-preview:large,max-snippet:-1">
+    <link rel="canonical" href="https://mikeo7.github.io/HarborBuddy/docs/quick-start/">
+    <meta name="theme-color" content="#071923">
+    <link rel="stylesheet" href="/HarborBuddy/styles.css">
+    <link rel="icon" href="/HarborBuddy/assets/favicon.svg" type="image/svg+xml">
+    <link rel="apple-touch-icon" href="/HarborBuddy/assets/apple-touch-icon.png">
+    <link rel="alternate" href="/HarborBuddy/llms.txt" type="text/plain" title="HarborBuddy facts for language models">
+    <link rel="alternate" type="application/atom+xml" title="HarborBuddy releases" href="https://github.com/MikeO7/HarborBuddy/releases.atom">
+    <meta property="og:type" content="article">
+    <meta property="og:locale" content="en_US">
+    <meta property="og:site_name" content="HarborBuddy">
+    <meta property="og:title" content="Quick Start: Auto-Update Docker Containers | HarborBuddy">
+    <meta property="og:description" content="Set up HarborBuddy with Docker Compose in five minutes. Start with a dry run, review what would change, then enable automatic container updates with rollback.">
+    <meta property="og:url" content="https://mikeo7.github.io/HarborBuddy/docs/quick-start/">
+    <meta property="og:image" content="https://mikeo7.github.io/HarborBuddy/assets/harborbuddy-social.png">
+    <meta property="og:image:type" content="image/png">
+    <meta property="og:image:width" content="1200">
+    <meta property="og:image:height" content="630">
+    <meta property="og:image:alt" content="HarborBuddy guiding Docker containers through an update and rollback path">
+    <meta name="twitter:card" content="summary_large_image">
+    <meta name="twitter:title" content="Quick Start: Auto-Update Docker Containers | HarborBuddy">
+    <meta name="twitter:description" content="Set up HarborBuddy with Docker Compose in five minutes. Start with a dry run, review what would change, then enable automatic container updates with rollback.">
+    <meta name="twitter:image" content="https://mikeo7.github.io/HarborBuddy/assets/harborbuddy-social.png">
+    <meta name="twitter:image:alt" content="HarborBuddy guiding Docker containers through an update and rollback path">
+    <script type="application/ld+json">
+{
+  "@context": "https://schema.org",
+  "@graph": [
+    {
+      "@type": "Person",
+      "@id": "https://github.com/MikeO7#person",
+      "name": "MikeO7",
+      "url": "https://github.com/MikeO7"
+    },
+    {
+      "@type": "WebSite",
+      "@id": "https://mikeo7.github.io/HarborBuddy/#website",
+      "url": "https://mikeo7.github.io/HarborBuddy/",
+      "name": "HarborBuddy",
+      "description": "Documentation and comparisons for HarborBuddy, a self-hosted Docker container updater with rollback.",
+      "inLanguage": "en",
+      "publisher": {
+        "@id": "https://github.com/MikeO7#person"
+      }
+    },
+    {
+      "@type": "TechArticle",
+      "@id": "https://mikeo7.github.io/HarborBuddy/docs/quick-start/#webpage",
+      "url": "https://mikeo7.github.io/HarborBuddy/docs/quick-start/",
+      "name": "Quick Start: Auto-Update Docker Containers | HarborBuddy",
+      "headline": "Quick start: automatic Docker container updates with Docker Compose",
+      "description": "Set up HarborBuddy with Docker Compose in five minutes. Start with a dry run, review what would change, then enable automatic container updates with rollback.",
+      "isPartOf": {
+        "@id": "https://mikeo7.github.io/HarborBuddy/#website"
+      },
+      "about": {
+        "@id": "https://mikeo7.github.io/HarborBuddy/#software"
+      },
+      "inLanguage": "en",
+      "dateModified": "2026-11-06",
+      "author": {
+        "@id": "https://github.com/MikeO7#person"
+      },
+      "breadcrumb": {
+        "@id": "https://mikeo7.github.io/HarborBuddy/docs/quick-start/#breadcrumb"
+      }
+    },
+    {
+      "@type": "BreadcrumbList",
+      "@id": "https://mikeo7.github.io/HarborBuddy/docs/quick-start/#breadcrumb",
+      "itemListElement": [
+        {
+          "@type": "ListItem",
+          "position": 1,
+          "name": "HarborBuddy",
+          "item": "https://mikeo7.github.io/HarborBuddy/"
+        },
+        {
+          "@type": "ListItem",
+          "position": 2,
+          "name": "Docs",
+          "item": "https://mikeo7.github.io/HarborBuddy/docs/"
+        },
+        {
+          "@type": "ListItem",
+          "position": 3,
+          "name": "Quick start",
+          "item": "https://mikeo7.github.io/HarborBuddy/docs/quick-start/"
+        }
+      ]
+    }
+  ]
+}
+    </script>
+  </head>
+  <body>
+    <a class="skip-link" href="#main">Skip to content</a>
+    <header class="site-header">
+      <a class="brand" href="/HarborBuddy/" aria-label="HarborBuddy home"><svg class="brand-mark" viewBox="0 0 48 48" aria-hidden="true"><path d="M24 4v28M14 13h20M11 24c0 12 5 18 13 20 8-2 13-8 13-20M6 27c4 2 7 2 10 0M32 27c3 2 6 2 10 0"/></svg><span>HarborBuddy</span></a>
+      <a class="release-chip" href="https://github.com/MikeO7/HarborBuddy/releases/tag/v0.1.0">v0.1.0</a>
+      <nav aria-label="Main navigation">
+        <a href="/HarborBuddy/docs/" aria-current="page">Docs</a>
+        <a href="/HarborBuddy/compare/">Compare</a>
+        <a href="/HarborBuddy/compare/watchtower/">Watchtower alternative</a>
+        <a href="/HarborBuddy/#faq">FAQ</a>
+        <a class="nav-cta" href="https://github.com/MikeO7/HarborBuddy">GitHub</a>
+      </nav>
+    </header>
+
+    <main id="main">
+      <div class="docs-layout">
+        <nav class="docs-nav" aria-label="Documentation">
+          <p class="docs-nav-title">Documentation</p>
+          <ul>
+            <li><a href="/HarborBuddy/docs/">Overview</a></li>
+            <li><a href="/HarborBuddy/docs/quick-start/" aria-current="page">Quick start</a></li>
+            <li><a href="/HarborBuddy/docs/how-updates-work/">How updates work</a></li>
+            <li><a href="/HarborBuddy/docs/choosing-containers/">Choose what updates</a></li>
+            <li><a href="/HarborBuddy/docs/configuration/">Configuration reference</a></li>
+            <li><a href="/HarborBuddy/docs/self-update/">Self-update</a></li>
+            <li><a href="/HarborBuddy/docs/cleanup/">Cleanup</a></li>
+            <li><a href="/HarborBuddy/docs/limitations/">Limits and requirements</a></li>
+          </ul>
+        </nav>
+        <article class="prose">
+          <nav class="breadcrumbs" aria-label="Breadcrumb"><ol><li><a href="/HarborBuddy/">HarborBuddy</a></li><li><a href="/HarborBuddy/docs/">Docs</a></li><li aria-current="page">Quick start</li></ol></nav>
+          <p class="eyebrow"><span></span> Quick start</p>
+          <h1>Auto-update Docker containers in five minutes</h1>
+          <p class="lede">Run HarborBuddy next to your other containers with Docker Compose. Start in dry-run mode, check which containers it would update, then turn dry-run off.</p>
+
+          <h2 id="requirements">Before you start</h2>
+          <ul>
+            <li>A Linux host running Docker Engine, with Docker Compose v2.</li>
+            <li>Containers started from pullable image references such as <code>nginx:1.27</code> or <code>ghcr.io/org/app:stable</code>.</li>
+            <li>Read/write access to the Docker socket. That is effectively root on the host, so treat HarborBuddy like any other admin tool.</li>
+          </ul>
+
+          <h2 id="compose">1. Create <code>compose.yaml</code></h2>
+<pre class="code-block"><code>services:
+  harborbuddy:
+    image: ghcr.io/mikeo7/harborbuddy:0.1
+    container_name: harborbuddy
+    restart: unless-stopped
+    # Lets an in-progress update finish or roll back on shutdown.
+    stop_grace_period: 2m
+    volumes:
+      - /var/run/docker.sock:/var/run/docker.sock
+    environment:
+      TZ: UTC
+      HARBORBUDDY_SCHEDULE_TIME: "03:00"
+      HARBORBUDDY_CONTAINER_NAME: harborbuddy
+      # Keep the first run observational. Remove after reviewing the logs.
+      HARBORBUDDY_DRY_RUN: "true"
+    labels:
+      com.harborbuddy.role: daemon</code></pre>
+          <p>This runs every day at 03:00 UTC. Remove <code>HARBORBUDDY_SCHEDULE_TIME</code> to check every 12 hours instead; interval mode runs its first check immediately, while daily mode waits for the scheduled time.</p>
+
+          <h2 id="start">2. Start it and follow the logs</h2>
+<pre class="code-block"><code>docker compose up -d
+docker compose logs -f harborbuddy</code></pre>
+
+          <h2 id="dry-run">3. Preview with a one-off dry run</h2>
+          <p>To see results now instead of waiting for the schedule, run a single dry-run cycle:</p>
+<pre class="code-block"><code>docker run --rm --no-healthcheck \
+  -v /var/run/docker.sock:/var/run/docker.sock \
+  ghcr.io/mikeo7/harborbuddy:0.1 \
+  --once --dry-run</code></pre>
+          <p>Dry-run pulls eligible images so it can compare real image IDs. That uses bandwidth and updates Docker's local image cache, but it never stops, renames, recreates, or removes a container, and cleanup only reports what it would delete.</p>
+
+          <h2 id="filter">4. Exclude what should not update unattended</h2>
+          <p>Databases and services with manual migrations are good candidates to opt out. Add a label to their Compose service:</p>
+<pre class="code-block"><code>labels:
+  com.harborbuddy.autoupdate: "false"</code></pre>
+          <p>Or deny whole image families, such as <code>postgres:*</code>. See <a href="/HarborBuddy/docs/choosing-containers/">choosing which containers update</a>.</p>
+
+          <h2 id="enable">5. Turn on updates</h2>
+          <p>Remove <code>HARBORBUDDY_DRY_RUN</code> and run <code>docker compose up -d</code> again. From then on HarborBuddy replaces a container only when its image ID changes, waits for the replacement to become ready, and rolls back if it does not.</p>
+
+          <div class="callout">
+            <p><strong>Add health checks to the containers you care about.</strong> With a Docker <code>HEALTHCHECK</code>, HarborBuddy waits for <code>healthy</code> before it removes the backup. Without one, it only checks that the process stays up for two seconds.</p>
+          </div>
+
+          <h2 id="next">Next steps</h2>
+          <ul>
+            <li><a href="/HarborBuddy/docs/how-updates-work/">How updates and rollback work</a></li>
+            <li><a href="/HarborBuddy/docs/configuration/">Configuration reference</a> for every option</li>
+            <li><a href="/HarborBuddy/docs/cleanup/">Cleanup</a> to reclaim disk space from old images</li>
+            <li><a href="/HarborBuddy/compare/watchtower/">Coming from Watchtower?</a> Map your settings across.</li>
+          </ul>
+        </article>
+      </div>
+    </main>
+
+    <footer class="site-footer">
+      <div class="footer-brand">
+        <a class="brand" href="/HarborBuddy/"><svg class="brand-mark" viewBox="0 0 48 48" aria-hidden="true"><path d="M24 4v28M14 13h20M11 24c0 12 5 18 13 20 8-2 13-8 13-20M6 27c4 2 7 2 10 0M32 27c3 2 6 2 10 0"/></svg><span>HarborBuddy</span></a>
+        <p>Careful, self-hosted container updates for standalone Docker Engine. Built by <a href="https://github.com/MikeO7">MikeO7</a>.</p>
+        <p class="footer-license">Noncommercial source-available software under the <a rel="license" href="https://github.com/MikeO7/HarborBuddy/blob/main/LICENSE">PolyForm Noncommercial License 1.0.0</a>.</p>
+      </div>
+      <div class="footer-groups">
+        <div><p class="footer-title">Product</p><ul><li><a href="/HarborBuddy/docs/quick-start/">Quick start</a></li><li><a href="/HarborBuddy/docs/">Documentation</a></li><li><a href="/HarborBuddy/docs/configuration/">Configuration reference</a></li><li><a href="/HarborBuddy/#faq">FAQ</a></li></ul></div>
+        <div><p class="footer-title">Compare</p><ul><li><a href="/HarborBuddy/compare/">Docker update tools compared</a></li><li><a href="/HarborBuddy/compare/watchtower/">Watchtower alternative</a></li><li><a href="/HarborBuddy/compare/watchtower/#migrate">Migrate from Watchtower</a></li><li><a href="/HarborBuddy/compare/whats-up-docker/">HarborBuddy vs What's Up Docker</a></li><li><a href="/HarborBuddy/compare/diun/">HarborBuddy vs Diun</a></li></ul></div>
+        <div><p class="footer-title">Project</p><ul><li><a href="https://github.com/MikeO7/HarborBuddy">Source code</a></li><li><a href="https://github.com/MikeO7/HarborBuddy/releases">Releases</a></li><li><a href="https://github.com/MikeO7/HarborBuddy/blob/main/CHANGELOG.md">Changelog</a></li><li><a href="https://github.com/MikeO7/HarborBuddy/issues">Issues</a></li><li><a href="https://github.com/MikeO7/HarborBuddy/security/policy">Security policy</a></li></ul></div>
+      </div>
+    </footer>
+  </body>
+</html>

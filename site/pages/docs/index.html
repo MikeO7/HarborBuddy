@@ -1,0 +1,27 @@
+<!--page {"title": "HarborBuddy Documentation | Docker Container Updater", "description": "Install, configure, and operate HarborBuddy: automatic Docker container updates with readiness checks, rollback, dry runs, filters, self-update, and cleanup.", "updated": "2026-11-06", "kind": "docs", "crumb": "Overview", "order": 0} -->
+          <p class="eyebrow"><span></span> Documentation</p>
+          <h1>HarborBuddy documentation</h1>
+          <p class="lede">HarborBuddy is a self-hosted service that keeps the containers on a standalone Docker Engine up to date. It pulls each container's image reference, compares image IDs, and replaces a container only when the image changed. The original stays as a backup until the replacement is ready, so a bad image gets rolled back instead of left broken.</p>
+
+          <div class="doc-cards">
+            <a class="doc-card" href="{{base}}docs/quick-start/"><strong>Quick start</strong><span>Run HarborBuddy with Docker Compose in dry-run mode, read the logs, then let it update.</span></a>
+            <a class="doc-card" href="{{base}}docs/how-updates-work/"><strong>How updates work</strong><span>The seven-step replacement, readiness checks, rollback, and crash recovery.</span></a>
+            <a class="doc-card" href="{{base}}docs/choosing-containers/"><strong>Choose what updates</strong><span>Opt-out labels, allow and deny patterns, and safe defaults for databases.</span></a>
+            <a class="doc-card" href="{{base}}docs/configuration/"><strong>Configuration reference</strong><span>Every YAML key, environment variable, and command-line flag, with defaults.</span></a>
+            <a class="doc-card" href="{{base}}docs/self-update/"><strong>Self-update</strong><span>How HarborBuddy replaces its own container through a helper, and how failures recover.</span></a>
+            <a class="doc-card" href="{{base}}docs/cleanup/"><strong>Image and resource cleanup</strong><span>Dangling images by default; containers, networks, volumes, and build cache by opt-in.</span></a>
+            <a class="doc-card" href="{{base}}docs/limitations/"><strong>Limits and requirements</strong><span>What HarborBuddy skips on purpose, and what it needs from your host.</span></a>
+          </div>
+
+          <h2 id="at-a-glance">At a glance</h2>
+          <dl class="facts">
+            <div><dt>Latest release</dt><dd><a href="{{repo}}/releases/tag/v{{version}}">v{{version}}</a></dd></div>
+            <div><dt>Image</dt><dd><code>ghcr.io/mikeo7/harborbuddy:0.1</code></dd></div>
+            <div><dt>Platforms</dt><dd><code>linux/amd64</code>, <code>linux/arm64</code>, <code>linux/arm/v7</code></dd></div>
+            <div><dt>Targets</dt><dd>One standalone Docker Engine per HarborBuddy; Podman's Docker-compatible API is tested in CI</dd></div>
+            <div><dt>Default schedule</dt><dd>Every 12 hours, or once a day at a set time and timezone</dd></div>
+            <div><dt>License</dt><dd><a href="{{repo}}/blob/main/LICENSE">PolyForm Noncommercial 1.0.0</a>, free for personal and other noncommercial use</dd></div>
+          </dl>
+
+          <h2 id="need-help">Need help?</h2>
+          <p>Search or open an issue on <a href="{{repo}}/issues">GitHub Issues</a>. For security problems, follow the <a href="{{repo}}/security/policy">security policy</a> instead of opening a public issue. Changes in each release are listed in the <a href="{{repo}}/blob/main/CHANGELOG.md">changelog</a>.</p>

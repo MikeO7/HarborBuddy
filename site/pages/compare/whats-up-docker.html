@@ -1,0 +1,49 @@
+<!--page {"title": "HarborBuddy vs What's Up Docker (WUD) | Comparison", "social_title": "HarborBuddy vs What's Up Docker (WUD)", "description": "HarborBuddy vs What's Up Docker: a focused updater with automatic rollback compared with WUD's web UI, semver rules, notifications, and multi-platform watchers.", "updated": "2026-11-06", "kind": "article", "crumb": "vs What's Up Docker", "headline": "HarborBuddy vs What's Up Docker (WUD)",
+"faq": [
+  ["Can What's Up Docker update containers automatically?", "Yes. WUD's Docker trigger can pull and recreate containers, with optional dry run, image pruning, and rollback when the new container is unhealthy. Updating is configured per trigger rather than on by default."],
+  ["Is HarborBuddy simpler than What's Up Docker?", "Yes. HarborBuddy is one container with environment variables and no UI or database. WUD is broader: it adds a web interface, authentication, many registries and notification services, and watchers for Swarm, Kubernetes, and Nomad."]
+]} -->
+<article class="article">
+        <header class="article-header">
+          <p class="eyebrow"><span></span> Comparison</p>
+          <h1>HarborBuddy vs What's Up Docker</h1>
+          <p class="lede"><strong>What's Up Docker (WUD)</strong> is a dashboard that finds image updates across Docker, Swarm, Kubernetes, and Nomad, notifies you, and can trigger updates. <strong>HarborBuddy</strong> is a single-purpose updater for one Docker host that focuses on replacing containers safely. Pick WUD for visibility and alerts; pick HarborBuddy for quiet, self-correcting updates.</p>
+          <p class="reviewed">Last reviewed November 6, 2026 against <a href="https://getwud.app/">getwud.app</a> and the <a href="https://github.com/getwud/wud">getwud/wud</a> repository.</p>
+        </header>
+
+        <section class="article-section" id="comparison">
+          <h2>Side by side</h2>
+          <div class="table-wrap">
+            <table class="compare-table">
+              <thead><tr><th scope="col">Feature</th><th scope="col">HarborBuddy</th><th scope="col">What's Up Docker</th></tr></thead>
+              <tbody>
+                <tr><th scope="row">Main job</th><td>Update containers safely</td><td>Find updates, notify, optionally update</td></tr>
+                <tr><th scope="row">Detects updates by</th><td>Image ID after pulling the current tag</td><td>Newer tags (semver rules) and digests</td></tr>
+                <tr><th scope="row">Moves to newer version tags</th><td class="no">No, follows the current tag</td><td class="yes">Yes</td></tr>
+                <tr><th scope="row">Automatic rollback</th><td class="yes">Yes, always on</td><td class="yes">Opt-in on the Docker trigger</td></tr>
+                <tr><th scope="row">Recovers interrupted updates</th><td class="yes">Yes</td><td>Not documented</td></tr>
+                <tr><th scope="row">Dry run</th><td class="yes">Yes</td><td class="yes">Yes</td></tr>
+                <tr><th scope="row">Notifications</th><td class="no">No</td><td class="yes">30+ services</td></tr>
+                <tr><th scope="row">Web UI and API</th><td class="no">No</td><td class="yes">Yes, with OIDC</td></tr>
+                <tr><th scope="row">Private registries</th><td class="no">Not yet</td><td class="yes">Yes</td></tr>
+                <tr><th scope="row">Platforms</th><td>Docker Engine</td><td>Docker, Compose, Swarm, Kubernetes, Nomad</td></tr>
+                <tr><th scope="row">Setup</th><td>One container, environment variables</td><td>One container, environment variables, UI</td></tr>
+                <tr><th scope="row">License</th><td>PolyForm Noncommercial</td><td>MIT</td></tr>
+              </tbody>
+            </table>
+          </div>
+        </section>
+
+        <section class="article-section" id="choose">
+          <h2>Which should you use?</h2>
+          <div class="choice-grid">
+            <div><h3>Choose HarborBuddy if</h3><ul><li>You want updates to happen and fix themselves without a dashboard.</li><li>You follow rolling tags such as <code>stable</code> or <code>2.4</code>.</li><li>Recovery after a crash mid-update matters to you.</li></ul></div>
+            <div><h3>Choose What's Up Docker if</h3><ul><li>You want to see every pending update in a UI and get alerts.</li><li>You want to move to newer semver tags automatically.</li><li>You run Swarm, Kubernetes, Nomad, or private registries.</li></ul></div>
+          </div>
+        </section>
+
+        <section class="article-section faq" id="faq">
+          <h2>FAQ</h2>
+          {{faq}}
+        </section>
+      </article>

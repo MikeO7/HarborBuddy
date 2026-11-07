@@ -1,0 +1,31 @@
+<!--page {"title": "Choose Which Containers Auto-Update | HarborBuddy", "description": "Control which Docker containers HarborBuddy updates with a per-container opt-out label and allow and deny image patterns. Deny rules always win.", "updated": "2026-11-06", "kind": "docs", "crumb": "Choose what updates", "order": 3, "headline": "Choose which Docker containers update automatically"} -->
+          <p class="eyebrow"><span></span> Filters and labels</p>
+          <h1>Choose which containers update</h1>
+          <p class="lede">Every running container is eligible by default. Narrow that with an opt-out label on individual containers, or with allow and deny patterns on image references. Deny rules always win.</p>
+
+          <h2 id="label">Opt out one container</h2>
+<pre class="code-block"><code>services:
+  postgres:
+    image: postgres:17
+    labels:
+      com.harborbuddy.autoupdate: "false"</code></pre>
+          <p>Use this for databases and anything that needs a manual migration step after an upgrade.</p>
+
+          <h2 id="patterns">Allow and deny image patterns</h2>
+<pre class="code-block"><code>updates:
+  allow_images:
+    - "ghcr.io/my-org/*"
+    - "nginx:*"
+  deny_images:
+    - "*:latest"
+    - "postgres:*"</code></pre>
+          <p>A pattern is an exact value or has one <code>*</code> at either end. Each pattern is checked against the reference as written, its short form with the implicit <code>:latest</code> tag, and its fully qualified form. So <code>*:latest</code> matches <code>image: nginx</code>, and <code>nginx:*</code> matches <code>docker.io/library/nginx:1.27</code>.</p>
+
+          <h2 id="opt-in">Opt in instead of opting out</h2>
+          <p>To update only the images you list, replace the default <code>allow_images: ["*"]</code> with your own list. Anything that does not match is skipped and logged at debug level.</p>
+
+          <h2 id="pinning">Pinned tags and digests</h2>
+          <p>HarborBuddy follows the reference you wrote. A container on <code>app:2.4</code> gets new <code>2.4</code> builds; one on <code>app:2.4.1</code> only changes if that exact tag is rebuilt. A container started from a digest (<code>app@sha256:…</code>) never changes, because the digest always resolves to the same image. Containers created from a bare image ID are skipped.</p>
+
+          <h2 id="skipped">Containers that are always skipped</h2>
+          <p>Some containers cannot be recreated safely from Docker's inspection data. HarborBuddy skips Swarm tasks, auto-remove containers, containers that share or provide another container's namespaces (for example a VPN gateway used through <code>network_mode: service:gluetun</code>), and mounts it cannot reproduce. See <a href="{{base}}docs/limitations/">limits and requirements</a>.</p>

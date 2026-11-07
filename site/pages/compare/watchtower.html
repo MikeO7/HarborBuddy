@@ -1,0 +1,128 @@
+<!--page {"title": "Watchtower Alternative with Rollback (2026) | HarborBuddy", "social_title": "A Watchtower alternative with health checks and rollback", "description": "Watchtower was archived in December 2025. Compare HarborBuddy with Watchtower and its fork, and migrate your Watchtower settings and labels step by step.", "updated": "2026-11-06", "kind": "article", "crumb": "Watchtower alternative", "headline": "HarborBuddy as a Watchtower alternative: comparison and migration guide",
+"faq": [
+  ["Is Watchtower still maintained?", "No. The containrrr/watchtower repository was archived on December 17, 2025. Its last release, v1.7.1, shipped in November 2023. An actively maintained fork exists at nicholas-fedor/watchtower."],
+  ["Does Watchtower work with Docker Engine 29?", "Not by default. The original Watchtower requests Docker API version 1.25, which Docker Engine 29 rejects with \"client version 1.25 is too old\". Setting <code>DOCKER_API_VERSION=1.44</code> works around it, or you can switch to the fork or another updater."],
+  ["What is the best Watchtower alternative?", "It depends on what you need. The nicholas-fedor/watchtower fork is the closest drop-in replacement. What's Up Docker adds a web UI and many notification services. HarborBuddy focuses on safe unattended updates: it waits for the new container's health check and rolls back automatically when an update fails."],
+  ["Can I run HarborBuddy and Watchtower together?", "No. Run one updater per Docker host, or both will try to recreate the same containers. Stop Watchtower before you start HarborBuddy."],
+  ["Does HarborBuddy read Watchtower labels?", "No. Replace <code>com.centurylinklabs.watchtower.enable=false</code> with <code>com.harborbuddy.autoupdate=false</code>. Watchtower's opt-in label mode has no direct equivalent; use <code>updates.allow_images</code> patterns instead."]
+]} -->
+<article class="article">
+        <header class="article-header">
+          <p class="eyebrow"><span></span> Watchtower alternative</p>
+          <h1>A Watchtower alternative that rolls back failed updates</h1>
+          <p class="lede"><strong>HarborBuddy</strong> does the job Watchtower did: it watches the containers on a Docker host and recreates them when their images change. It adds what Watchtower never had: it waits for the new container to pass its health check, and puts the original container back automatically if the update fails.</p>
+          <p class="reviewed">Last reviewed November 6, 2026 against each project's own documentation.</p>
+        </header>
+
+        <section class="article-section" id="status">
+          <h2>What happened to Watchtower?</h2>
+          <ul>
+            <li>The original <a href="https://github.com/containrrr/watchtower">containrrr/watchtower</a> repository was <strong>archived on December 17, 2025</strong>. Its last release, v1.7.1, shipped in November 2023.</li>
+            <li>Its default Docker API version, 1.25, is rejected by <strong>Docker Engine 29</strong> with <code>client version 1.25 is too old</code> (<a href="https://github.com/containrrr/watchtower/issues/2124">issue #2124</a>). <code>DOCKER_API_VERSION=1.44</code> is a stopgap.</li>
+            <li>An actively maintained fork, <a href="https://github.com/nicholas-fedor/watchtower">nicholas-fedor/watchtower</a>, keeps the same variables and labels and is a true drop-in replacement.</li>
+          </ul>
+          <p>If you want Watchtower exactly as it was, use the fork. If you want unattended updates that check their own work, read on.</p>
+        </section>
+
+        <section class="article-section" id="comparison">
+          <h2>HarborBuddy vs Watchtower</h2>
+          <div class="table-wrap">
+            <table class="compare-table">
+              <thead><tr><th scope="col">Feature</th><th scope="col">HarborBuddy</th><th scope="col">Watchtower (containrrr)</th><th scope="col">Watchtower fork</th></tr></thead>
+              <tbody>
+                <tr><th scope="row">Detects updates by</th><td>Pulled image ID vs running image ID</td><td>Registry digest</td><td>Registry digest</td></tr>
+                <tr><th scope="row">Waits for the new container's health check</th><td class="yes">Yes</td><td class="no">No</td><td class="partial">Rolling restarts only</td></tr>
+                <tr><th scope="row">Rolls back a failed update</th><td class="yes">Yes, automatically</td><td class="no">No</td><td class="no">Not documented</td></tr>
+                <tr><th scope="row">Recovers an update interrupted by a crash</th><td class="yes">Yes, within 48 hours</td><td>Not documented</td><td>Not documented</td></tr>
+                <tr><th scope="row">New image defaults apply on update</th><td class="yes">Yes</td><td>Not documented</td><td>Not documented</td></tr>
+                <tr><th scope="row">Dry run</th><td class="yes">Yes</td><td class="yes">Monitor-only</td><td class="yes">Yes</td></tr>
+                <tr><th scope="row">Schedule</th><td>Interval, or daily time with timezone</td><td>Interval or cron</td><td>Interval or cron</td></tr>
+                <tr><th scope="row">Opt-in label mode</th><td class="no">No; allow patterns instead</td><td class="yes">Yes</td><td class="yes">Yes</td></tr>
+                <tr><th scope="row">Notifications</th><td class="no">No, logs only</td><td class="yes">Yes</td><td class="yes">Yes</td></tr>
+                <tr><th scope="row">Private registry login</th><td class="no">Not yet</td><td class="yes">Yes</td><td class="yes">Yes</td></tr>
+                <tr><th scope="row">HTTP API</th><td class="no">No</td><td class="yes">Yes</td><td class="yes">Yes, with metrics</td></tr>
+                <tr><th scope="row">Image cleanup</th><td>On by default, dangling images over 24 h</td><td>Opt-in</td><td>Opt-in</td></tr>
+                <tr><th scope="row">Self-update</th><td>Helper container, 24 h block after a failure</td><td class="yes">Yes</td><td class="yes">Yes</td></tr>
+                <tr><th scope="row">Maintained</th><td class="yes">Yes, v0.1.0 (November 2026)</td><td class="no">Archived</td><td class="yes">Yes</td></tr>
+                <tr><th scope="row">License</th><td>PolyForm Noncommercial 1.0.0</td><td>Apache-2.0</td><td>Apache-2.0</td></tr>
+              </tbody>
+            </table>
+          </div>
+        </section>
+
+        <section class="article-section" id="choose">
+          <h2>Which one should you use?</h2>
+          <div class="choice-grid">
+            <div><h3>Choose HarborBuddy if</h3><ul><li>A broken image should never leave a service down.</li><li>You pull public images and read logs or use an uptime monitor.</li><li>You run it at home or for other noncommercial use.</li></ul></div>
+            <div><h3>Stay with the Watchtower fork if</h3><ul><li>You need private registry logins or built-in notifications.</li><li>You rely on cron schedules, the HTTP API, or opt-in labels.</li><li>You need a permissive open-source license for commercial use.</li></ul></div>
+          </div>
+        </section>
+
+        <section class="article-section" id="migrate">
+          <h2>Migrate from Watchtower in four steps</h2>
+          <ol class="step-list">
+            <li><strong>Stop Watchtower</strong> so two updaters never touch the same containers: <code>docker compose stop watchtower</code>.</li>
+            <li><strong>Translate your settings</strong> using the table below.</li>
+            <li><strong>Start HarborBuddy in dry-run mode</strong> and compare its plan with what Watchtower used to do.</li>
+            <li><strong>Remove dry-run</strong>, then remove the Watchtower service.</li>
+          </ol>
+
+          <h3 id="mapping">Settings and labels</h3>
+          <div class="table-wrap">
+            <table>
+              <thead><tr><th scope="col">Watchtower</th><th scope="col">HarborBuddy</th><th scope="col">Notes</th></tr></thead>
+              <tbody>
+                <tr><td><code>com.centurylinklabs.watchtower.enable=false</code></td><td><code>com.harborbuddy.autoupdate=false</code></td><td>Same meaning</td></tr>
+                <tr><td><code>WATCHTOWER_LABEL_ENABLE=true</code></td><td><code>updates.allow_images</code></td><td>No opt-in label; list the images to update</td></tr>
+                <tr><td><code>WATCHTOWER_POLL_INTERVAL=86400</code></td><td><code>HARBORBUDDY_INTERVAL=24h</code></td><td>Durations, not seconds; default 12h</td></tr>
+                <tr><td><code>WATCHTOWER_SCHEDULE="0 0 4 * * *"</code></td><td><code>HARBORBUDDY_SCHEDULE_TIME="04:00"</code></td><td>Daily only; add <code>HARBORBUDDY_TIMEZONE</code></td></tr>
+                <tr><td><code>WATCHTOWER_MONITOR_ONLY=true</code></td><td><code>HARBORBUDDY_DRY_RUN=true</code></td><td>Global only; results go to logs</td></tr>
+                <tr><td><code>WATCHTOWER_CLEANUP=true</code></td><td><code>HARBORBUDDY_CLEANUP_ENABLED=true</code></td><td>On by default; dangling images over 24 h</td></tr>
+                <tr><td><code>WATCHTOWER_RUN_ONCE=true</code></td><td><code>--once</code></td><td></td></tr>
+                <tr><td><code>WATCHTOWER_TIMEOUT=10s</code></td><td><code>HARBORBUDDY_STOP_TIMEOUT=10s</code></td><td>Also set <code>HARBORBUDDY_STARTUP_TIMEOUT</code></td></tr>
+                <tr><td><code>WATCHTOWER_DISABLE_CONTAINERS</code></td><td>Opt-out label or <code>deny_images</code></td><td>Filters by image, not name</td></tr>
+                <tr><td><code>DOCKER_HOST</code></td><td><code>DOCKER_HOST</code> or <code>HARBORBUDDY_DOCKER_HOST</code></td><td>TLS variables work the same</td></tr>
+                <tr><td><code>WATCHTOWER_NOTIFICATION_URL</code></td><td>None</td><td>Use JSON logs or the container health check</td></tr>
+                <tr><td><code>WATCHTOWER_INCLUDE_STOPPED</code></td><td>None</td><td>Only running containers are updated</td></tr>
+                <tr><td><code>com.centurylinklabs.watchtower.depends-on</code></td><td>None</td><td>Linked and shared-namespace groups are skipped</td></tr>
+                <tr><td><code>/config.json</code> registry auth</td><td>None</td><td>Private registries are not supported yet</td></tr>
+              </tbody>
+            </table>
+          </div>
+
+          <h3 id="before-after">Before and after</h3>
+          <div class="code-pair">
+<pre class="code-block"><code># Before: Watchtower
+watchtower:
+  image: containrrr/watchtower
+  volumes:
+    - /var/run/docker.sock:/var/run/docker.sock
+  environment:
+    WATCHTOWER_SCHEDULE: "0 0 4 * * *"
+    WATCHTOWER_CLEANUP: "true"
+    TZ: Europe/Berlin</code></pre>
+<pre class="code-block"><code># After: HarborBuddy
+harborbuddy:
+  image: ghcr.io/mikeo7/harborbuddy:0.1
+  container_name: harborbuddy
+  restart: unless-stopped
+  stop_grace_period: 2m
+  volumes:
+    - /var/run/docker.sock:/var/run/docker.sock
+  environment:
+    HARBORBUDDY_SCHEDULE_TIME: "04:00"
+    HARBORBUDDY_TIMEZONE: Europe/Berlin
+    HARBORBUDDY_CONTAINER_NAME: harborbuddy
+    HARBORBUDDY_DRY_RUN: "true"
+  labels:
+    com.harborbuddy.role: daemon</code></pre>
+          </div>
+        </section>
+
+        <section class="article-section faq" id="faq">
+          <h2>Watchtower alternative FAQ</h2>
+          {{faq}}
+        </section>
+
+        <p class="sources">Sources: <a href="https://github.com/containrrr/watchtower">containrrr/watchtower</a>, <a href="https://github.com/containrrr/watchtower/discussions/2135">archive announcement</a>, <a href="https://containrrr.dev/watchtower/arguments/">Watchtower arguments</a>, <a href="https://github.com/nicholas-fedor/watchtower">nicholas-fedor/watchtower</a>, <a href="https://watchtower.nickfedor.com/">fork documentation</a>.</p>
+      </article>

@@ -1,0 +1,209 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <title>HarborBuddy vs Diun: Update or Just Notify? | Comparison</title>
+    <meta name="description" content="Diun notifies you when Docker images change; HarborBuddy updates containers and rolls back failures. Compare them, or run both for alerts plus safe updates.">
+    <meta name="robots" content="index,follow,max-image-preview:large,max-snippet:-1">
+    <link rel="canonical" href="https://mikeo7.github.io/HarborBuddy/compare/diun/">
+    <meta name="theme-color" content="#071923">
+    <link rel="stylesheet" href="/HarborBuddy/styles.css">
+    <link rel="icon" href="/HarborBuddy/assets/favicon.svg" type="image/svg+xml">
+    <link rel="apple-touch-icon" href="/HarborBuddy/assets/apple-touch-icon.png">
+    <link rel="alternate" href="/HarborBuddy/llms.txt" type="text/plain" title="HarborBuddy facts for language models">
+    <link rel="alternate" type="application/atom+xml" title="HarborBuddy releases" href="https://github.com/MikeO7/HarborBuddy/releases.atom">
+    <meta property="og:type" content="article">
+    <meta property="og:locale" content="en_US">
+    <meta property="og:site_name" content="HarborBuddy">
+    <meta property="og:title" content="HarborBuddy vs Diun: update containers or just get notified?">
+    <meta property="og:description" content="Diun notifies you when Docker images change; HarborBuddy updates containers and rolls back failures. Compare them, or run both for alerts plus safe updates.">
+    <meta property="og:url" content="https://mikeo7.github.io/HarborBuddy/compare/diun/">
+    <meta property="og:image" content="https://mikeo7.github.io/HarborBuddy/assets/harborbuddy-social.png">
+    <meta property="og:image:type" content="image/png">
+    <meta property="og:image:width" content="1200">
+    <meta property="og:image:height" content="630">
+    <meta property="og:image:alt" content="HarborBuddy guiding Docker containers through an update and rollback path">
+    <meta name="twitter:card" content="summary_large_image">
+    <meta name="twitter:title" content="HarborBuddy vs Diun: update containers or just get notified?">
+    <meta name="twitter:description" content="Diun notifies you when Docker images change; HarborBuddy updates containers and rolls back failures. Compare them, or run both for alerts plus safe updates.">
+    <meta name="twitter:image" content="https://mikeo7.github.io/HarborBuddy/assets/harborbuddy-social.png">
+    <meta name="twitter:image:alt" content="HarborBuddy guiding Docker containers through an update and rollback path">
+    <script type="application/ld+json">
+{
+  "@context": "https://schema.org",
+  "@graph": [
+    {
+      "@type": "Person",
+      "@id": "https://github.com/MikeO7#person",
+      "name": "MikeO7",
+      "url": "https://github.com/MikeO7"
+    },
+    {
+      "@type": "WebSite",
+      "@id": "https://mikeo7.github.io/HarborBuddy/#website",
+      "url": "https://mikeo7.github.io/HarborBuddy/",
+      "name": "HarborBuddy",
+      "description": "Documentation and comparisons for HarborBuddy, a self-hosted Docker container updater with rollback.",
+      "inLanguage": "en",
+      "publisher": {
+        "@id": "https://github.com/MikeO7#person"
+      }
+    },
+    {
+      "@type": "WebPage",
+      "@id": "https://mikeo7.github.io/HarborBuddy/compare/diun/#webpage",
+      "url": "https://mikeo7.github.io/HarborBuddy/compare/diun/",
+      "name": "HarborBuddy vs Diun: Update or Just Notify? | Comparison",
+      "headline": "HarborBuddy vs Diun",
+      "description": "Diun notifies you when Docker images change; HarborBuddy updates containers and rolls back failures. Compare them, or run both for alerts plus safe updates.",
+      "isPartOf": {
+        "@id": "https://mikeo7.github.io/HarborBuddy/#website"
+      },
+      "about": {
+        "@id": "https://mikeo7.github.io/HarborBuddy/#software"
+      },
+      "inLanguage": "en",
+      "dateModified": "2026-11-06",
+      "author": {
+        "@id": "https://github.com/MikeO7#person"
+      },
+      "breadcrumb": {
+        "@id": "https://mikeo7.github.io/HarborBuddy/compare/diun/#breadcrumb"
+      }
+    },
+    {
+      "@type": "BreadcrumbList",
+      "@id": "https://mikeo7.github.io/HarborBuddy/compare/diun/#breadcrumb",
+      "itemListElement": [
+        {
+          "@type": "ListItem",
+          "position": 1,
+          "name": "HarborBuddy",
+          "item": "https://mikeo7.github.io/HarborBuddy/"
+        },
+        {
+          "@type": "ListItem",
+          "position": 2,
+          "name": "Compare",
+          "item": "https://mikeo7.github.io/HarborBuddy/compare/"
+        },
+        {
+          "@type": "ListItem",
+          "position": 3,
+          "name": "vs Diun",
+          "item": "https://mikeo7.github.io/HarborBuddy/compare/diun/"
+        }
+      ]
+    },
+    {
+      "@type": "FAQPage",
+      "@id": "https://mikeo7.github.io/HarborBuddy/compare/diun/#faq",
+      "isPartOf": {
+        "@id": "https://mikeo7.github.io/HarborBuddy/compare/diun/#webpage"
+      },
+      "mainEntity": [
+        {
+          "@type": "Question",
+          "name": "Does Diun update containers?",
+          "acceptedAnswer": {
+            "@type": "Answer",
+            "text": "No. Diun (Docker Image Update Notifier) only sends notifications when an image changes. It never pulls images into running containers or recreates them."
+          }
+        },
+        {
+          "@type": "Question",
+          "name": "Can I use Diun and HarborBuddy together?",
+          "acceptedAnswer": {
+            "@type": "Answer",
+            "text": "Yes. They do different jobs. Let HarborBuddy update the containers you trust, exclude sensitive ones with com.harborbuddy.autoupdate=false, and let Diun notify you about everything, including the excluded containers."
+          }
+        }
+      ]
+    }
+  ]
+}
+    </script>
+  </head>
+  <body>
+    <a class="skip-link" href="#main">Skip to content</a>
+    <header class="site-header">
+      <a class="brand" href="/HarborBuddy/" aria-label="HarborBuddy home"><svg class="brand-mark" viewBox="0 0 48 48" aria-hidden="true"><path d="M24 4v28M14 13h20M11 24c0 12 5 18 13 20 8-2 13-8 13-20M6 27c4 2 7 2 10 0M32 27c3 2 6 2 10 0"/></svg><span>HarborBuddy</span></a>
+      <a class="release-chip" href="https://github.com/MikeO7/HarborBuddy/releases/tag/v0.1.0">v0.1.0</a>
+      <nav aria-label="Main navigation">
+        <a href="/HarborBuddy/docs/">Docs</a>
+        <a href="/HarborBuddy/compare/" aria-current="page">Compare</a>
+        <a href="/HarborBuddy/compare/watchtower/">Watchtower alternative</a>
+        <a href="/HarborBuddy/#faq">FAQ</a>
+        <a class="nav-cta" href="https://github.com/MikeO7/HarborBuddy">GitHub</a>
+      </nav>
+    </header>
+
+    <main id="main">
+      <nav class="breadcrumbs narrow" aria-label="Breadcrumb"><ol><li><a href="/HarborBuddy/">HarborBuddy</a></li><li><a href="/HarborBuddy/compare/">Compare</a></li><li aria-current="page">vs Diun</li></ol></nav>
+<article class="article">
+        <header class="article-header">
+          <p class="eyebrow"><span></span> Comparison</p>
+          <h1>HarborBuddy vs Diun</h1>
+          <p class="lede"><strong>Diun</strong> tells you when a Docker image has an update. <strong>HarborBuddy</strong> applies the update and rolls it back if the new container fails. They solve different problems, and they work well together.</p>
+          <p class="reviewed">Last reviewed November 6, 2026 against <a href="https://crazymax.dev/diun/">crazymax.dev/diun</a>.</p>
+        </header>
+
+        <section class="article-section" id="comparison">
+          <h2>Side by side</h2>
+          <div class="table-wrap">
+            <table class="compare-table">
+              <thead><tr><th scope="col">Feature</th><th scope="col">HarborBuddy</th><th scope="col">Diun</th></tr></thead>
+              <tbody>
+                <tr><th scope="row">Updates containers</th><td class="yes">Yes</td><td class="no">No</td></tr>
+                <tr><th scope="row">Rollback on failure</th><td class="yes">Yes</td><td>n/a</td></tr>
+                <tr><th scope="row">Notifications</th><td class="no">No</td><td class="yes">17 services</td></tr>
+                <tr><th scope="row">Watches</th><td>Running containers on one Docker host</td><td>Docker, Swarm, Kubernetes, Nomad, containerd, files</td></tr>
+                <tr><th scope="row">Private registries</th><td class="no">Not yet</td><td class="yes">Yes</td></tr>
+                <tr><th scope="row">Language and license</th><td>Go, PolyForm Noncommercial</td><td>Go, MIT</td></tr>
+              </tbody>
+            </table>
+          </div>
+        </section>
+
+        <section class="article-section" id="together">
+          <h2>Run both</h2>
+          <p>A common setup: HarborBuddy updates stateless services automatically, databases carry the opt-out label, and Diun notifies you about every image so you can update the excluded ones by hand.</p>
+<pre class="code-block"><code>services:
+  postgres:
+    image: postgres:17
+    labels:
+      com.harborbuddy.autoupdate: "false"   # HarborBuddy skips it
+      diun.enable: "true"                   # Diun still notifies you</code></pre>
+        </section>
+
+        <section class="article-section faq" id="faq">
+          <h2>FAQ</h2>
+          <div class="faq-list">
+          <details>
+            <summary>Does Diun update containers?</summary>
+            <p>No. Diun (Docker Image Update Notifier) only sends notifications when an image changes. It never pulls images into running containers or recreates them.</p>
+          </details>
+          <details>
+            <summary>Can I use Diun and HarborBuddy together?</summary>
+            <p>Yes. They do different jobs. Let HarborBuddy update the containers you trust, exclude sensitive ones with <code>com.harborbuddy.autoupdate=false</code>, and let Diun notify you about everything, including the excluded containers.</p>
+          </details>
+        </div>
+        </section>
+      </article>
+    </main>
+
+    <footer class="site-footer">
+      <div class="footer-brand">
+        <a class="brand" href="/HarborBuddy/"><svg class="brand-mark" viewBox="0 0 48 48" aria-hidden="true"><path d="M24 4v28M14 13h20M11 24c0 12 5 18 13 20 8-2 13-8 13-20M6 27c4 2 7 2 10 0M32 27c3 2 6 2 10 0"/></svg><span>HarborBuddy</span></a>
+        <p>Careful, self-hosted container updates for standalone Docker Engine. Built by <a href="https://github.com/MikeO7">MikeO7</a>.</p>
+        <p class="footer-license">Noncommercial source-available software under the <a rel="license" href="https://github.com/MikeO7/HarborBuddy/blob/main/LICENSE">PolyForm Noncommercial License 1.0.0</a>.</p>
+      </div>
+      <div class="footer-groups">
+        <div><p class="footer-title">Product</p><ul><li><a href="/HarborBuddy/docs/quick-start/">Quick start</a></li><li><a href="/HarborBuddy/docs/">Documentation</a></li><li><a href="/HarborBuddy/docs/configuration/">Configuration reference</a></li><li><a href="/HarborBuddy/#faq">FAQ</a></li></ul></div>
+        <div><p class="footer-title">Compare</p><ul><li><a href="/HarborBuddy/compare/">Docker update tools compared</a></li><li><a href="/HarborBuddy/compare/watchtower/">Watchtower alternative</a></li><li><a href="/HarborBuddy/compare/watchtower/#migrate">Migrate from Watchtower</a></li><li><a href="/HarborBuddy/compare/whats-up-docker/">HarborBuddy vs What's Up Docker</a></li><li><a href="/HarborBuddy/compare/diun/">HarborBuddy vs Diun</a></li></ul></div>
+        <div><p class="footer-title">Project</p><ul><li><a href="https://github.com/MikeO7/HarborBuddy">Source code</a></li><li><a href="https://github.com/MikeO7/HarborBuddy/releases">Releases</a></li><li><a href="https://github.com/MikeO7/HarborBuddy/blob/main/CHANGELOG.md">Changelog</a></li><li><a href="https://github.com/MikeO7/HarborBuddy/issues">Issues</a></li><li><a href="https://github.com/MikeO7/HarborBuddy/security/policy">Security policy</a></li></ul></div>
+      </div>
+    </footer>
+  </body>
+</html>

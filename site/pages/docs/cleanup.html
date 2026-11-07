@@ -1,0 +1,47 @@
+<!--page {"title": "Clean Up Old Docker Images Automatically | HarborBuddy", "description": "HarborBuddy removes dangling Docker images after updates and can also prune stopped containers, unused networks, volumes, and build cache, with keep rules.", "updated": "2026-11-06", "kind": "docs", "crumb": "Cleanup", "order": 6, "headline": "Automatic Docker image and resource cleanup"} -->
+          <p class="eyebrow"><span></span> Cleanup</p>
+          <h1>Clean up old images and unused resources</h1>
+          <p class="lede">Updates leave old images behind. By default HarborBuddy removes dangling images older than 24 hours and nothing else. Broader cleanup is opt-in, one category at a time, and never touches anything in use.</p>
+
+          <h2 id="categories">What can be cleaned</h2>
+          <div class="table-wrap">
+            <table>
+              <thead><tr><th scope="col">Category</th><th scope="col">Setting</th><th scope="col">Default</th></tr></thead>
+              <tbody>
+                <tr><td>Dangling (untagged) images</td><td><code>cleanup.enabled</code></td><td>On</td></tr>
+                <tr><td>Unused tagged images</td><td><code>dangling_only: false</code></td><td>Off</td></tr>
+                <tr><td>Stopped containers</td><td><code>stopped_containers</code></td><td>Off</td></tr>
+                <tr><td>Unused local networks</td><td><code>unused_networks</code></td><td>Off</td></tr>
+                <tr><td>Unused volumes</td><td><code>unused_volumes</code></td><td>Off</td></tr>
+                <tr><td>Build cache</td><td><code>build_cache</code></td><td>Off</td></tr>
+              </tbody>
+            </table>
+          </div>
+          <p><code>all: true</code> (<code>HARBORBUDDY_CLEANUP_ALL=true</code>) turns on every category. Individual switches are safer on shared hosts. Preview candidates with dry-run first: unused-volume cleanup can permanently delete application data.</p>
+
+          <h2 id="protected">What is never removed</h2>
+          <ul>
+            <li>Images used by any container, running or stopped, and images other images are built on.</li>
+            <li>Networks any container is attached to, and system networks.</li>
+            <li>Volumes any container references.</li>
+            <li>Stopped containers with a restart policy (<code>always</code>, <code>unless-stopped</code>, <code>on-failure</code>), such as a stopped Compose service. Only stopped containers with policy <code>no</code> are removed.</li>
+            <li>HarborBuddy's own update backups and self-update helper records.</li>
+            <li>After a failed or rolled-back update, the affected container and its volumes for that cycle.</li>
+            <li>Anything whose age or usage Docker cannot report.</li>
+          </ul>
+
+          <h2 id="keep">Keep rules</h2>
+<pre class="code-block"><code>cleanup:
+  keep_images: ["ghcr.io/org/tool*"]       # same syntax as allow_images
+  keep_volumes: ["*-backups"]              # volume-name globs
+  keep_volume_labels: ["com.example.keep=true"]</code></pre>
+          <p><code>keep_images</code> is for images only host tools run, such as a <code>docker run --rm</code> helper, which otherwise look unused between runs. Patterns match tags, digest references, and the repository of a digest reference.</p>
+
+          <h2 id="ages">Ages</h2>
+          <p><code>min_age_hours</code> (default 24) applies to everything. Untagged images and cache volumes can expire sooner with <code>dangling_image_min_age_hours</code>, and <code>cache_volumes</code> with <code>cache_volume_min_age_hours</code>. For containers, networks, and volumes, age means time since creation, not time since the resource became unused.</p>
+
+          <h2 id="cleanup-only">Run cleanup on its own</h2>
+<pre class="code-block"><code>docker run --rm --no-healthcheck \
+  -v /var/run/docker.sock:/var/run/docker.sock \
+  ghcr.io/mikeo7/harborbuddy:0.1 --cleanup-only --dry-run</code></pre>
+          <p>Drop <code>--dry-run</code> to delete what it reports.</p>

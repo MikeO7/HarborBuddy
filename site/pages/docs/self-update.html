@@ -1,0 +1,27 @@
+<!--page {"title": "Self-Update: How HarborBuddy Updates Itself | HarborBuddy", "description": "HarborBuddy updates its own container through a short-lived helper, keeps the old one as a backup, restores it on failure, and blocks a bad image for 24 hours.", "updated": "2026-11-06", "kind": "docs", "crumb": "Self-update", "order": 5, "headline": "How HarborBuddy safely updates its own container"} -->
+          <p class="eyebrow"><span></span> Self-update</p>
+          <h1>How HarborBuddy updates itself</h1>
+          <p class="lede">A container cannot replace itself while it runs, so HarborBuddy starts a short-lived helper from the new image and exits. The helper runs the same staged replacement and readiness check as any other update, and restores the old daemon if anything fails.</p>
+
+          <h2 id="flow">The handoff</h2>
+          <ol class="step-list">
+            <li>HarborBuddy sees a new image for its own container.</li>
+            <li>It starts a helper container from the new image with only what it needs to reach Docker: the socket or certificate mounts, the Docker and logging variables, and the daemon's user, groups, security options, and capabilities. With a Unix socket the helper has no network at all.</li>
+            <li>The daemon exits cleanly, and the helper replaces it, keeping the old daemon as a backup until the new one is ready.</li>
+          </ol>
+
+          <h2 id="failure">When self-update fails</h2>
+          <p>If the helper fails at any point after the daemon exits, it restores the daemon's original restart policy and starts the old container again. For the next 24 hours HarborBuddy does not retry that same image and logs <code>self_update_blocked</code> each cycle. It tries again after that, or as soon as a different image is published. Remove the failed helper container to retry immediately.</p>
+          <p>Helpers are kept after they exit so their logs stay readable, and are removed after 7 days. List them with:</p>
+<pre class="code-block"><code>docker ps -a --filter label=com.harborbuddy.self-update-helper=true</code></pre>
+
+          <h2 id="identity">Help HarborBuddy find itself</h2>
+          <p>Set <code>HARBORBUDDY_CONTAINER_NAME</code> to the stable Compose container name, and always set it when managing a remote daemon. The <code>com.harborbuddy.role=daemon</code> label keeps an unidentified HarborBuddy container out of the ordinary update path.</p>
+
+          <h2 id="disable">Keep HarborBuddy under manual control</h2>
+<pre class="code-block"><code>environment:
+  HARBORBUDDY_SELF_UPDATE_ENABLED: "false"</code></pre>
+          <p>Then update it yourself with <code>docker compose pull harborbuddy &amp;&amp; docker compose up -d --no-deps harborbuddy</code>. One-shot <code>--once</code> runs never self-update.</p>
+
+          <h2 id="tags">Which tag to follow</h2>
+          <p>The <code>0.1</code> tag follows 0.1.x patch releases, so self-update never jumps to a new minor version. Pin <code>0.1.0</code> or a digest to stop self-update entirely, or follow <code>latest</code> or <code>edge</code> to track the main branch.</p>

@@ -1,0 +1,46 @@
+<!--page {"title": "HarborBuddy vs Diun: Update or Just Notify? | Comparison", "social_title": "HarborBuddy vs Diun: update containers or just get notified?", "description": "Diun notifies you when Docker images change; HarborBuddy updates containers and rolls back failures. Compare them, or run both for alerts plus safe updates.", "updated": "2026-11-06", "kind": "article", "crumb": "vs Diun", "headline": "HarborBuddy vs Diun",
+"faq": [
+  ["Does Diun update containers?", "No. Diun (Docker Image Update Notifier) only sends notifications when an image changes. It never pulls images into running containers or recreates them."],
+  ["Can I use Diun and HarborBuddy together?", "Yes. They do different jobs. Let HarborBuddy update the containers you trust, exclude sensitive ones with <code>com.harborbuddy.autoupdate=false</code>, and let Diun notify you about everything, including the excluded containers."]
+]} -->
+<article class="article">
+        <header class="article-header">
+          <p class="eyebrow"><span></span> Comparison</p>
+          <h1>HarborBuddy vs Diun</h1>
+          <p class="lede"><strong>Diun</strong> tells you when a Docker image has an update. <strong>HarborBuddy</strong> applies the update and rolls it back if the new container fails. They solve different problems, and they work well together.</p>
+          <p class="reviewed">Last reviewed November 6, 2026 against <a href="https://crazymax.dev/diun/">crazymax.dev/diun</a>.</p>
+        </header>
+
+        <section class="article-section" id="comparison">
+          <h2>Side by side</h2>
+          <div class="table-wrap">
+            <table class="compare-table">
+              <thead><tr><th scope="col">Feature</th><th scope="col">HarborBuddy</th><th scope="col">Diun</th></tr></thead>
+              <tbody>
+                <tr><th scope="row">Updates containers</th><td class="yes">Yes</td><td class="no">No</td></tr>
+                <tr><th scope="row">Rollback on failure</th><td class="yes">Yes</td><td>n/a</td></tr>
+                <tr><th scope="row">Notifications</th><td class="no">No</td><td class="yes">17 services</td></tr>
+                <tr><th scope="row">Watches</th><td>Running containers on one Docker host</td><td>Docker, Swarm, Kubernetes, Nomad, containerd, files</td></tr>
+                <tr><th scope="row">Private registries</th><td class="no">Not yet</td><td class="yes">Yes</td></tr>
+                <tr><th scope="row">Language and license</th><td>Go, PolyForm Noncommercial</td><td>Go, MIT</td></tr>
+              </tbody>
+            </table>
+          </div>
+        </section>
+
+        <section class="article-section" id="together">
+          <h2>Run both</h2>
+          <p>A common setup: HarborBuddy updates stateless services automatically, databases carry the opt-out label, and Diun notifies you about every image so you can update the excluded ones by hand.</p>
+<pre class="code-block"><code>services:
+  postgres:
+    image: postgres:17
+    labels:
+      com.harborbuddy.autoupdate: "false"   # HarborBuddy skips it
+      diun.enable: "true"                   # Diun still notifies you</code></pre>
+        </section>
+
+        <section class="article-section faq" id="faq">
+          <h2>FAQ</h2>
+          {{faq}}
+        </section>
+      </article>

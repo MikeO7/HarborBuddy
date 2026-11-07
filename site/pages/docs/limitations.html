@@ -1,0 +1,32 @@
+<!--page {"title": "Limits, Requirements, and Security | HarborBuddy", "description": "What HarborBuddy needs from your Docker host, what it skips on purpose, such as Swarm tasks and shared namespaces, and the risk of Docker socket access.", "updated": "2026-11-06", "kind": "docs", "crumb": "Limits and requirements", "order": 7, "headline": "HarborBuddy limits, requirements, and security"} -->
+          <p class="eyebrow"><span></span> Know the boundaries</p>
+          <h1>Limits, requirements, and security</h1>
+          <p class="lede">HarborBuddy is built for one standalone Docker Engine and errs on the side of skipping a container rather than recreating it wrong. Know these limits before you let it run unattended.</p>
+
+          <h2 id="access">Docker access is host access</h2>
+          <p>HarborBuddy needs read/write access to the Docker API to pull images and create, stop, rename, start, and remove containers. Anyone who controls the Docker socket controls the host, so treat HarborBuddy as an administrative tool. Run one HarborBuddy per Docker daemon.</p>
+
+          <h2 id="downtime">Updates cause a brief interruption</h2>
+          <p>The old container stops before its replacement starts. HarborBuddy is not a rolling or zero-downtime updater. Rollback is best-effort, so keep backups of stateful services and opt databases out of unattended updates.</p>
+
+          <h2 id="skipped">Containers HarborBuddy skips</h2>
+          <ul>
+            <li>Docker Swarm tasks. Use Swarm's own rolling updates instead.</li>
+            <li>Containers created with auto-remove (<code>--rm</code>).</li>
+            <li>Containers sharing another container's network, PID, IPC, or UTS namespace.</li>
+            <li>Containers whose namespaces another container joins, or that another container links to, such as a VPN gateway used through <code>network_mode: service:gluetun</code>. Update such groups together by hand.</li>
+            <li>Containers created from an image ID rather than a pullable reference.</li>
+            <li>Containers with mounts HarborBuddy cannot reproduce safely.</li>
+          </ul>
+
+          <h2 id="compose">Compose files are not reread</h2>
+          <p>HarborBuddy recreates containers from Docker's inspection data. It does not call Docker Compose or read your Compose files, so it never changes them. After an update, <code>docker compose up</code> still sees the same configuration.</p>
+
+          <h2 id="registries">Private registries</h2>
+          <p>HarborBuddy sends no registry credentials when it pulls, so images that need authentication are not supported yet. Public images on Docker Hub, GHCR, Quay, and other registries work.</p>
+
+          <h2 id="podman">Podman</h2>
+          <p>Production use targets Docker Engine. HarborBuddy's integration suite, including updates, rollback, and self-update, also runs against Podman's Docker-compatible API in CI, and Podman-specific behaviour such as the <code>pasta</code> network is handled.</p>
+
+          <h2 id="license">License</h2>
+          <p>HarborBuddy is source-available under the <a href="{{repo}}/blob/main/LICENSE">PolyForm Noncommercial License 1.0.0</a>. Personal, homelab, and other noncommercial use is free; commercial use is not permitted by the current license.</p>
