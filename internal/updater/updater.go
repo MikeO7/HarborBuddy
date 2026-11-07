@@ -19,6 +19,7 @@ func RunUpdateCycle(ctx context.Context, cfg config.Config, client docker.Client
 	if err != nil {
 		return Report{}, fmt.Errorf("list containers: %w", err)
 	}
+	recoverStrandedBackups(ctx, client, cfg.Updates.DryRun, logger)
 
 	sortContainers(containers)
 	results := newResults(containers)

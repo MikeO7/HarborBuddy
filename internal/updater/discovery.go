@@ -8,6 +8,7 @@ import (
 
 	"github.com/MikeO7/HarborBuddy/internal/config"
 	"github.com/MikeO7/HarborBuddy/internal/docker"
+	"github.com/MikeO7/HarborBuddy/internal/imageref"
 )
 
 const maxConcurrentPulls = 5
@@ -41,7 +42,7 @@ func discoverCandidates(
 	var wait sync.WaitGroup
 
 	for index := range results {
-		if excludeCandidate(cfg, &results[index], selfID) {
+		if excludeCandidate(cfg, &results[index], selfID) || unpullableCandidate(&results[index]) {
 			continue
 		}
 		wait.Add(1)
@@ -69,6 +70,17 @@ func excludeCandidate(cfg config.UpdatesConfig, result *ContainerResult, selfID 
 	}
 	result.Status = StatusExcluded
 	result.Reason = decision.Reason
+	return true
+}
+
+// unpullableCandidate rejects containers created from an image ID: there is no
+// repository reference to pull, so every cycle would otherwise fail.
+func unpullableCandidate(result *ContainerResult) bool {
+	if !imageref.IsImageID(result.Container.ImageRef) {
+		return false
+	}
+	result.Status = StatusUnsupported
+	result.Reason = "container was created from an image ID, not a pullable image reference"
 	return true
 }
 

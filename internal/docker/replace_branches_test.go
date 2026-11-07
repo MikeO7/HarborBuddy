@@ -185,8 +185,11 @@ func TestReplaceContainerReportsTransactionBoundaryFailures(t *testing.T) {
 		register func(*mockTransport)
 		want     string
 	}{
-		{name: "restart policy", current: func() ContainerDetails { c := replacementFixture(); c.Host.RestartPolicy.Name = "always"; return c }, want: "disable old container restart policy"},
+		{name: "restart policy", current: func() ContainerDetails { c := replacementFixture(); c.Host.RestartPolicy.Name = "always"; return c }, register: func(m *mockTransport) {
+			m.register("POST", "/v1.41/containers/old/rename", noContent)
+		}, want: "disable old container restart policy"},
 		{name: "stop", register: func(m *mockTransport) {
+			m.register("POST", "/v1.41/containers/old/rename", noContent)
 			m.register("POST", "/v1.41/containers/old/stop", func(*http.Request) (*http.Response, error) {
 				return jsonResponse(http.StatusInternalServerError, map[string]string{"message": "stop failed"})
 			})
@@ -196,12 +199,13 @@ func TestReplaceContainerReportsTransactionBoundaryFailures(t *testing.T) {
 			c.Networks = map[string]*network.EndpointSettings{"net": {}}
 			return c
 		}, register: func(m *mockTransport) {
+			m.register("POST", "/v1.41/containers/old/rename", noContent)
 			m.register("POST", "/v1.41/containers/old/stop", noContent)
 			m.register("POST", "/v1.41/networks/net/disconnect", func(*http.Request) (*http.Response, error) {
 				return jsonResponse(http.StatusInternalServerError, map[string]string{"message": "disconnect failed"})
 			})
 		}, want: "release old container network endpoints"},
-		{name: "rename", register: func(m *mockTransport) { m.register("POST", "/v1.41/containers/old/stop", noContent) }, want: "rename old container"},
+		{name: "rename", want: "rename old container"},
 		{name: "create", register: func(m *mockTransport) {
 			m.register("POST", "/v1.41/containers/old/stop", noContent)
 			m.register("POST", "/v1.41/containers/old/rename", noContent)

@@ -224,7 +224,10 @@ func TestReplacementConfigPreservesAnonymousVolume(t *testing.T) {
 		Type: mount.TypeVolume, Name: "anonymous-volume-id", Destination: "/data", RW: true,
 	}}
 
-	containerConfig, host, _ := client.replacementConfig(context.Background(), current)
+	containerConfig, host, _, warning := client.replacementConfig(context.Background(), current)
+	if warning == nil || !strings.Contains(warning.Error(), "inherited settings") {
+		t.Fatalf("missing old-image warning = %v", warning)
+	}
 	if containerConfig.Hostname != "" {
 		t.Fatalf("default Docker hostname was preserved across replacement: %q", containerConfig.Hostname)
 	}

@@ -47,6 +47,8 @@ HarborBuddy skips containers it cannot recreate safely, including:
 - Docker Swarm tasks
 - Containers created with auto-remove
 - Containers sharing another container's network, PID, IPC, or UTS namespace
+- Containers whose namespaces another container (running or stopped) joins, such as a VPN gateway used through `network_mode: service:gluetun`, or that another container links to; recreating the provider would cut its dependents off, so update such groups together manually
+- Containers created from an image ID rather than a pullable image reference
 - Containers with mount types or inspected mount data that cannot be reproduced safely
 
 HarborBuddy recreates containers from Docker's inspection data; it does not invoke Docker Compose or reread a Compose file. It also sends no registry authentication with image pulls, so authenticated private registries are not currently supported.
@@ -63,6 +65,8 @@ services:
     image: ghcr.io/mikeo7/harborbuddy:0.1
     container_name: harborbuddy
     restart: unless-stopped
+    # Lets an in-progress update finish or roll back on shutdown.
+    stop_grace_period: 2m
     volumes:
       - /var/run/docker.sock:/var/run/docker.sock
     environment:
@@ -116,12 +120,18 @@ For each eligible running container, HarborBuddy:
 1. Pulls the image reference stored in the container configuration.
 2. Compares the pulled image ID with the running image ID.
 3. Re-inspects the container and checks that it has not changed during the cycle.
-4. Temporarily disables the old restart policy when the Docker API supports it, stops the container, disconnects its networks, and gives it a temporary backup name.
-5. Creates a replacement with the inspected container and host configuration, reusable mounts, original name, and network attachments.
+4. Gives the container a temporary backup name that records its restart policy, temporarily disables that policy when the Docker API supports it, stops the container, and disconnects its networks.
+5. Creates a replacement with the inspected container and host configuration, reusable mounts, original name, and network attachments. Settings that came from the old image (its `ENV` entries, labels, working directory, user, stop signal, exposed ports, volumes, command, and health check) are dropped so the new image's defaults apply; values you set, including overrides of image variables, are kept. A value you set that is identical to the old image's default cannot be told apart from it, so it is treated as a default; set it again explicitly if the new image changes that default. If the old image can no longer be inspected, the inspected settings are copied as-is and the result carries a warning.
 6. Starts the replacement and waits for Docker to report it healthy, or for two seconds of process stability if it has no health check.
 7. Removes the backup after the replacement is ready.
 
-If a step fails after replacement begins, HarborBuddy attempts to remove the failed replacement, restore the old container's name, networks, and restart policy, and start it again. A failure to remove the backup after a successful update is logged as a warning.
+If a step fails after replacement begins, HarborBuddy attempts to remove the failed replacement, restore the old container's name, networks, and restart policy, and start it again. A failure to remove the backup after a successful update is logged as a warning. When a replacement fails to start or become ready and is rolled back, HarborBuddy does not retry that same target image for that container (result `previously_failed`) until the pulled image ID changes or HarborBuddy restarts.
+
+### Shutdown during an update
+
+On `SIGTERM`, HarborBuddy starts no new replacements but finishes, or rolls back, the one in progress. Give the container enough time to do that: at least twice `stop_timeout` plus `startup_timeout` and about a minute of slack. With the defaults, set `stop_grace_period: 2m` in Compose (`docker stop --time 120`); Docker's default 10 seconds can kill HarborBuddy mid-transaction.
+
+If HarborBuddy is killed anyway, the original can be left stopped as `<name>-harborbuddy-backup-<n>`. At the start of each cycle HarborBuddy looks for such backups from the last 48 hours whose original name is free, renames them back, and restores the restart policy recorded in the backup name. A stopped backup also gets its primary network back from the container's network mode and is started; a backup that is still running was renamed just before the interruption and only needs its name. Older backups are only logged, since one whose original is gone was more likely left behind on purpose. Secondary networks, extra aliases, and static addresses are not recorded and are reported as a warning to check. A backup whose original name is in use is only logged. Dry-run reports stranded backups without changing them.
 
 ## Choose which containers update
 
@@ -134,7 +144,7 @@ labels:
 
 This is a sensible default for databases and services that require a manual migration.
 
-You can also narrow updates with `updates.allow_images` and `updates.deny_images`. Deny rules win. Patterns support an exact value or one `*` at either edge:
+You can also narrow updates with `updates.allow_images` and `updates.deny_images`. Deny rules win. Patterns support an exact value or one `*` at either edge. A pattern matches the reference as written, its short form with the implicit `:latest` tag, or its fully qualified form, so `*:latest` matches `image: nginx` and `nginx:*` matches `docker.io/library/nginx:1.27`:
 
 ```yaml
 updates:

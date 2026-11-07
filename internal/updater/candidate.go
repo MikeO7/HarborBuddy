@@ -44,9 +44,12 @@ func processCandidate(ctx context.Context, cfg config.Config, client docker.Clie
 	if result.Status != StatusWouldUpdate {
 		return nil
 	}
+	if skipBeforeTransaction(ctx, result, isSelf) {
+		return nil
+	}
 
 	details, ok := reinspectCandidate(ctx, client, result)
-	if !ok || !checkCandidateReplacement(client, details, result) || cfg.Updates.DryRun {
+	if !ok || !checkCandidateReplacement(ctx, client, details, result) || cfg.Updates.DryRun {
 		return nil
 	}
 	if isSelf {
@@ -54,6 +57,23 @@ func processCandidate(ctx context.Context, cfg config.Config, client docker.Clie
 	}
 	processOrdinaryCandidate(ctx, cfg, client, details, result)
 	return nil
+}
+
+// skipBeforeTransaction classifies candidates that must not start a
+// replacement: shutdown stops new transactions (one already running finishes),
+// and a target image that already failed readiness is not retried.
+func skipBeforeTransaction(ctx context.Context, result *ContainerResult, isSelf bool) bool {
+	switch {
+	case ctx.Err() != nil:
+		result.Status = StatusCancelled
+		result.Reason = "shutdown requested before the update started"
+	case !isSelf && failedTargets.failed(result.Container.Name, result.TargetImageID):
+		result.Status = StatusPreviouslyFailed
+		result.Reason = "a replacement from this target image previously failed readiness and was rolled back; waiting for a different image"
+	default:
+		return false
+	}
+	return true
 }
 
 func reinspectCandidate(ctx context.Context, client docker.Client, result *ContainerResult) (docker.ContainerDetails, bool) {
@@ -78,8 +98,11 @@ func candidateUnchanged(details docker.ContainerDetails, discovered docker.Conta
 		details.Summary.ImageRef == discovered.ImageRef
 }
 
-func checkCandidateReplacement(client docker.Client, details docker.ContainerDetails, result *ContainerResult) bool {
+func checkCandidateReplacement(ctx context.Context, client docker.Client, details docker.ContainerDetails, result *ContainerResult) bool {
 	err := client.CheckReplacement(details, candidateTarget(result))
+	if checker, ok := client.(docker.NamespaceDependentsChecker); ok && err == nil {
+		err = checker.CheckNamespaceDependents(ctx, details)
+	}
 	if err == nil {
 		return true
 	}
@@ -139,13 +162,18 @@ func processOrdinaryCandidate(
 	result.FailureStage = replaced.FailureStage
 	result.RollbackTried = replaced.RollbackAttempted
 	result.RollbackErr = replaced.RollbackErr
-	if err != nil {
+	result.Warning = errors.Join(replaced.ConfigWarning, replaced.BackupCleanupErr, replaced.RollbackImageRetentionErr)
+	failedTargets.observe(result.Container.Name, result.TargetImageID, replaced, err)
+	switch {
+	case err != nil && replaced.FailureStage == docker.FailureStageCancelledBeforeStart:
+		result.Status = StatusCancelled
+		result.Reason = "shutdown requested before the update started"
+	case err != nil:
 		result.Status = StatusFailed
 		result.Err = err
-		return
+	default:
+		result.Status = StatusUpdated
 	}
-	result.Status = StatusUpdated
-	result.Warning = errors.Join(replaced.BackupCleanupErr, replaced.RollbackImageRetentionErr)
 }
 
 func candidateTarget(result *ContainerResult) docker.ImageInfo {
