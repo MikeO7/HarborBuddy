@@ -520,6 +520,10 @@ for _ in {1..180}; do
     CURRENT_DAEMON_ID="$(docker inspect "$DAEMON_NAME" --format '{{.Id}}' 2>/dev/null || true)"
     CURRENT_DAEMON_IMAGE="$(docker inspect "$DAEMON_NAME" --format '{{.Image}}' 2>/dev/null || true)"
     CURRENT_DAEMON_RUNNING="$(docker inspect "$DAEMON_NAME" --format '{{.State.Running}}' 2>/dev/null || true)"
+    # Helpers are auto-removed, so keep a copy of their logs for diagnosis.
+    for helper_id in $(docker ps -aq --filter label=com.harborbuddy.self-update-helper 2>/dev/null || true); do
+        docker logs "$helper_id" > "$TMP_DIR/helper-$helper_id.log" 2>&1 || true
+    done
     if [[ -n "$CURRENT_DAEMON_ID" && "$CURRENT_DAEMON_ID" != "$OLD_DAEMON_ID" && "$CURRENT_DAEMON_IMAGE" == "$NEW_SELF_IMAGE_ID" && "$CURRENT_DAEMON_RUNNING" == true ]]; then
         self_updated=true
         break
@@ -529,6 +533,11 @@ done
 if [[ "$self_updated" != true ]]; then
     docker ps -a >&2 || true
     docker logs "$DAEMON_NAME" >&2 || true
+    for helper_log in "$TMP_DIR"/helper-*.log; do
+        [[ -f "$helper_log" ]] || continue
+        printf '[integration] helper log %s:\n' "${helper_log##*/}" >&2
+        cat "$helper_log" >&2
+    done
     fail "automatic self-update did not produce a running replacement"
 fi
 
