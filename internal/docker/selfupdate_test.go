@@ -87,8 +87,11 @@ func TestSelfUpdateHelperConfigIsRestricted(t *testing.T) {
 	if config.Healthcheck == nil || !slices.Equal(config.Healthcheck.Test, []string{"NONE"}) {
 		t.Fatalf("helper must disable the inherited image healthcheck: %+v", config.Healthcheck)
 	}
-	if !host.AutoRemove || host.RestartPolicy.Name != "no" {
-		t.Fatalf("helper cleanup policy is unsafe: auto_remove=%v restart=%q", host.AutoRemove, host.RestartPolicy.Name)
+	if host.AutoRemove || host.RestartPolicy.Name != "no" {
+		t.Fatalf("helper must be kept for its logs and never restart: auto_remove=%v restart=%q", host.AutoRemove, host.RestartPolicy.Name)
+	}
+	if config.Labels[SelfUpdateImageLabel] != request.TargetImageID {
+		t.Fatalf("helper target image label = %v", config.Labels)
 	}
 	if host.PortBindings != nil || host.PublishAllPorts || config.ExposedPorts != nil {
 		t.Fatalf("helper must not publish ports: %+v", host.PortBindings)
@@ -102,9 +105,8 @@ func TestSelfUpdateHelperConfigIsRestricted(t *testing.T) {
 	if len(host.Mounts) != 0 {
 		t.Fatalf("unrelated structured mounts copied: %+v", host.Mounts)
 	}
-	endpoint := networking.EndpointsConfig["app"]
-	if endpoint.NetworkID != "" || endpoint.EndpointID != "" || endpoint.IPAddress.IsValid() || endpoint.Aliases != nil {
-		t.Fatalf("network endpoint was not sanitized: %+v", endpoint)
+	if host.NetworkMode != "none" || networking != nil {
+		t.Fatalf("socket-connected helper must not join the daemon's networks: mode=%q networking=%+v", host.NetworkMode, networking)
 	}
 }
 

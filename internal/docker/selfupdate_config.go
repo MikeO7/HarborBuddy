@@ -2,7 +2,6 @@ package docker
 
 import (
 	"errors"
-	"net/netip"
 	"path/filepath"
 	"strconv"
 	"strings"
@@ -41,6 +40,7 @@ func selfUpdateHelperConfig(current ContainerDetails, request SelfUpdateHelperRe
 		Labels: map[string]string{
 			SelfUpdateHelperLabel: "true",
 			SelfUpdateTargetLabel: request.TargetContainerID,
+			SelfUpdateImageLabel:  request.TargetImageID,
 		},
 		// The helper never runs the daemon heartbeat, so an inherited image
 		// healthcheck would mark it unhealthy mid-update.
@@ -56,37 +56,7 @@ func selfUpdateHelperConfig(current ContainerDetails, request SelfUpdateHelperRe
 		containerConfig.Cmd = append(containerConfig.Cmd, "--helper-rollback-image-retention", strconv.Itoa(request.RollbackImageRetention))
 	}
 
-	hostConfig := &containertypes.HostConfig{
-		Binds:         relevantBinds(current.Host.Binds, relevantPaths),
-		Mounts:        relevantMounts(current.Host.Mounts, relevantPaths),
-		NetworkMode:   current.Host.NetworkMode,
-		RestartPolicy: containertypes.RestartPolicy{Name: "no"},
-		AutoRemove:    true,
-		DNS:           append([]netip.Addr(nil), current.Host.DNS...),
-		DNSOptions:    append([]string(nil), current.Host.DNSOptions...),
-		DNSSearch:     append([]string(nil), current.Host.DNSSearch...),
-		ExtraHosts:    append([]string(nil), current.Host.ExtraHosts...),
-		GroupAdd:      append([]string(nil), current.Host.GroupAdd...),
-		SecurityOpt:   append([]string(nil), current.Host.SecurityOpt...),
-	}
-	return containerConfig, hostConfig, helperNetworkConfig(current), nil
-}
-
-func helperNetworkConfig(current ContainerDetails) *network.NetworkingConfig {
-	endpoints := make(map[string]*network.EndpointSettings, len(current.Networks))
-	if current.Host.NetworkMode.IsPrivate() && !current.Host.NetworkMode.IsNone() {
-		for name, settings := range current.Networks {
-			endpoint := sanitizedEndpoint(settings)
-			if endpoint != nil {
-				endpoint.Aliases = nil
-			}
-			endpoints[name] = endpoint
-		}
-	}
-	if len(endpoints) == 0 {
-		return nil
-	}
-	return &network.NetworkingConfig{EndpointsConfig: endpoints}
+	return containerConfig, helperHostConfig(current.Host, dockerHost, relevantPaths), helperNetworkConfig(current, dockerHost), nil
 }
 
 func helperDockerEnvironment(source []string, configuredHost string) (environment []string, dockerHost, certPath string) {

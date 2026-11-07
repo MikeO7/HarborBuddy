@@ -30,7 +30,7 @@ func RunUpdateCycle(ctx context.Context, cfg config.Config, client docker.Client
 		return finishCycle(logger, results, started, cfg.Updates.DryRun), err
 	}
 
-	shutdownSignal := processCandidates(ctx, cfg, client, results, selfID)
+	shutdownSignal := processCandidates(ctx, cfg, client, results, selfID, logger)
 	return finishCycle(logger, results, started, cfg.Updates.DryRun), shutdownSignal
 }
 

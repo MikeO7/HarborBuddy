@@ -17,6 +17,7 @@ const (
 	StatusWouldUpdate       Status = "would_update"
 	StatusUpdated           Status = "updated"
 	StatusSelfUpdateStarted Status = "self_update_started"
+	StatusSelfUpdateBlocked Status = "self_update_blocked"
 	StatusUnsupported       Status = "unsupported"
 	StatusFailed            Status = "failed"
 	StatusCancelled         Status = "cancelled"
@@ -82,6 +83,7 @@ func logReport(logger zerolog.Logger, report Report, dryRun bool) {
 		Int("excluded", report.Count(StatusExcluded)).
 		Int("updated", report.Count(StatusUpdated)).
 		Int("self_update_started", report.Count(StatusSelfUpdateStarted)).
+		Int("self_update_blocked", report.Count(StatusSelfUpdateBlocked)).
 		Int("would_update", report.Count(StatusWouldUpdate)).
 		Int("unsupported", report.Count(StatusUnsupported)).
 		Int("failed", report.Count(StatusFailed)).
@@ -183,6 +185,8 @@ func resultMessage(result ContainerResult, dryRun bool) string {
 		return "Container updated"
 	case StatusSelfUpdateStarted:
 		return "Self-update helper started; HarborBuddy will shut down gracefully"
+	case StatusSelfUpdateBlocked:
+		return "Self-update skipped: " + result.Reason
 	case StatusUnsupported:
 		return "Container cannot be updated safely: " + result.Reason
 	case StatusFailed:

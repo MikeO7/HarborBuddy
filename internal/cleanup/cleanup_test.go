@@ -189,7 +189,7 @@ func TestCleanupAllRemovesEveryUnusedResourceClass(t *testing.T) {
 			},
 			docker.CleanupBuildCache: {
 				{Kind: docker.CleanupBuildCache, ID: "old-cache", CreatedAt: old, Size: 7},
-				{Kind: docker.CleanupBuildCache, ID: "new-cache", CreatedAt: now.Add(-time.Hour), Size: 11},
+				{Kind: docker.CleanupBuildCache, ID: "new-cache", CreatedAt: now.Add(-time.Hour), LastUsedAt: now.Add(-time.Hour), Size: 11},
 			},
 		},
 		pruneResult: docker.CleanupPruneResult{Deleted: []string{"old-cache"}, ReclaimedBytes: 7},

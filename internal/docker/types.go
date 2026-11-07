@@ -28,14 +28,16 @@ type ContainerDetails struct {
 }
 
 type ImageInfo struct {
-	ID        string
-	RepoTags  []string
-	Dangling  bool
-	Protected bool
-	CreatedAt time.Time
-	Size      int64
-	Labels    map[string]string
-	Config    *containertypes.Config
+	ID          string
+	RepoTags    []string
+	RepoDigests []string // set by image listings
+	Dangling    bool
+	Protected   bool
+	InUse       bool // a container (running or stopped) or a child image depends on it; set by image listings
+	CreatedAt   time.Time
+	Size        int64
+	Labels      map[string]string
+	Config      *containertypes.Config
 }
 
 type CleanupResourceKind string
@@ -58,7 +60,10 @@ type CleanupResource struct {
 	Dangling   bool
 	InUse      bool
 	Protected  bool
-	Labels     map[string]string // volumes only
+	// ProtectedReason explains Protected in cleanup logs; empty uses a generic reason.
+	ProtectedReason string
+	RepoDigests     []string          // images only
+	Labels          map[string]string // volumes only
 }
 
 type CleanupPruneResult struct {

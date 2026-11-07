@@ -90,6 +90,8 @@ docker compose logs -f harborbuddy
 
 The example runs every day at 03:00 UTC in dry-run mode. Review the logs and set your allow/deny filters before removing `HARBORBUDDY_DRY_RUN`. Remove `HARBORBUDDY_SCHEDULE_TIME` to use the default 12-hour interval instead.
 
+In daily mode no cycle runs at startup, so until the first scheduled time the logs show only startup and the next run time; interval mode runs its first cycle immediately.
+
 For a fuller starting point, see [examples/docker-compose.yml](examples/docker-compose.yml) and [examples/harborbuddy.yml](examples/harborbuddy.yml).
 
 ### Try a dry run first
@@ -102,6 +104,8 @@ docker run --rm \
   ghcr.io/mikeo7/harborbuddy:edge \
   --once --dry-run
 ```
+
+One-shot runs (`--once`, `--cleanup-only`) do not write the health file, so the image's health check reports them unhealthy once its 30-second start period passes. Add `--no-healthcheck` to `docker run`, or `healthcheck: { disable: true }` in Compose, for one-shot containers.
 
 Or add this to the Compose environment:
 
@@ -209,22 +213,26 @@ volumes:
   - ./harborbuddy.yml:/config/harborbuddy.yml:ro
 ```
 
-YAML parsing is strict. Unknown fields and multiple YAML documents cause startup to fail. When `updates.schedule_time` is set, HarborBuddy uses that daily `HH:MM` time in `updates.timezone`; otherwise it uses `updates.check_interval`.
+YAML parsing is strict. Unknown fields and a second non-empty YAML document cause startup to fail; a trailing `---` is accepted. When `updates.schedule_time` is set, HarborBuddy uses that daily `HH:MM` time in `updates.timezone`; otherwise it uses `updates.check_interval`, which must be at least `1s`. Intervals below `1m` log a startup warning because every cycle pulls each eligible image and can hit registry rate limits. If a daylight-saving change skips the daily time, that day's run starts at the first instant after the gap; a repeated time runs once.
+
+When `log.file` is set, `log.max_backups` must be at least `1`. The rotation library treats `0` as "keep every rotated file", so HarborBuddy rejects it rather than letting old logs grow without limit.
 
 Set `updates.rollback_image_retention` to `N` to keep `N` prior images that completed a successful update, independently for each full registry/repository/tag reference. The default `0` performs no retention work. HarborBuddy uses deterministic local `localhost/harborbuddy-rollback/<sha256>:<slot>` tags, rotates them only after the replacement is ready, and treats retention errors as warnings. It never deliberately removes an overflow image referenced by any running or stopped container. Container-referenced images can therefore remain on disk beyond the configured slots.
 
 ### Environment variables
 
-Environment variables override YAML settings.
+Command-line flags override environment variables, and `HARBORBUDDY_*` environment variables override YAML settings. `TZ` is the exception: it is only a fallback, used when neither `updates.timezone` nor `HARBORBUDDY_TIMEZONE` is set, so the schedule timezone comes from `--timezone`, then `HARBORBUDDY_TIMEZONE`, then `updates.timezone`, then `TZ`, then `UTC`.
+
+Boolean variables accept `true`/`false`, `yes`/`no`, `on`/`off`, or `1`/`0`, in any case, like YAML. `HARBORBUDDY_LOG_LEVEL` is case-insensitive. HarborBuddy logs a startup warning for any `HARBORBUDDY_*` variable it does not recognize, with a suggestion for common mistakes such as `HARBORBUDDY_SELF_UPDATE` or `HARBORBUDDY_CHECK_INTERVAL`.
 
 | Variable | Default | What it controls |
 | --- | --- | --- |
 | `HARBORBUDDY_CONFIG` | `/config/harborbuddy.yml` | Configuration file path |
 | `HARBORBUDDY_DOCKER_HOST` | empty | Explicit Docker endpoint; overrides `DOCKER_HOST` |
-| `HARBORBUDDY_INTERVAL` | `12h` | Update interval |
+| `HARBORBUDDY_INTERVAL` | `12h` | Update interval; at least `1s` |
 | `HARBORBUDDY_SCHEDULE_TIME` | empty | Daily run time in `HH:MM` |
-| `HARBORBUDDY_TIMEZONE` | `UTC` | IANA timezone; takes precedence over `TZ` |
-| `TZ` | empty | Standard timezone fallback |
+| `HARBORBUDDY_TIMEZONE` | `UTC` | IANA timezone; overrides `updates.timezone` and `TZ` |
+| `TZ` | empty | Timezone fallback, used only when `updates.timezone` and `HARBORBUDDY_TIMEZONE` are unset |
 | `HARBORBUDDY_DRY_RUN` | `false` | Pull and report without replacement or cleanup deletion |
 | `HARBORBUDDY_UPDATES_ENABLED` | `true` | Enable update checks |
 | `HARBORBUDDY_SELF_UPDATE_ENABLED` | `true` | Let HarborBuddy update its own container |
@@ -251,7 +259,7 @@ Environment variables override YAML settings.
 | `HARBORBUDDY_LOG_JSON` | `false` | Write JSON logs |
 | `HARBORBUDDY_LOG_FILE` | empty | Optional rotating log path; stdout stays enabled |
 | `HARBORBUDDY_LOG_MAX_SIZE` | `10` | Rotation size in MiB |
-| `HARBORBUDDY_LOG_MAX_BACKUPS` | `1` | Number of rotated files to keep |
+| `HARBORBUDDY_LOG_MAX_BACKUPS` | `1` | Number of rotated files to keep; at least `1` |
 | `HARBORBUDDY_HEALTH_FILE` | `/tmp/harborbuddy-health.json` | Status file shared by the daemon and `--healthcheck` |
 
 Invalid environment values and invalid configured schedules are rejected at startup instead of silently falling back.
@@ -286,6 +294,12 @@ The current schema no longer accepts `docker.tls`, `updates.update_all`, or the 
 
 Self-update is enabled by default. HarborBuddy cannot replace its own running container directly, so it starts a short-lived helper from the new image and then exits cleanly. The helper performs the same replacement and readiness process, keeping the old HarborBuddy container as a backup until the new one starts successfully.
 
+The helper gets only what it needs to reach Docker with the daemon's privileges: the Docker socket and certificate mounts, the Docker connection and logging variables, and the daemon's user, groups, security options, capabilities, privileged mode, user namespace, runtime, and read-only root filesystem setting. With a Unix socket it runs with networking disabled. With a remote `DOCKER_HOST` it joins the daemon's networks with dynamic addresses only, so static IPs, MAC addresses, and aliases never collide with the daemon.
+
+If the helper fails at any point after the daemon exits, including a failed readiness check, it restores the daemon's original restart policy and starts the old container again. For the next 24 hours the daemon does not retry that same image; it logs `self_update_blocked` on each cycle instead. It tries again after that, or sooner if a different image is published. Remove the failed helper container to allow an immediate retry. `--once` runs never self-update.
+
+Helpers are kept after they exit so their logs stay readable. List them with `docker ps -a --filter label=com.harborbuddy.self-update-helper=true`. The daemon removes finished helpers older than 7 days during its update cycle. A helper that failed to update the running daemon blocks another attempt at the same image for 24 hours; after that, or as soon as a different image is published, HarborBuddy tries again.
+
 Set `HARBORBUDDY_CONTAINER_NAME` to the stable Compose container name so HarborBuddy can identify itself. Set it explicitly when managing a remote daemon because local Linux runtime identity cannot reliably identify a remote container. The `com.harborbuddy.role=daemon` label protects an unidentified HarborBuddy container from the ordinary update path, but it is not treated as proof of identity.
 
 To keep HarborBuddy itself under manual change control:
@@ -316,16 +330,18 @@ The default cleanup policy removes only dangling images older than 24 hours. Eve
 
 Untagged images and cache volumes can expire sooner than everything else. `dangling_image_min_age_hours` sets the age for untagged images. `cache_volumes` lists volume-name globs (for example `*gocache`), and `cache_volume_min_age_hours` sets the age for unused volumes that match; this applies only when volume cleanup is on. Both default to `min_age_hours`. Build-cache age stays `min_age_hours`.
 
-`keep_images` lists image patterns (the same syntax as `allow_images`) that cleanup never removes. Use it for images that only host tools run, such as a `docker run --rm` helper: no container references them between runs, so they otherwise look unused.
+`keep_images` lists image patterns (the same syntax as `allow_images`) that cleanup never removes. Use it for images that only host tools run, such as a `docker run --rm` helper: no container references them between runs, so they otherwise look unused. Patterns match tags, digest references (`repo@sha256:...`), and the repository name of a digest reference, so `ghcr.io/org/tool*` also keeps an image pulled as `ghcr.io/org/tool@sha256:...`.
+
+Dangling-only cleanup uses the daemon's own definition of dangling, like `docker image prune`. With the containerd image store (the default from Docker Engine 29), an image pulled by digest is not dangling and is kept. With the older image store, an image that has a digest but no tag counts as dangling, and so does the previous version that a pull leaves behind. Listing the repository in `keep_images` keeps both.
 
 `keep_volumes` lists volume-name globs (the same syntax as `cache_volumes`) that cleanup never removes. Use it for volumes that hold data you cannot recreate but that nothing mounts most of the time, such as a backup store.
 `keep_volume_labels` keeps every volume that carries one of the listed labels: `key=value` needs that value, `key` alone matches any value. Use it when an app creates its own volumes and labels them.
 
-System networks, running containers, attached networks, referenced volumes, active build-cache records, and resources with unknown age or usage are skipped. For containers, networks, and volumes, minimum age is based on creation time, not time since the resource became stopped or unused. An old resource can therefore become eligible as soon as its final reference is gone. Volume cleanup can permanently delete application data, and HarborBuddy cannot know whether an unused volume still matters to you.
+System networks, running containers, attached networks, referenced volumes, active build-cache records, and resources with unknown age or usage are skipped. Images used by any container, running or stopped, and images that other images are built on are skipped as in use. Networks that any container, running or stopped, is attached to are skipped. HarborBuddy's own update backups (containers named `*-harborbuddy-backup-*`) and self-update helper records are never removed. Stopped-container cleanup also keeps any container with a restart policy (`always`, `unless-stopped`, `on-failure`), such as a stopped Compose service or the original left behind when a rollback could not restart it; it removes only stopped containers whose policy is `no`. After an update fails or rolls back, cleanup in the same cycle keeps the affected container, and so its volumes, and removes no networks. Docker prunes build cache only by age, so when its prune would also remove a record HarborBuddy keeps, such as one with unknown age, the build-cache prune is skipped for that cycle. For containers, networks, and volumes, minimum age is based on creation time, not time since the resource became stopped or unused. An old resource can therefore become eligible as soon as its final reference is gone. Volume cleanup can permanently delete application data, and HarborBuddy cannot know whether an unused volume still matters to you.
 
 ## Logs and CLI
 
-Logs go to standard output. Set `HARBORBUDDY_LOG_JSON=true` for JSON or `HARBORBUDDY_LOG_FILE` for an additional rotating file. Update records include container, image, transaction, failure, and rollback fields; scheduled work shares a `cycle_id`. Send `SIGUSR1` to switch temporarily to debug logging, then send it again to restore the configured level.
+Logs go to standard output. Set `HARBORBUDDY_LOG_JSON=true` for JSON or `HARBORBUDDY_LOG_FILE` for an additional rotating file. Update records include container, image, transaction, failure, and rollback fields; scheduled work shares a `cycle_id`. Send `SIGUSR1` to switch temporarily to debug logging, then send it again to restore the configured level. Text logs carry RFC 3339 timestamps with the date, and use color only when standard output is a terminal and `NO_COLOR` is unset or empty.
 
 ```text
 --config PATH          configuration file
@@ -342,9 +358,9 @@ Logs go to standard output. Set `HARBORBUDDY_LOG_JSON=true` for JSON or `HARBORB
 
 ### Container health check
 
-The image defines a Docker `HEALTHCHECK` that runs `/harborbuddy --healthcheck`. A long-running daemon pings Docker every 15 seconds and writes the result to `HARBORBUDDY_HEALTH_FILE`. The check fails when the last successful ping is more than 60 seconds old or when an update cycle has run for more than two hours, so Docker, and any tool that watches container health, sees a daemon that lost Docker or got stuck. `--once` and `--cleanup-only` runs do not write the file. With a read-only root filesystem, mount a tmpfs at `/tmp` or point `HARBORBUDDY_HEALTH_FILE` at a writable path. Self-update helpers run with the health check disabled.
+The image defines a Docker `HEALTHCHECK` that runs `/harborbuddy --healthcheck`. A long-running daemon pings Docker every 15 seconds and writes the result to `HARBORBUDDY_HEALTH_FILE`. The check fails when the last successful ping is more than 60 seconds old or when an update cycle has run for more than two hours, so Docker, and any tool that watches container health, sees a daemon that lost Docker or got stuck. The two-hour cycle limit is fixed; it matters only when a single cycle legitimately runs that long, such as many large pulls over a slow link or long startup timeouts across many containers, and the container then reports unhealthy until the cycle ends. `--once` and `--cleanup-only` runs do not write the file, so disable the health check for one-shot containers (`docker run --no-healthcheck`, or `healthcheck: { disable: true }` in Compose). With a read-only root filesystem, mount a tmpfs at `/tmp` or point `HARBORBUDDY_HEALTH_FILE` at a writable path. Self-update helpers run with the health check disabled.
 
-## Development)
+## Development
 
 HarborBuddy is written in Go. To run the full local verification suite:
 

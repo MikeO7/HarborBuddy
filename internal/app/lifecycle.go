@@ -34,6 +34,7 @@ func runDaemon(ctx context.Context, stdout io.Writer, deps Dependencies, cfg con
 		Str("build_date", buildinfo.Date).
 		Msg("HarborBuddy starting")
 	logEffectiveConfig(logger, cfg)
+	logConfigWarnings(logger, cfg, deps.Environ)
 
 	client, err := deps.NewDockerClient(ctx, cfg.Docker.Host)
 	if err != nil {
@@ -115,6 +116,7 @@ func runHelper(ctx context.Context, stdout io.Writer, deps Dependencies, values 
 			Str("failure_stage", result.FailureStage).
 			Bool("rollback_attempted", result.RollbackAttempted).
 			Str("rollback_outcome", rollbackOutcome(result)).
+			Str("recovery_outcome", selfupdate.RecoveryOutcome(helperErr)).
 			Int64("duration_ms", time.Since(started).Milliseconds()).Err(helperErr).
 			Msg("Self-update helper failed")
 		return fmt.Errorf("run self-update helper: %w", helperErr)

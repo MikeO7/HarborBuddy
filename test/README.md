@@ -73,8 +73,9 @@ The script:
 11. Publishes an unhealthy revision with a failing Docker health check.
 12. Confirms readiness failure is reported, the healthy container and image are restored, and the failed replacement is removed.
 13. Publishes two HarborBuddy revisions under one mutable tag and starts the first with an `unless-stopped` restart policy.
-14. Confirms the daemon launches its helper, replaces itself with the second image, remains running under the original name, preserves its restart policy, and removes helper/backup containers.
-15. Removes its uniquely named containers and generated fixture/HarborBuddy images. Pulled dependency images may remain in the engine cache.
+14. Confirms the daemon launches its helper, replaces itself with the second image, remains running under the original name, preserves its restart policy, removes the backup container, and keeps the finished helper with exit code 0.
+15. Publishes a third HarborBuddy revision whose health check always fails and confirms the helper rolls back, restores the daemon and its restart policy, reports the recovery, and that later cycles log `self_update_blocked` instead of starting another helper for the same image.
+16. Removes its uniquely named containers and generated fixture/HarborBuddy images. Pulled dependency images may remain in the engine cache.
 
 This is an end-to-end test for the image, Docker-compatible connection, discovery, dry-run non-mutation, idempotence, opt-out labels, successful ordinary replacement, readiness failure, rollback, and automatic self-update. Focused Go tests cover configuration, remote TLS, scheduler timing, identity ambiguity, and individual rollback boundaries.
 

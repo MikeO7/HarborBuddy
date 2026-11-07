@@ -14,6 +14,7 @@ services:
       # Optional persistent rotating logs:
       # - ./logs:/logs
     environment:
+      # TZ is a schedule fallback; harborbuddy.yml sets the same timezone.
       TZ: America/Los_Angeles
       HARBORBUDDY_SCHEDULE_TIME: "03:00"
       HARBORBUDDY_LOG_LEVEL: info

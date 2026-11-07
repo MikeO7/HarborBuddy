@@ -44,6 +44,60 @@ func TestCalculateNextRunUsesTomorrowWhenExactlyScheduled(t *testing.T) {
 	}
 }
 
+func TestCalculateNextRunSpringForwardGapRunsAfterGap(t *testing.T) {
+	for _, test := range []struct {
+		name, zone string
+		now, want  func(*time.Location) time.Time
+	}{
+		{
+			// Go normalizes the skipped 02:30 back to 01:30 PST here.
+			name: "Los Angeles day before", zone: "America/Los_Angeles",
+			now:  func(l *time.Location) time.Time { return time.Date(2026, 3, 7, 12, 0, 0, 0, l) },
+			want: func(l *time.Location) time.Time { return time.Date(2026, 3, 8, 3, 0, 0, 0, l) },
+		},
+		{
+			// A daemon awake in the hour before the gap must still run that day.
+			name: "Los Angeles before gap", zone: "America/Los_Angeles",
+			now:  func(l *time.Location) time.Time { return time.Date(2026, 3, 8, 1, 45, 0, 0, l) },
+			want: func(l *time.Location) time.Time { return time.Date(2026, 3, 8, 3, 0, 0, 0, l) },
+		},
+		{
+			// Go normalizes the skipped 02:30 forward to 03:30 CEST here.
+			name: "Berlin day before", zone: "Europe/Berlin",
+			now:  func(l *time.Location) time.Time { return time.Date(2026, 3, 28, 12, 0, 0, 0, l) },
+			want: func(l *time.Location) time.Time { return time.Date(2026, 3, 29, 3, 0, 0, 0, l) },
+		},
+	} {
+		t.Run(test.name, func(t *testing.T) {
+			location, err := time.LoadLocation(test.zone)
+			if err != nil {
+				t.Fatal(err)
+			}
+			if got, want := calculateNextRun(test.now(location), "02:30", location), test.want(location); !got.Equal(want) {
+				t.Fatalf("calculateNextRun() = %v, want %v", got, want)
+			}
+		})
+	}
+}
+
+func TestCalculateNextRunFallBackRunsOnce(t *testing.T) {
+	location, err := time.LoadLocation("America/Los_Angeles")
+	if err != nil {
+		t.Fatal(err)
+	}
+	first := calculateNextRun(time.Date(2026, 10, 31, 12, 0, 0, 0, location), "01:30", location)
+	if want := time.Date(2026, 11, 1, 8, 30, 0, 0, time.UTC); !first.Equal(want) {
+		t.Fatalf("first run = %v, want the first 01:30 (PDT) %v", first, want)
+	}
+	// After the first run, including during the repeated hour, the next run is the next day.
+	want := time.Date(2026, 11, 2, 1, 30, 0, 0, location)
+	for _, now := range []time.Time{first.Add(time.Second), first.Add(time.Hour + time.Minute)} {
+		if got := calculateNextRun(now.In(location), "01:30", location); !got.Equal(want) {
+			t.Fatalf("calculateNextRun(%v) = %v, want %v", now, got, want)
+		}
+	}
+}
+
 func TestGenerateCycleIDFallsBackWhenRandomSourceFails(t *testing.T) {
 	original := randomRead
 	randomRead = func([]byte) (int, error) { return 0, errors.New("entropy unavailable") }

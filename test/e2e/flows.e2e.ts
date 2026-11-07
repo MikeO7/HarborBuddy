@@ -7,6 +7,7 @@ test("version and help never contact Docker", async ({ docker }) => {
   const version = await docker.run(["--version"]);
   expect(version.code).toBe(0); expect(version.stdout).toContain("HarborBuddy");
   const help = await docker.run(["--help"]); expect(help.stderr).toContain("--dry-run");
+  expect(help.code).toBe(0); expect(help.stderr).not.toContain("help requested");
   expect(docker.requests).toHaveLength(0);
 });
 

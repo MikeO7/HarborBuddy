@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"os"
 	"strconv"
+	"strings"
 	"time"
 )
 
@@ -33,7 +34,7 @@ func (c *Config) applyUpdateEnvironment(getenv environmentReader) error {
 		return err
 	}
 	applyString(getenv, "HARBORBUDDY_SCHEDULE_TIME", &c.Updates.ScheduleTime)
-	applyTimezone(getenv, &c.Updates.Timezone)
+	c.applyTimezone(getenv)
 	if err := applyBool(getenv, "HARBORBUDDY_DRY_RUN", &c.Updates.DryRun); err != nil {
 		return err
 	}
@@ -77,7 +78,9 @@ func (c *Config) applyCleanupEnvironment(getenv environmentReader) error {
 }
 
 func (c *Config) applyLogEnvironment(getenv environmentReader) error {
-	applyString(getenv, "HARBORBUDDY_LOG_LEVEL", &c.Log.Level)
+	if value := getenv("HARBORBUDDY_LOG_LEVEL"); value != "" {
+		c.Log.Level = strings.ToLower(strings.TrimSpace(value))
+	}
 	if err := applyBool(getenv, "HARBORBUDDY_LOG_JSON", &c.Log.JSON); err != nil {
 		return err
 	}
@@ -88,12 +91,17 @@ func (c *Config) applyLogEnvironment(getenv environmentReader) error {
 	return applyInt(getenv, "HARBORBUDDY_LOG_MAX_BACKUPS", &c.Log.MaxBackups)
 }
 
-func applyTimezone(getenv environmentReader, target *string) {
+// applyTimezone gives HARBORBUDDY_TIMEZONE precedence over updates.timezone, like every
+// other HARBORBUDDY_* variable. The standard TZ variable is only a fallback for when neither
+// names a timezone.
+func (c *Config) applyTimezone(getenv environmentReader) {
 	if value := getenv("HARBORBUDDY_TIMEZONE"); value != "" {
-		*target = value
+		c.Updates.Timezone = value
 		return
 	}
-	applyString(getenv, "TZ", target)
+	if value := getenv("TZ"); value != "" && !c.Updates.timezoneConfigured {
+		c.Updates.Timezone = value
+	}
 }
 
 func applyString(getenv environmentReader, name string, target *string) {
@@ -120,12 +128,28 @@ func applyBool(getenv environmentReader, name string, target *bool) error {
 	if value == "" {
 		return nil
 	}
-	parsed, err := strconv.ParseBool(value)
+	parsed, err := parseBool(value)
 	if err != nil {
 		return invalidEnv(name, value, err)
 	}
 	*target = parsed
 	return nil
+}
+
+// parseBool accepts the boolean spellings YAML accepts, case-insensitively, plus 1/0 and the
+// other strconv.ParseBool forms.
+func parseBool(value string) (bool, error) {
+	switch strings.ToLower(strings.TrimSpace(value)) {
+	case "yes", "on":
+		return true, nil
+	case "no", "off":
+		return false, nil
+	}
+	parsed, err := strconv.ParseBool(strings.ToLower(strings.TrimSpace(value)))
+	if err != nil {
+		return false, fmt.Errorf("want true/false, yes/no, on/off, or 1/0: %w", err)
+	}
+	return parsed, nil
 }
 
 func applyInt(getenv environmentReader, name string, target *int) error {
