@@ -42,7 +42,10 @@ func runDaemon(ctx context.Context, stdout io.Writer, deps Dependencies, cfg con
 	}
 	defer mergeCloseError(&runErr, "Docker client", client.Close)
 
-	if err := deps.RunScheduler(ctx, cfg, client, logger); err != nil {
+	schedulerCtx, stopHealth := startHealthMonitor(ctx, cfg, deps, client, logger)
+	defer stopHealth()
+
+	if err := deps.RunScheduler(schedulerCtx, cfg, client, logger); err != nil {
 		if _, ok := selfupdate.AsShutdownRequired(err); ok {
 			logger.Info().Str("event", "daemon_self_update_handoff").Msg("Self-update helper started; shutting down successfully")
 			return nil

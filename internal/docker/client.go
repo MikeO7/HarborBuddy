@@ -38,3 +38,11 @@ func (d *DockerClient) Close() error {
 	}
 	return d.cli.Close()
 }
+
+// Ping checks that the Docker daemon answers.
+func (d *DockerClient) Ping(ctx context.Context) error {
+	if _, err := d.cli.Ping(ctx, client.PingOptions{}); err != nil {
+		return fmt.Errorf("ping Docker daemon: %w", err)
+	}
+	return nil
+}

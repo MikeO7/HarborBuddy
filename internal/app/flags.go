@@ -19,6 +19,7 @@ type flagValues struct {
 	logLevel                     string
 	cleanupOnly                  bool
 	version                      bool
+	healthcheck                  bool
 	updaterMode                  bool
 	targetContainer              string
 	newImage                     string
@@ -46,6 +47,7 @@ func newFlagSet(stderr io.Writer) (*pflag.FlagSet, *flagValues, error) {
 	flags.StringVar(&values.logLevel, "log-level", "", "Logging level (debug, info, warn, error)")
 	flags.BoolVar(&values.cleanupOnly, "cleanup-only", false, "Run only cleanup logic and exit")
 	flags.BoolVar(&values.version, "version", false, "Show version and exit")
+	flags.BoolVar(&values.healthcheck, "healthcheck", false, "Check that the running daemon in this container is healthy and exit")
 	flags.BoolVar(&values.updaterMode, "updater-mode", false, "self-update helper mode")
 	flags.StringVar(&values.targetContainer, "target-container-id", "", "self-update target container")
 	flags.StringVar(&values.newImage, "new-image-id", "", "self-update target image")

@@ -29,7 +29,7 @@ func TestCleanupAdapterListsAndRemovesEveryResourceKind(t *testing.T) {
 				{ID: "sha256:rollback", RepoTags: []string{rollbackImageRepositoryPrefix + "abc:1"}, Created: created.Unix(), Size: 20},
 			},
 			"Volumes": []volumetypes.Volume{
-				{Name: "unused", CreatedAt: created.Format(time.RFC3339Nano), UsageData: &volumetypes.UsageData{RefCount: 0, Size: 20}},
+				{Name: "unused", CreatedAt: created.Format(time.RFC3339Nano), Labels: map[string]string{"owner": "app"}, UsageData: &volumetypes.UsageData{RefCount: 0, Size: 20}},
 				{Name: "used", CreatedAt: created.Format(time.RFC3339Nano), UsageData: &volumetypes.UsageData{RefCount: 1, Size: -1}},
 				{Name: "unknown", CreatedAt: "bad-time"},
 				{Name: "unknown-ref", CreatedAt: created.Format(time.RFC3339Nano), UsageData: &volumetypes.UsageData{RefCount: -1, Size: 1}},
@@ -96,7 +96,7 @@ func TestCleanupAdapterListsAndRemovesEveryResourceKind(t *testing.T) {
 		t.Fatalf("cleanup networks = %+v, %v", networks, err)
 	}
 	volumes, err := client.ListCleanupResources(context.Background(), CleanupVolume)
-	if err != nil || len(volumes) != 4 || volumes[0].InUse || !volumes[1].InUse || !volumes[2].Protected || !volumes[3].Protected {
+	if err != nil || len(volumes) != 4 || volumes[0].Labels["owner"] != "app" || volumes[0].InUse || !volumes[1].InUse || !volumes[2].Protected || !volumes[3].Protected {
 		t.Fatalf("cleanup volumes = %+v, %v", volumes, err)
 	}
 	caches, err := client.ListCleanupResources(context.Background(), CleanupBuildCache)

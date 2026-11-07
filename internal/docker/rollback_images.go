@@ -74,7 +74,7 @@ func (d *DockerClient) rollbackSlotImage(ctx context.Context, repository string,
 func (d *DockerClient) imageUsedByAnyContainer(ctx context.Context, imageID string) (bool, error) {
 	containers, err := d.cli.ContainerList(ctx, client.ContainerListOptions{All: true})
 	if err != nil {
-		return false, fmt.Errorf("list all containers before rollback image cleanup: %w", err)
+		return false, fmt.Errorf("list all containers before image removal: %w", err)
 	}
 	for _, container := range containers.Items {
 		if container.ImageID == imageID {

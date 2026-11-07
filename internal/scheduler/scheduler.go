@@ -11,6 +11,7 @@ import (
 	"github.com/MikeO7/HarborBuddy/internal/cleanup"
 	"github.com/MikeO7/HarborBuddy/internal/config"
 	"github.com/MikeO7/HarborBuddy/internal/docker"
+	"github.com/MikeO7/HarborBuddy/internal/health"
 	"github.com/MikeO7/HarborBuddy/internal/selfupdate"
 	"github.com/MikeO7/HarborBuddy/internal/updater"
 	"github.com/rs/zerolog"
@@ -125,6 +126,7 @@ func (s *scheduler) runContinuousCycle(ctx context.Context, cfg config.Config, c
 }
 
 func (s *scheduler) runCycle(ctx context.Context, cfg config.Config, client docker.Client, logger zerolog.Logger) error {
+	defer health.TrackCycle(ctx)()
 	started := time.Now()
 	cycleLogger := logger.With().Str("cycle_id", s.cycleID(s.clock.Now())).Logger()
 	cycleLogger.Info().Str("event", "cycle_started").Bool("updates", cfg.Updates.Enabled).

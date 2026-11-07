@@ -155,6 +155,7 @@ func (d *DockerClient) listCleanupVolumes(ctx context.Context) ([]CleanupResourc
 		resources = append(resources, CleanupResource{
 			Kind: CleanupVolume, ID: volume.Name, Name: volume.Name, CreatedAt: created,
 			Size: size, InUse: inUse, Protected: parseErr != nil || unknownUsage,
+			Labels: cloneStringMap(volume.Labels),
 		})
 	}
 	return resources, nil

@@ -10,6 +10,7 @@ import (
 	"github.com/MikeO7/HarborBuddy/internal/buildinfo"
 	"github.com/MikeO7/HarborBuddy/internal/config"
 	"github.com/MikeO7/HarborBuddy/internal/docker"
+	"github.com/MikeO7/HarborBuddy/internal/health"
 	"github.com/MikeO7/HarborBuddy/internal/logging"
 	"github.com/MikeO7/HarborBuddy/internal/scheduler"
 	"github.com/MikeO7/HarborBuddy/internal/selfupdate"
@@ -19,6 +20,7 @@ import (
 // DockerClient is the application-facing Docker client contract.
 type DockerClient interface {
 	docker.Client
+	health.Pinger
 	Close() error
 }
 
@@ -59,6 +61,9 @@ func RunWithDependencies(ctx context.Context, args []string, stdout, stderr io.W
 	if values.version {
 		_, err := fmt.Fprintln(stdout, buildinfo.String())
 		return err
+	}
+	if values.healthcheck {
+		return runHealthcheck(stdout, deps)
 	}
 	if values.updaterMode {
 		return runHelper(ctx, stdout, deps, values)

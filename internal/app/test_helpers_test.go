@@ -40,6 +40,15 @@ func testDependencies(env map[string]string) Dependencies {
 type fakeDockerClient struct {
 	closed   bool
 	closeErr error
+	pingOK   bool
+}
+
+// Ping fails unless pingOK is set, so daemon tests never write a health file.
+func (c *fakeDockerClient) Ping(context.Context) error {
+	if c.pingOK {
+		return nil
+	}
+	return errors.New("no Docker in tests")
 }
 
 type failingWriter struct{}

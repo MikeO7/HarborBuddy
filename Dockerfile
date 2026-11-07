@@ -1,6 +1,6 @@
 # syntax=docker/dockerfile:1.27.0@sha256:bde3983e9c939224420ddaf6b784cc30e09b035a4dea01f581230c50809f372e
 
-FROM --platform=$BUILDPLATFORM docker.io/library/golang:1.27.1-alpine@sha256:8a5910f31396cd4d89662f56c68b3ae31d374308270a1c3bd96672ee5ed43414 AS builder
+FROM --platform=$BUILDPLATFORM docker.io/library/golang:1.27.3-alpine@sha256:d200d2dd76b03a99b52651fd1325aff7dcd35422c35c01bac56571b0507f3deb AS builder
 
 RUN apk add --no-cache ca-certificates tzdata
 
@@ -37,6 +37,9 @@ RUN --mount=type=cache,target=/go/pkg/mod \
         -o /out/harborbuddy \
         ./cmd/harborbuddy
 
+# scratch has no /tmp; the daemon writes its healthcheck status file there.
+RUN mkdir -p /out/tmp && chmod 1777 /out/tmp
+
 FROM scratch
 
 ARG VERSION=dev
@@ -55,5 +58,13 @@ LABEL org.opencontainers.image.title="HarborBuddy" \
 COPY --from=builder /etc/ssl/certs/ca-certificates.crt /etc/ssl/certs/ca-certificates.crt
 COPY --from=builder /usr/share/zoneinfo /usr/share/zoneinfo
 COPY --from=builder /out/harborbuddy /harborbuddy
+COPY --from=builder /out/tmp /tmp
+
+# The daemon pings Docker every 15s and records it; this fails when that
+# heartbeat is older than 60s or an update cycle has run for over 2h. The short
+# interval keeps self-update readiness fast: Podman builds reject --start-interval,
+# and a replacement daemon is ready only once its first check passes.
+HEALTHCHECK --interval=5s --timeout=5s --start-period=30s --retries=3 \
+    CMD ["/harborbuddy", "--healthcheck"]
 
 ENTRYPOINT ["/harborbuddy"]

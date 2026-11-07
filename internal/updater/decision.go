@@ -1,8 +1,6 @@
 package updater
 
 import (
-	"strings"
-
 	"github.com/MikeO7/HarborBuddy/internal/config"
 	"github.com/MikeO7/HarborBuddy/internal/docker"
 )
@@ -38,15 +36,4 @@ func DetermineEligibility(container docker.ContainerSummary, cfg config.UpdatesC
 	return UpdateDecision{Eligible: true, Reason: "eligible for updates"}
 }
 
-func matchesPattern(image, pattern string) bool {
-	switch {
-	case pattern == "*" || image == pattern:
-		return true
-	case strings.HasSuffix(pattern, "*"):
-		return strings.HasPrefix(image, strings.TrimSuffix(pattern, "*"))
-	case strings.HasPrefix(pattern, "*"):
-		return strings.HasSuffix(image, strings.TrimPrefix(pattern, "*"))
-	default:
-		return false
-	}
-}
+func matchesPattern(image, pattern string) bool { return config.MatchImagePattern(image, pattern) }

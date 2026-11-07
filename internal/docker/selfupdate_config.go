@@ -42,6 +42,9 @@ func selfUpdateHelperConfig(current ContainerDetails, request SelfUpdateHelperRe
 			SelfUpdateHelperLabel: "true",
 			SelfUpdateTargetLabel: request.TargetContainerID,
 		},
+		// The helper never runs the daemon heartbeat, so an inherited image
+		// healthcheck would mark it unhealthy mid-update.
+		Healthcheck: &containertypes.HealthConfig{Test: []string{"NONE"}},
 	}
 	if request.StopTimeout > 0 {
 		containerConfig.Cmd = append(containerConfig.Cmd, "--helper-stop-timeout", request.StopTimeout.String())

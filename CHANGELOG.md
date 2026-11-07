@@ -6,6 +6,11 @@ All notable changes to HarborBuddy are documented here. The format follows [Keep
 
 ### Added
 
+- `cleanup.dangling_image_min_age_hours` and `cleanup.cache_volumes` with `cleanup.cache_volume_min_age_hours` (and `HARBORBUDDY_CLEANUP_*` equivalents) let untagged images and unused cache volumes expire sooner than `min_age_hours`. Both default to `min_age_hours`, so existing setups are unchanged.
+- `cleanup.keep_images` (`HARBORBUDDY_CLEANUP_KEEP_IMAGES`): image patterns cleanup never removes, for images only host tools run.
+- `cleanup.keep_volumes` (`HARBORBUDDY_CLEANUP_KEEP_VOLUMES`): volume-name globs cleanup never removes.
+- `cleanup.keep_volume_labels` (`HARBORBUDDY_CLEANUP_KEEP_VOLUME_LABELS`): volumes carrying a listed label (`key=value` or `key`) are never removed.
+- A container health check: the daemon records a Docker ping every 15 seconds, and `harborbuddy --healthcheck` (the image `HEALTHCHECK`) fails when that heartbeat is over 60 seconds old or an update cycle has run for over two hours. `HARBORBUDDY_HEALTH_FILE` sets the status file path.
 - Staged container replacement with readiness checks and best-effort rollback.
 - `updates.startup_timeout` and `HARBORBUDDY_STARTUP_TIMEOUT` for replacement readiness.
 - Dedicated daemon role label, `com.harborbuddy.role=daemon`, for the helper-based self-update path.
@@ -44,3 +49,11 @@ All notable changes to HarborBuddy are documented here. The format follows [Keep
 - The legacy top-level `logging` block; use `log`.
 - Documentation for unsupported runtime user/group overrides and registry credential handling.
 - Duplicate and obsolete integration scripts and Compose fixtures.
+
+### Fixed
+
+- Image cleanup now removes unused images that have more than one tag. Docker refuses to delete such an image by ID, so the cleanup failed on it every run; HarborBuddy now removes the extra tags of an image no container uses, skipping any tag that has moved to another image, and then deletes it.
+
+### Security
+
+- Build with Go 1.27.3, fixing standard-library advisories GO-2026-6607 (CVE-2026-97031, `crypto/tls`), GO-2026-6609 (CVE-2026-78667, `net/http`), GO-2026-6611 (CVE-2026-78669, `net/http`), and GO-2026-6809 (CVE-2026-111943, `crypto/x509`).
