@@ -1,6 +1,7 @@
 package updater
 
 import (
+	"strings"
 	"testing"
 
 	"github.com/MikeO7/HarborBuddy/internal/config"
@@ -17,6 +18,12 @@ func TestMatchesPattern(t *testing.T) {
 		{name: "prefix", image: "ghcr.io/org/app:latest", pattern: "ghcr.io/org/*", want: true},
 		{name: "suffix", image: "redis:alpine", pattern: "*:alpine", want: true},
 		{name: "mismatch", image: "redis:latest", pattern: "nginx:*", want: false},
+		{name: "implicit latest", image: "nginx", pattern: "*:latest", want: true},
+		{name: "familiar form of qualified ref", image: "docker.io/library/nginx:1.27", pattern: "nginx:*", want: true},
+		{name: "qualified form of familiar ref", image: "nginx", pattern: "docker.io/library/*", want: true},
+		{name: "exact familiar default tag", image: "nginx", pattern: "nginx:latest", want: true},
+		{name: "explicit tag is not latest", image: "nginx:1.27", pattern: "*:latest", want: false},
+		{name: "image id is raw only", image: "sha256:" + strings.Repeat("a", 64), pattern: "docker.io/*", want: false},
 	}
 	for _, test := range tests {
 		t.Run(test.name, func(t *testing.T) {

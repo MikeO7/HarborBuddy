@@ -4,6 +4,9 @@ services:
     image: ghcr.io/mikeo7/harborbuddy:edge
     container_name: harborbuddy
     restart: unless-stopped
+    # Give an in-progress update time to finish or roll back on shutdown:
+    # at least 2 x stop_timeout + startup_timeout + ~1m. Docker's default is 10s.
+    stop_grace_period: 2m
     volumes:
       # HarborBuddy requires read/write Docker API access.
       - /var/run/docker.sock:/var/run/docker.sock

@@ -216,6 +216,7 @@ printf '%s\n' \
     'ARG REVISION' \
     'LABEL com.harborbuddy.integration=true' \
     "LABEL com.harborbuddy.fixture.revision=\$REVISION" \
+    "ENV HB_FIXTURE_REVISION=\$REVISION" \
     'CMD ["sh", "-c", "trap '\''exit 0'\'' TERM INT; while :; do sleep 1; done"]' \
     > "$TMP_DIR/fixture/Dockerfile"
 
@@ -231,6 +232,7 @@ OLD_IMAGE_ID="$(docker image inspect "$FIXTURE_REF" --format '{{.Id}}')"
 docker run -d \
     --name "$TARGET_NAME" \
     --label "$TEST_LABEL" \
+    --env HB_USER_SETTING=kept \
     "$FIXTURE_REF" >/dev/null
 
 TARGET_CONTAINER_ID="$(docker inspect "$TARGET_NAME" --format '{{.Id}}')"
@@ -325,6 +327,11 @@ HEALTHY_RUNNING="$(docker inspect "$TARGET_NAME" --format '{{.State.Running}}')"
 [[ "$HEALTHY_CONTAINER_ID" != "$TARGET_CONTAINER_ID" ]] || fail "real update did not replace the target container"
 [[ "$HEALTHY_IMAGE_ID" == "$NEW_IMAGE_ID" ]] || fail "real update did not use the replacement image"
 [[ "$HEALTHY_RUNNING" == "true" ]] || fail "replacement container is not running"
+HEALTHY_ENV="$(docker inspect "$TARGET_NAME" --format '{{range .Config.Env}}{{println .}}{{end}}')"
+grep -qx 'HB_FIXTURE_REVISION=new' <<< "$HEALTHY_ENV" || fail "replacement inherited the old image's ENV: $HEALTHY_ENV"
+grep -qx 'HB_USER_SETTING=kept' <<< "$HEALTHY_ENV" || fail "replacement lost user-set ENV: $HEALTHY_ENV"
+HEALTHY_REVISION_LABEL="$(docker inspect "$TARGET_NAME" --format '{{ index .Config.Labels "com.harborbuddy.fixture.revision" }}')"
+[[ "$HEALTHY_REVISION_LABEL" == "new" ]] || fail "replacement inherited the old image's label: $HEALTHY_REVISION_LABEL"
 
 log "verifying an already-current container is left untouched"
 if ! output="$(docker run --rm \

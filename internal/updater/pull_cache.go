@@ -5,6 +5,7 @@ import (
 	"sync"
 
 	"github.com/MikeO7/HarborBuddy/internal/docker"
+	"github.com/MikeO7/HarborBuddy/internal/imageref"
 )
 
 type pullCacheEntry struct {
@@ -22,12 +23,15 @@ func NewSafePullCache() *SafePullCache {
 	return &SafePullCache{entries: make(map[string]*pullCacheEntry)}
 }
 
+// GetOrPull deduplicates pulls by normalized reference, so "nginx",
+// "nginx:latest", and "docker.io/library/nginx:latest" share one pull.
 func (c *SafePullCache) GetOrPull(ctx context.Context, imageRef string, pull func() (docker.ImageInfo, error)) (docker.ImageInfo, error, bool) {
+	key := imageref.Normalize(imageRef)
 	c.mu.Lock()
-	entry, exists := c.entries[imageRef]
+	entry, exists := c.entries[key]
 	if !exists {
 		entry = &pullCacheEntry{ready: make(chan struct{})}
-		c.entries[imageRef] = entry
+		c.entries[key] = entry
 		c.mu.Unlock()
 
 		entry.info, entry.err = pull()
