@@ -80,7 +80,7 @@ func TestRunOnceNeverStartsSelfUpdate(t *testing.T) {
 
 func TestPreviouslyFailedSelfUpdateImageIsNotRetried(t *testing.T) {
 	client := newGuardClient(t)
-	client.records = []docker.SelfUpdateHelperRecord{{ID: "failed-helper", TargetContainerID: guardSelf.ID, TargetImageID: "sha256:new", Finished: true}}
+	client.records = []docker.SelfUpdateHelperRecord{{ID: "failed-helper", TargetContainerID: guardSelf.ID, TargetImageID: "sha256:new", Finished: true, CreatedAt: time.Now()}}
 	report, logs, err := runGuardCycle(t, config.Default(), client)
 	if err != nil || resultStatus(report, guardSelf.ID) != StatusSelfUpdateBlocked || len(client.actions) != 0 {
 		t.Fatalf("blocked self result = %+v err %v actions %v", report.Results, err, client.actions)
@@ -90,9 +90,16 @@ func TestPreviouslyFailedSelfUpdateImageIsNotRetried(t *testing.T) {
 	}
 
 	client = newGuardClient(t)
-	client.records = []docker.SelfUpdateHelperRecord{{ID: "older-failure", TargetContainerID: guardSelf.ID, TargetImageID: "sha256:older", Finished: true}}
+	client.records = []docker.SelfUpdateHelperRecord{{ID: "older-failure", TargetContainerID: guardSelf.ID, TargetImageID: "sha256:older", Finished: true, CreatedAt: time.Now()}}
 	if _, _, err := runGuardCycle(t, config.Default(), client); !isShutdown(err) || !slices.Contains(client.actions, "helper:self") {
 		t.Fatalf("a different image must be tried: err %v actions %v", err, client.actions)
+	}
+
+	client = newGuardClient(t)
+	expired := time.Now().Add(-selfupdate.FailedHandoffWindow - time.Minute)
+	client.records = []docker.SelfUpdateHelperRecord{{ID: "expired-failure", TargetContainerID: guardSelf.ID, TargetImageID: "sha256:new", Finished: true, CreatedAt: expired}}
+	if _, _, err := runGuardCycle(t, config.Default(), client); !isShutdown(err) || !slices.Contains(client.actions, "helper:self") {
+		t.Fatalf("a failure older than the block window must allow a retry: err %v actions %v", err, client.actions)
 	}
 }
 
@@ -100,7 +107,7 @@ func TestRolledBackHelperStillRunningIsAwaitedInsteadOfTreatedAsHandoff(t *testi
 	helper := docker.ContainerSummary{ID: "rollback-helper", Labels: map[string]string{docker.SelfUpdateHelperLabel: "true", docker.SelfUpdateTargetLabel: guardSelf.ID}}
 	client := newGuardClient(t, helper)
 	// The helper exits after restarting the daemon, so the next listing shows it finished.
-	client.records = []docker.SelfUpdateHelperRecord{{ID: helper.ID, TargetContainerID: guardSelf.ID, TargetImageID: "sha256:new", Finished: true}}
+	client.records = []docker.SelfUpdateHelperRecord{{ID: helper.ID, TargetContainerID: guardSelf.ID, TargetImageID: "sha256:new", Finished: true, CreatedAt: time.Now()}}
 	report, logs, err := runGuardCycle(t, config.Default(), client)
 	if err != nil || !slices.Equal(client.waited, []string{helper.ID}) || resultStatus(report, guardSelf.ID) != StatusSelfUpdateBlocked {
 		t.Fatalf("rolled-back helper handling = err %v waited %v results %+v", err, client.waited, report.Results)
@@ -121,12 +128,13 @@ func TestFinishedHelpersArePrunedOutsideDryRun(t *testing.T) {
 	old := time.Now().Add(-selfupdate.HelperRetention - time.Hour)
 	records := []docker.SelfUpdateHelperRecord{
 		{ID: "stale", TargetContainerID: "replaced-daemon", TargetImageID: "sha256:new", Finished: true, CreatedAt: old},
-		{ID: "evidence", TargetContainerID: guardSelf.ID, TargetImageID: "sha256:older", Finished: true, CreatedAt: old},
+		{ID: "own-old", TargetContainerID: guardSelf.ID, TargetImageID: "sha256:older", Finished: true, CreatedAt: old},
+		{ID: "recent", TargetContainerID: "replaced-daemon", TargetImageID: "sha256:new", Finished: true, CreatedAt: time.Now()},
 	}
 	client := newGuardClient(t)
 	client.records = records
 	_, logs, _ := runGuardCycle(t, config.Default(), client)
-	if !slices.Equal(client.removed, []string{"stale"}) || !strings.Contains(logs, `"event":"self_update_helpers_pruned"`) {
+	if !slices.Equal(client.removed, []string{"stale", "own-old"}) || !strings.Contains(logs, `"event":"self_update_helpers_pruned"`) {
 		t.Fatalf("pruned helpers = %v\n%s", client.removed, logs)
 	}
 

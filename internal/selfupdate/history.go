@@ -11,7 +11,11 @@ import (
 const (
 	// HelperRetention is how long a finished helper is kept for its logs
 	// before the daemon removes it.
-	HelperRetention = 24 * time.Hour
+	HelperRetention = 7 * 24 * time.Hour
+	// FailedHandoffWindow is how long a failed handoff blocks another attempt
+	// at the same image. After it, the daemon tries again, so a failure caused
+	// by a passing engine problem does not block that image for good.
+	FailedHandoffWindow = 24 * time.Hour
 	// helperSettleTimeout bounds how long a daemon waits for a running helper
 	// that targets it to finish before treating it as an active handoff.
 	helperSettleTimeout = time.Minute
@@ -25,15 +29,14 @@ type HelperHistory interface {
 }
 
 // PruneHelpers removes finished helpers created before the retention window.
-// Helpers that targeted selfID are kept regardless of age: a finished helper
-// whose target is still running records a failed handoff, and keeping it stops
-// the daemon from retrying the same image for as long as it runs.
-func PruneHelpers(ctx context.Context, client HelperHistory, records []docker.SelfUpdateHelperRecord, selfID string, now time.Time) ([]string, error) {
+// The window outlasts FailedHandoffWindow, so removing any instance's helper
+// never lifts a block that is still in force.
+func PruneHelpers(ctx context.Context, client HelperHistory, records []docker.SelfUpdateHelperRecord, now time.Time) ([]string, error) {
 	cutoff := now.Add(-HelperRetention)
 	var removed []string
 	var removeErrors []error
 	for _, record := range records {
-		if !record.Finished || !record.CreatedAt.Before(cutoff) || (selfID != "" && record.TargetContainerID == selfID) {
+		if !record.Finished || !record.CreatedAt.Before(cutoff) {
 			continue
 		}
 		if err := client.RemoveSelfUpdateHelper(ctx, record.ID); err != nil {
@@ -45,16 +48,17 @@ func PruneHelpers(ctx context.Context, client HelperHistory, records []docker.Se
 	return removed, errors.Join(removeErrors...)
 }
 
-// FailedHandoff returns the finished helper that already tried to move the
-// running daemon selfID to imageID. A helper that succeeded replaces and
-// removes its target, so a finished helper whose target is still running
-// always records a failure.
-func FailedHandoff(records []docker.SelfUpdateHelperRecord, selfID, imageID string) string {
+// FailedHandoff returns the finished helper that tried to move the running
+// daemon selfID to imageID within FailedHandoffWindow. A helper that succeeded
+// replaces and removes its target, so a finished helper whose target is still
+// running always records a failure.
+func FailedHandoff(records []docker.SelfUpdateHelperRecord, selfID, imageID string, now time.Time) string {
 	if selfID == "" || imageID == "" {
 		return ""
 	}
+	since := now.Add(-FailedHandoffWindow)
 	for _, record := range records {
-		if record.Finished && record.TargetContainerID == selfID && record.TargetImageID == imageID {
+		if record.Finished && record.TargetContainerID == selfID && record.TargetImageID == imageID && record.CreatedAt.After(since) {
 			return record.ID
 		}
 	}

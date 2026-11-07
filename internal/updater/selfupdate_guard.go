@@ -58,7 +58,7 @@ func loadHelperHistory(ctx context.Context, cfg config.Config, client docker.Cli
 	if cfg.Updates.DryRun {
 		return records
 	}
-	removed, err := selfupdate.PruneHelpers(ctx, history, records, selfID, helperClock())
+	removed, err := selfupdate.PruneHelpers(ctx, history, records, helperClock())
 	if len(removed) > 0 {
 		logger.Info().Str("event", "self_update_helpers_pruned").Int("removed", len(removed)).
 			Msg("Removed finished self-update helpers older than the retention window")
@@ -71,7 +71,7 @@ func loadHelperHistory(ctx context.Context, cfg config.Config, client docker.Cli
 
 // skipSelfCandidate stops a self-update that must not start: one-shot runs
 // never hand off to a helper, and an image that a previous helper already
-// failed to start is not retried until a different image is published.
+// failed to start is not retried for a day unless a different image is published.
 func skipSelfCandidate(cfg config.Config, result *ContainerResult, history []docker.SelfUpdateHelperRecord, logger zerolog.Logger) bool {
 	if result.Status != StatusWouldUpdate {
 		return false
@@ -81,13 +81,13 @@ func skipSelfCandidate(cfg config.Config, result *ContainerResult, history []doc
 		result.Reason = "self-update never runs in run-once mode"
 		return true
 	}
-	helperID := selfupdate.FailedHandoff(history, result.Container.ID, result.TargetImageID)
+	helperID := selfupdate.FailedHandoff(history, result.Container.ID, result.TargetImageID, helperClock())
 	if helperID == "" {
 		return false
 	}
 	result.Status = StatusSelfUpdateBlocked
 	result.HelperID = helperID
-	result.Reason = "a previous self-update to this image failed and was rolled back; waiting for a different image"
+	result.Reason = "a previous self-update to this image failed and was rolled back; retrying after 24 hours or when a different image is published"
 	logger.Warn().Str("event", "self_update_blocked").
 		Str("container_id", shortID(result.Container.ID)).
 		Str("target_image_id", shortID(result.TargetImageID)).

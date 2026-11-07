@@ -86,39 +86,41 @@ func TestRunUpdaterReportsRecoveryFailureAndSkipsRecoveryOnSuccess(t *testing.T)
 	}
 }
 
-func TestPruneHelpersKeepsRunningRecentAndOwnFailedHelpers(t *testing.T) {
+func TestPruneHelpersRemovesOnlyFinishedHelpersPastRetention(t *testing.T) {
 	now := time.Date(2026, 11, 6, 12, 0, 0, 0, time.UTC)
 	old := now.Add(-HelperRetention - time.Minute)
 	records := []docker.SelfUpdateHelperRecord{
 		{ID: "running", TargetContainerID: "gone", CreatedAt: old},
 		{ID: "recent", TargetContainerID: "gone", Finished: true, CreatedAt: now.Add(-time.Hour)},
-		{ID: "own-failure", TargetContainerID: "self", Finished: true, CreatedAt: old},
+		{ID: "recent-failure", TargetContainerID: "self", Finished: true, CreatedAt: now.Add(-FailedHandoffWindow - time.Hour)},
 		{ID: "stale", TargetContainerID: "gone", Finished: true, CreatedAt: old},
 		{ID: "stuck", TargetContainerID: "gone", Finished: true, CreatedAt: old},
 	}
 	history := &fakeHistory{removeErr: map[string]error{"stuck": errors.New("conflict")}}
-	removed, err := PruneHelpers(context.Background(), history, records, "self", now)
+	removed, err := PruneHelpers(context.Background(), history, records, now)
 	if len(removed) != 1 || removed[0] != "stale" || err == nil || !strings.Contains(err.Error(), "conflict") {
 		t.Fatalf("PruneHelpers() = %v, %v", removed, err)
 	}
-	removed, err = PruneHelpers(context.Background(), &fakeHistory{}, records[2:3], "", now)
-	if err != nil || len(removed) != 1 {
-		t.Fatalf("PruneHelpers() without identity = %v, %v", removed, err)
+	if HelperRetention <= FailedHandoffWindow {
+		t.Fatal("pruning must never remove a record that still blocks a retry")
 	}
 }
 
-func TestFailedHandoffMatchesOnlyFinishedHelpersForThisDaemonAndImage(t *testing.T) {
+func TestFailedHandoffMatchesOnlyRecentFinishedHelpersForThisDaemonAndImage(t *testing.T) {
+	now := time.Date(2026, 11, 6, 12, 0, 0, 0, time.UTC)
+	recent := now.Add(-time.Hour)
 	records := []docker.SelfUpdateHelperRecord{
-		{ID: "running", TargetContainerID: "self", TargetImageID: "sha256:new"},
-		{ID: "other-image", TargetContainerID: "self", TargetImageID: "sha256:older", Finished: true},
-		{ID: "other-daemon", TargetContainerID: "other", TargetImageID: "sha256:new", Finished: true},
-		{ID: "failed", TargetContainerID: "self", TargetImageID: "sha256:new", Finished: true},
+		{ID: "running", TargetContainerID: "self", TargetImageID: "sha256:new", CreatedAt: recent},
+		{ID: "other-image", TargetContainerID: "self", TargetImageID: "sha256:older", Finished: true, CreatedAt: recent},
+		{ID: "other-daemon", TargetContainerID: "other", TargetImageID: "sha256:new", Finished: true, CreatedAt: recent},
+		{ID: "expired", TargetContainerID: "self", TargetImageID: "sha256:retry", Finished: true, CreatedAt: now.Add(-FailedHandoffWindow - time.Minute)},
+		{ID: "failed", TargetContainerID: "self", TargetImageID: "sha256:new", Finished: true, CreatedAt: recent},
 	}
-	if got := FailedHandoff(records, "self", "sha256:new"); got != "failed" {
+	if got := FailedHandoff(records, "self", "sha256:new", now); got != "failed" {
 		t.Fatalf("FailedHandoff() = %q, want failed", got)
 	}
-	for _, test := range [][2]string{{"", "sha256:new"}, {"self", ""}, {"self", "sha256:newest"}} {
-		if got := FailedHandoff(records, test[0], test[1]); got != "" {
+	for _, test := range [][2]string{{"", "sha256:new"}, {"self", ""}, {"self", "sha256:newest"}, {"self", "sha256:retry"}} {
+		if got := FailedHandoff(records, test[0], test[1], now); got != "" {
 			t.Fatalf("FailedHandoff(%q, %q) = %q", test[0], test[1], got)
 		}
 	}
