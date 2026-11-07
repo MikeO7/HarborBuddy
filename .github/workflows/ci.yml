@@ -235,7 +235,8 @@ jobs:
           podman system service --time=0 "unix://$socket" >"$RUNNER_TEMP/podman-service.log" 2>&1 &
           service_pid=$!
           trap 'kill "$service_pid" 2>/dev/null || true' EXIT
-          for _ in {1..50}; do
+          # A cold runner can take several seconds to start the service.
+          for _ in {1..300}; do
             [[ -S "$socket" ]] && break
             sleep 0.1
           done

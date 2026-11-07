@@ -3,6 +3,8 @@ package config
 import (
 	"fmt"
 	"strings"
+
+	"github.com/MikeO7/HarborBuddy/internal/imageref"
 )
 
 // MatchImagePattern reports whether image matches pattern: "*", an exact reference, or one
@@ -21,10 +23,12 @@ func MatchImagePattern(image, pattern string) bool {
 }
 
 // KeepsImage reports whether any of an image's tags matches cleanup.keep_images.
+// Like the update allow and deny lists, a pattern may match the short form
+// (nginx:1.27) or the fully qualified form (docker.io/library/nginx:1.27).
 func (c CleanupConfig) KeepsImage(tags []string) bool {
 	for _, tag := range tags {
 		for _, pattern := range c.KeepImages {
-			if MatchImagePattern(tag, pattern) {
+			if imageref.MatchAny(tag, pattern, MatchImagePattern) {
 				return true
 			}
 		}

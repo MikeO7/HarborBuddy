@@ -14,7 +14,7 @@ HarborBuddy watches the running containers on a standalone Docker Engine. It pul
 This is useful when you want automatic Docker container updates but still want filters, dry runs, health checks, and a way back when a new image does not start cleanly.
 
 > [!IMPORTANT]
-> HarborBuddy is early-stage software and does not yet have a versioned release. The `latest` and `edge` image tags currently move with `main`; pin a `sha-*` tag or, better, an image digest when repeatable deployments matter.
+> HarborBuddy is early-stage software; v0.1.0 is its first versioned release. The examples use the `0.1` tag, which follows 0.1.x patch releases, so self-update never jumps to a new minor version. Pin an exact version (`0.1.0`) or an image digest when repeatable deployments matter. The `latest` and `edge` tags still move with `main`.
 
 > [!WARNING]
 > HarborBuddy needs read/write access to the Docker API. Access to the Docker socket is effectively host-administrator access. HarborBuddy is also noncommercial source-available software under the [PolyForm Noncommercial License 1.0.0](LICENSE), not an open-source license.
@@ -62,7 +62,7 @@ Create `compose.yaml`:
 ```yaml
 services:
   harborbuddy:
-    image: ghcr.io/mikeo7/harborbuddy:edge
+    image: ghcr.io/mikeo7/harborbuddy:0.1
     container_name: harborbuddy
     restart: unless-stopped
     # Lets an in-progress update finish or roll back on shutdown.
@@ -101,7 +101,7 @@ Dry-run mode pulls eligible images so HarborBuddy can compare their real image I
 ```bash
 docker run --rm \
   -v /var/run/docker.sock:/var/run/docker.sock \
-  ghcr.io/mikeo7/harborbuddy:edge \
+  ghcr.io/mikeo7/harborbuddy:0.1 \
   --once --dry-run
 ```
 

@@ -1,8 +1,12 @@
 # Changelog
 
-All notable changes to HarborBuddy are documented here. The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and future versioned releases will use [Semantic Versioning](https://semver.org/).
+All notable changes to HarborBuddy are documented here. The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and releases use [Semantic Versioning](https://semver.org/).
 
 ## [Unreleased]
+
+## [0.1.0] - 2026-11-06
+
+First versioned release.
 
 ### Added
 
@@ -26,6 +30,11 @@ All notable changes to HarborBuddy are documented here. The format follows [Keep
 - Opt-in cleanup for stopped containers, unused tagged images, unused networks, unused volumes, and build cache through a master environment switch or independent category switches.
 - Operational event logging with stable event names, effective configuration, correlated cycles, transaction and rollback fields, self-update helper outcomes, and per-resource cleanup summaries.
 
+- Stranded-backup recovery: each cycle restores a `<name>-harborbuddy-backup-*` container from the last 48 hours whose original name is free, using the restart policy recorded in the backup name.
+- `previously_failed` result: after a replacement fails readiness and rolls back, that container is not retried with the same image until a different image is pulled.
+- `self_update_blocked` result: after a failed self-update, the same image is not retried for 24 hours. Self-update helpers are kept for 7 days so their logs stay readable.
+- Startup warnings for unrecognised `HARBORBUDDY_*` variables, with suggestions for likely typos, and for intervals under one minute.
+- `NO_COLOR` support for text logs.
 ### Changed
 
 - Automatic self-update is enabled by default, uses a temporary helper container, and preserves the old daemon for rollback until the replacement is ready.
@@ -42,6 +51,16 @@ All notable changes to HarborBuddy are documented here. The format follows [Keep
 - Configuration loading is strict and rejects unknown fields or multiple YAML documents.
 - Routine no-op results now log at debug, warnings at warn, and failures at error; daemon-provided descriptions are bounded to keep logs concise.
 
+- Replacements no longer inherit the old image's settings. `ENV` entries, labels, working directory, user, stop signal, exposed ports, volumes, command, and health check that came from the old image are dropped so the new image's defaults apply; values you set are kept.
+- A replacement finishes or rolls back even when HarborBuddy is asked to stop mid-update, and the original is renamed to its backup name before it is stopped, so an interrupted update can always be recovered.
+- `allow_images`, `deny_images`, and `keep_images` match the short and fully qualified forms of a reference, so `*:latest` matches `nginx` and `docker.io/library/nginx:*` matches `nginx:1.27`. Pulls are deduplicated on the normalised reference.
+- `TZ` is now a fallback: `updates.timezone` and `HARBORBUDDY_TIMEZONE` take precedence over it. If you relied on `TZ` overriding a timezone in your config file, remove the config value.
+- Environment booleans accept `true/false`, `yes/no`, `on/off`, and `1/0` in any case, matching YAML; log levels are case-insensitive.
+- Text logs carry full RFC 3339 timestamps and use colour only on a terminal.
+- A daily `schedule_time` that falls in a spring-forward gap runs at the first instant after the gap.
+- The self-update helper runs without networks when Docker is reached over a Unix socket, and copies the daemon's privileged mode, capabilities, user namespace, runtime, and read-only root setting.
+- Stopped-container cleanup keeps containers with a restart policy (`always`, `unless-stopped`, `on-failure`) and HarborBuddy's self-update records.
+- Intervals under one second are rejected. `log.max_backups: 0` is rejected when `log.file` is set, because the rotation library would keep every file.
 ### Removed
 
 - `docker.tls`; use standard Docker TLS environment variables instead.
@@ -54,6 +73,20 @@ All notable changes to HarborBuddy are documented here. The format follows [Keep
 
 - Image cleanup now removes unused images that have more than one tag. Docker refuses to delete such an image by ID, so the cleanup failed on it every run; HarborBuddy now removes the extra tags of an image no container uses, skipping any tag that has moved to another image, and then deletes it.
 
+- Self-update looped forever on rootless Podman 5: the helper could not disconnect the `pasta` network, rolled back, and the daemon tried again every cycle. `host`, `none`, `pasta`, and `slirp4netns` are no longer disconnected.
+- Self-update failed every cycle for a daemon with a static IP or MAC address, because the helper copied it and collided.
+- A broken self-update image no longer causes a restart loop in interval mode, including on Podman, which briefly lists a just-exited helper as still active. Every helper failure restores the old daemon's restart policy and starts it again.
+- `--once` runs never self-update.
+- A container that another container shares a network, PID, IPC, or UTS namespace with, or links to, is skipped instead of being recreated out from under its dependents.
+- Containers created from an image ID are reported as unsupported instead of failing a pull every cycle.
+- Cleanup no longer tries to remove images used by stopped containers or by other images, which failed with a conflict every cycle, and no longer treats networks used only by stopped containers as unused.
+- Cleanup never removes HarborBuddy's own backups or the container whose update failed in that cycle.
+- `keep_images` also matches digest references, so images pulled by digest can be kept.
+- Build-cache cleanup is skipped for a cycle when Docker's age-only prune would remove a record HarborBuddy keeps.
+- `--help` exits 0, and a trailing `---` in the config file is accepted.
 ### Security
 
 - Build with Go 1.27.3, fixing standard-library advisories GO-2026-6607 (CVE-2026-97031, `crypto/tls`), GO-2026-6609 (CVE-2026-78667, `net/http`), GO-2026-6611 (CVE-2026-78669, `net/http`), and GO-2026-6809 (CVE-2026-111943, `crypto/x509`).
+
+[Unreleased]: https://github.com/MikeO7/HarborBuddy/compare/v0.1.0...HEAD
+[0.1.0]: https://github.com/MikeO7/HarborBuddy/releases/tag/v0.1.0
