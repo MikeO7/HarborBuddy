@@ -56,6 +56,9 @@ func multiTagTransport(t *testing.T, retryStatus int) (*mockTransport, *atomic.I
 	transport.register("GET", "/v1.41/containers/json", func(*http.Request) (*http.Response, error) {
 		return jsonResponse(http.StatusOK, []containertypes.Summary{{ImageID: "sha256:unrelated"}})
 	})
+	transport.register("GET", "/v1.41/images/json", func(*http.Request) (*http.Response, error) {
+		return jsonResponse(http.StatusOK, []imagetypes.Summary{{ID: multiTagImage}, {ID: "sha256:unrelated", ParentID: "sha256:other"}})
+	})
 	registerTagInspect(transport, "app:two", http.StatusOK, multiTagImage)
 	registerTagInspect(transport, "other:moved", http.StatusOK, "sha256:newer")
 	registerTagInspect(transport, "other:gone", http.StatusNotFound, "")
@@ -98,6 +101,14 @@ func TestRemoveImageReportsConflictsItCannotResolve(t *testing.T) {
 				return jsonResponse(http.StatusOK, []containertypes.Summary{{ImageID: multiTagImage, State: "exited"}})
 			})
 		}, want: []string{"must be forced"}},
+		{name: "parent of another image", setup: func(transport *mockTransport) {
+			transport.register("GET", "/v1.41/images/json", func(*http.Request) (*http.Response, error) {
+				return jsonResponse(http.StatusOK, []imagetypes.Summary{{ID: multiTagImage}, {ID: "sha256:child", ParentID: multiTagImage}})
+			})
+		}, want: []string{"must be forced"}},
+		{name: "image list", setup: func(transport *mockTransport) {
+			registerServerError(transport, "GET", "/v1.41/images/json", "list failed")
+		}, want: []string{"must be forced", "list images before image removal"}},
 		{name: "inspect", setup: func(transport *mockTransport) {
 			registerServerError(transport, "GET", "/v1.41/images/"+multiTagImage+"/json", "inspect failed")
 		}, want: []string{"must be forced", "inspect image sha256:multi"}},
