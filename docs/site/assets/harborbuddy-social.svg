@@ -6,7 +6,7 @@
   </g>
   <rect x="58" y="55" width="1084" height="520" fill="#0d2632" stroke="#35515c" stroke-width="2"/>
   <g fill="none" stroke="#ed6a32" stroke-linecap="round" stroke-linejoin="round" stroke-width="7">
-    <path d="M115 92v56M95 111h40M86 133c0 29 10 43 29 50 19-7 29-21 29-50M74 143c9 5 17 5 25 0M131 143c8 5 16 5 25 0"/>
+    <path transform="translate(74 92) scale(1.75)" stroke-width="4" d="M38.5 13.5A17 17 0 1 0 41 24M41 9.5v6h-6M15 18.5h18v12H15zM21 18.5v12M27 18.5v12"/>
   </g>
   <text x="181" y="143" fill="#f1efe7" font-family="Arial, Helvetica, sans-serif" font-size="52" font-weight="800" letter-spacing="-2">HarborBuddy</text>
   <text x="86" y="290" fill="#f1efe7" font-family="Arial, Helvetica, sans-serif" font-size="72" font-weight="800" letter-spacing="-3">Container updates</text>
