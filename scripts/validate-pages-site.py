@@ -120,7 +120,11 @@ def is_indexable(parser: PageParser) -> bool:
 
 def expected_canonical(path: Path) -> str:
     relative = path.relative_to(SITE).as_posix()
-    return BASE_URL if relative == "index.html" else BASE_URL + relative
+    if relative == "index.html":
+        return BASE_URL
+    if relative.endswith("/index.html"):
+        return BASE_URL + relative.removesuffix("index.html")
+    return BASE_URL + relative
 
 
 def local_target(source: Path, raw_url: str) -> tuple[Path | None, str]:
@@ -211,11 +215,18 @@ def validate_pages(pages: dict[Path, PageParser], errors: list[str]) -> set[str]
                 errors.append(f"{display}: incorrect canonical URL {parser.canonical[0]!r}")
             else:
                 indexable_urls.add(parser.canonical[0])
+            if not 20 <= len(parser.title) <= 60:
+                errors.append(f"{display}: title should be 20-60 characters, found {len(parser.title)}")
+            description = parser.meta.get("description", "")
+            if description and not 70 <= len(description) <= 160:
+                errors.append(f"{display}: description should be 70-160 characters, found {len(description)}")
+            if parser.canonical and parser.meta.get("og:url") != parser.canonical[0]:
+                errors.append(f"{display}: og:url does not match the canonical URL")
             missing = sorted(key for key in REQUIRED_SOCIAL_META if not parser.meta.get(key))
             if missing:
                 errors.append(f"{display}: missing social metadata: {', '.join(missing)}")
 
-        if path.name == "index.html":
+        if True:
             structured: list[str] = []
             for block in parser.json_ld:
                 structured.extend(find_faq_questions(block))
@@ -259,7 +270,13 @@ def validate_sitemap(indexable_urls: set[str], errors: list[str]) -> None:
 def validate_llms(indexable_urls: set[str], errors: list[str]) -> None:
     text = (SITE / "llms.txt").read_text(encoding="utf-8")
     urls = set(re.findall(r"https://mikeo7\.github\.io/HarborBuddy/[^\s)]*", text))
-    unknown = sorted(url.rstrip(".,") for url in urls if url.rstrip(".,") not in indexable_urls)
+    def known(url: str) -> bool:
+        if url in indexable_urls:
+            return True
+        relative = url.removeprefix(BASE_URL)
+        return relative.endswith(".txt") and (SITE / relative).is_file()
+
+    unknown = sorted(url.rstrip(".,") for url in urls if not known(url.rstrip(".,")))
     if unknown:
         errors.append(f"docs/site/llms.txt: unknown public URLs: {', '.join(unknown)}")
 

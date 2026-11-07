@@ -1,0 +1,991 @@
+# HarborBuddy: full documentation
+
+> HarborBuddy is a self-hosted Docker container updater with health checks and automatic rollback. This file contains the full text of every page on https://mikeo7.github.io/HarborBuddy/ for language models. Version 0.1.0. Source: https://github.com/MikeO7/HarborBuddy
+
+---
+
+URL: https://mikeo7.github.io/HarborBuddy/
+Updated: 2026-11-06
+
+Self-hosted Docker container updater
+
+# Automatic Docker updates with a rollback path.
+
+**HarborBuddy** keeps the containers on your Docker host up to date. It replaces a container only when its image actually changed, waits for the new one to pass its health check, and puts the original back if the update fails. Think Watchtower, with a safety net.
+ Get started in 5 minutes (https://mikeo7.github.io/HarborBuddy/docs/quick-start/) Compare with Watchtower (https://mikeo7.github.io/HarborBuddy/compare/watchtower/)
+
+- Automatic rollback
+- Dry-run previews
+- amd64 · arm64 · arm/v7
+
+- **Detects updates by**: Image ID, not tag
+
+- **On a failed update**: Automatic rollback
+
+- **Runs as**: One container, one static binary
+
+- **Latest release**: v0.1.0 (https://github.com/MikeO7/HarborBuddy/releases/tag/v0.1.0)
+
+ How it works
+
+## Pull the image. Compare IDs. Replace only when something changed.
+
+### Discover eligible containers
+
+Allow and deny patterns, an opt-out label, and safety checks narrow each run to containers HarborBuddy can recreate faithfully.
+
+### Pull and compare image IDs
+
+HarborBuddy pulls each container's image reference and compares immutable image IDs. Same ID, no restart.
+
+### Replace, check, or roll back
+
+The original becomes a stopped backup while the replacement starts. If the replacement is not healthy in time, the original comes back.
+
+Read the full update and rollback sequence → (https://mikeo7.github.io/HarborBuddy/docs/how-updates-work/)
+
+ Built for unattended runs
+
+## Safety checks before every restart.
+
+HarborBuddy re-inspects each container before changing it, keeps the settings you chose while letting new image defaults apply, and skips anything it cannot reproduce.
+
+Rollback
+
+### The old container stays until the new one is ready
+
+A failed create, start, or health check restores the original container with its name, networks, and restart policy. Interrupted updates are recovered on the next run.
+
+Schedule
+
+### Intervals or one daily time
+
+Every 12 hours by default, or a daily `HH:MM` in any IANA timezone, with daylight-saving handled.
+
+Control
+
+### Opt out by label or image
+
+A per-container label plus allow and deny patterns. Deny rules always win.
+
+Preview
+
+### Dry runs use real image IDs
+
+See exactly what would update without stopping a single container.
+
+Cleanup
+
+### Old images go. In-use resources stay.
+
+Dangling images are removed after 24 hours. Containers, networks, volumes, and build cache are opt-in.
+
+Observability
+
+### Logs you can follow
+
+Stable event names, cycle IDs, JSON output, and a health check that fails when HarborBuddy loses Docker.
+
+Self-update
+
+### Updates itself with the same safety net
+
+A short-lived helper replaces the HarborBuddy container, checks it starts, and restores the old one if not. A bad release is not retried for 24 hours.
+
+ How it compares
+
+## The updater that checks its work.
+
+The original Watchtower was archived on December 17, 2025, and its default API version no longer works with Docker Engine 29. HarborBuddy fills the same role and adds a readiness gate, automatic rollback, and crash recovery. Here is how it compares as of November 2026.
+
+| Feature | HarborBuddy | Watchtower (containrrr) | Watchtower fork (nicholas-fedor) | What's Up Docker | Diun |
+| Applies updates | Yes | Yes | Yes | Yes, via trigger | No, notify only |
+| Waits for health check | Yes | No | Rolling restarts only | With rollback on | n/a |
+| Automatic rollback | Yes | No | Not documented | Opt-in | n/a |
+| Recovers interrupted updates | Yes | Not documented | Not documented | Not documented | n/a |
+| Dry run | Yes | Monitor-only | Yes | Yes | n/a |
+| Notifications | No, logs only | Yes | Yes | 30+ services | 17 services |
+| Private registries | Not yet | Yes | Yes | Yes | Yes |
+| Web UI | No | No | HTTP API | Yes | No |
+| Maintained | Yes | Archived 2025-12-17 | Yes | Yes | Yes |
+| License | PolyForm Noncommercial | Apache-2.0 | Apache-2.0 | MIT | MIT |
+
+See the full comparison of Docker update tools → (https://mikeo7.github.io/HarborBuddy/compare/)
+
+ Quick start
+
+## Run HarborBuddy with Docker Compose.
+
+Mount the Docker socket, give the container a stable name, and start in dry-run mode. Review the logs, then remove `HARBORBUDDY_DRY_RUN` to let it update. The `0.1` tag follows 0.1.x patch releases. Follow the quick start → (https://mikeo7.github.io/HarborBuddy/docs/quick-start/)
+
+ Before you install
+
+## Docker control is host control.
+
+HarborBuddy needs read/write access to the Docker API, which is effectively root on the host. Run one HarborBuddy per Docker daemon. Updates cause a brief interruption, rollback is best-effort, and images that need a registry login are not supported yet. Without a Docker health check, ready means the process stayed up for two seconds. Read the limits and requirements → (https://mikeo7.github.io/HarborBuddy/docs/limitations/)
+
+ Common questions
+
+## Questions about automatic Docker updates.
+
+### What is HarborBuddy?
+
+HarborBuddy is a self-hosted service that keeps the containers on a Docker host up to date. It pulls each container's image reference on a schedule, replaces the container only when the image ID changed, waits for the new container to become ready, and restores the original container if the update fails.
+
+### Is HarborBuddy a Watchtower alternative?
+
+Yes. Like Watchtower, HarborBuddy runs as a container with access to the Docker socket and recreates containers when their images change. Unlike Watchtower, it keeps the original container as a backup, waits for the replacement's health check, and rolls back automatically when an update fails. The original containrrr/watchtower repository was archived on December 17, 2025. See the Watchtower comparison and migration guide (https://mikeo7.github.io/HarborBuddy/compare/watchtower/).
+
+### How does HarborBuddy decide a container needs an update?
+
+It pulls the image reference stored in the container, such as `nginx:1.27`, and compares the pulled image ID with the image ID the container runs. A changed tag alone is not enough; the image itself must differ.
+
+### What happens when an updated container fails to start?
+
+HarborBuddy removes the failed replacement, restores the original container's name, networks, and restart policy, and starts it again. It then skips that image for that container until a different image is published. Rollback is best-effort, because Docker or the host can also fail during recovery.
+
+### Does HarborBuddy work with Docker Compose?
+
+Yes. It updates containers that Docker Compose started, keeping their names, networks, volumes, and labels. It recreates them from Docker's inspection data and never edits or rereads your Compose files.
+
+### Does an update cause downtime?
+
+Yes, briefly. HarborBuddy stops the old container before starting its replacement, so it is not a rolling or zero-downtime updater.
+
+### Can I preview updates without changing anything?
+
+Yes. Dry-run mode pulls images to compare real image IDs and reports what would change, but never stops, recreates, or removes a container and never deletes cleanup candidates.
+
+### How do I stop a container from updating automatically?
+
+Add the label `com.harborbuddy.autoupdate: "false"` to it, or add its image to `updates.deny_images`, for example `postgres:*`. Deny rules always win over allow rules.
+
+### Does HarborBuddy send notifications?
+
+Not yet. It writes structured text or JSON logs with stable event names, and its container health check turns unhealthy when it loses Docker or a cycle gets stuck, so log collectors and uptime monitors can alert on it.
+
+### Does HarborBuddy support Podman, Swarm, or Kubernetes?
+
+HarborBuddy targets a standalone Docker Engine and its integration tests also run against Podman's Docker-compatible API. It skips Docker Swarm tasks and does not manage Kubernetes.
+
+### Does HarborBuddy support private registries?
+
+Not yet. It pulls without registry credentials, so it works with public images on Docker Hub, GHCR, Quay, and other registries, but not with images that require a login.
+
+### Is HarborBuddy free?
+
+Yes, for personal, homelab, and other noncommercial use. It is source-available under the PolyForm Noncommercial License 1.0.0; commercial use is not permitted by the current license.
+
+ Try it without changing containers
+
+## Start with a dry run.
+
+See which containers would update, and why, before HarborBuddy changes anything.  Run your first dry run (https://mikeo7.github.io/HarborBuddy/docs/quick-start/#dry-run)
+
+---
+
+URL: https://mikeo7.github.io/HarborBuddy/docs/
+Updated: 2026-11-06
+
+Documentation
+
+# HarborBuddy documentation
+
+HarborBuddy is a self-hosted service that keeps the containers on a standalone Docker Engine up to date. It pulls each container's image reference, compares image IDs, and replaces a container only when the image changed. The original stays as a backup until the replacement is ready, so a bad image gets rolled back instead of left broken.
+ **Quick start**Run HarborBuddy with Docker Compose in dry-run mode, read the logs, then let it update. (https://mikeo7.github.io/HarborBuddy/docs/quick-start/) **How updates work**The seven-step replacement, readiness checks, rollback, and crash recovery. (https://mikeo7.github.io/HarborBuddy/docs/how-updates-work/) **Choose what updates**Opt-out labels, allow and deny patterns, and safe defaults for databases. (https://mikeo7.github.io/HarborBuddy/docs/choosing-containers/) **Configuration reference**Every YAML key, environment variable, and command-line flag, with defaults. (https://mikeo7.github.io/HarborBuddy/docs/configuration/) **Self-update**How HarborBuddy replaces its own container through a helper, and how failures recover. (https://mikeo7.github.io/HarborBuddy/docs/self-update/) **Image and resource cleanup**Dangling images by default; containers, networks, volumes, and build cache by opt-in. (https://mikeo7.github.io/HarborBuddy/docs/cleanup/) **Limits and requirements**What HarborBuddy skips on purpose, and what it needs from your host. (https://mikeo7.github.io/HarborBuddy/docs/limitations/)
+
+## At a glance
+
+- **Latest release**: v0.1.0 (https://github.com/MikeO7/HarborBuddy/releases/tag/v0.1.0)
+
+- **Image**: `ghcr.io/mikeo7/harborbuddy:0.1`
+
+- **Platforms**: `linux/amd64`, `linux/arm64`, `linux/arm/v7`
+
+- **Targets**: One standalone Docker Engine per HarborBuddy; Podman's Docker-compatible API is tested in CI
+
+- **Default schedule**: Every 12 hours, or once a day at a set time and timezone
+
+- **License**: PolyForm Noncommercial 1.0.0 (https://github.com/MikeO7/HarborBuddy/blob/main/LICENSE), free for personal and other noncommercial use
+
+## Need help?
+
+Search or open an issue on GitHub Issues (https://github.com/MikeO7/HarborBuddy/issues). For security problems, follow the security policy (https://github.com/MikeO7/HarborBuddy/security/policy) instead of opening a public issue. Changes in each release are listed in the changelog (https://github.com/MikeO7/HarborBuddy/blob/main/CHANGELOG.md).
+
+---
+
+URL: https://mikeo7.github.io/HarborBuddy/docs/quick-start/
+Updated: 2026-11-06
+
+Quick start
+
+# Auto-update Docker containers in five minutes
+
+Run HarborBuddy next to your other containers with Docker Compose. Start in dry-run mode, check which containers it would update, then turn dry-run off.
+
+## Before you start
+
+- A Linux host running Docker Engine, with Docker Compose v2.
+- Containers started from pullable image references such as `nginx:1.27` or `ghcr.io/org/app:stable`.
+- Read/write access to the Docker socket. That is effectively root on the host, so treat HarborBuddy like any other admin tool.
+
+## 1. Create `compose.yaml`
+
+```
+services:
+  harborbuddy:
+    image: ghcr.io/mikeo7/harborbuddy:0.1
+    container_name: harborbuddy
+    restart: unless-stopped
+    # Lets an in-progress update finish or roll back on shutdown.
+    stop_grace_period: 2m
+    volumes:
+      - /var/run/docker.sock:/var/run/docker.sock
+    environment:
+      TZ: UTC
+      HARBORBUDDY_SCHEDULE_TIME: "03:00"
+      HARBORBUDDY_CONTAINER_NAME: harborbuddy
+      # Keep the first run observational. Remove after reviewing the logs.
+      HARBORBUDDY_DRY_RUN: "true"
+    labels:
+      com.harborbuddy.role: daemon
+```
+
+This runs every day at 03:00 UTC. Remove `HARBORBUDDY_SCHEDULE_TIME` to check every 12 hours instead; interval mode runs its first check immediately, while daily mode waits for the scheduled time.
+
+## 2. Start it and follow the logs
+
+```
+docker compose up -d
+docker compose logs -f harborbuddy
+```
+
+## 3. Preview with a one-off dry run
+
+To see results now instead of waiting for the schedule, run a single dry-run cycle:
+
+```
+docker run --rm --no-healthcheck \
+  -v /var/run/docker.sock:/var/run/docker.sock \
+  ghcr.io/mikeo7/harborbuddy:0.1 \
+  --once --dry-run
+```
+
+Dry-run pulls eligible images so it can compare real image IDs. That uses bandwidth and updates Docker's local image cache, but it never stops, renames, recreates, or removes a container, and cleanup only reports what it would delete.
+
+## 4. Exclude what should not update unattended
+
+Databases and services with manual migrations are good candidates to opt out. Add a label to their Compose service:
+
+```
+labels:
+  com.harborbuddy.autoupdate: "false"
+```
+
+Or deny whole image families, such as `postgres:*`. See choosing which containers update (https://mikeo7.github.io/HarborBuddy/docs/choosing-containers/).
+
+## 5. Turn on updates
+
+Remove `HARBORBUDDY_DRY_RUN` and run `docker compose up -d` again. From then on HarborBuddy replaces a container only when its image ID changes, waits for the replacement to become ready, and rolls back if it does not.
+
+**Add health checks to the containers you care about.** With a Docker `HEALTHCHECK`, HarborBuddy waits for `healthy` before it removes the backup. Without one, it only checks that the process stays up for two seconds.
+
+## Next steps
+
+- How updates and rollback work (https://mikeo7.github.io/HarborBuddy/docs/how-updates-work/)
+- Configuration reference (https://mikeo7.github.io/HarborBuddy/docs/configuration/) for every option
+- Cleanup (https://mikeo7.github.io/HarborBuddy/docs/cleanup/) to reclaim disk space from old images
+- Coming from Watchtower? (https://mikeo7.github.io/HarborBuddy/compare/watchtower/) Map your settings across.
+
+---
+
+URL: https://mikeo7.github.io/HarborBuddy/docs/how-updates-work/
+Updated: 2026-11-06
+
+Updates and rollback
+
+# How updates and rollback work
+
+HarborBuddy updates a container only when the image behind its reference has a new image ID. It keeps the original container as a stopped backup until the replacement is ready, and puts the original back if the replacement fails.
+
+## How a new image is detected
+
+Each cycle, HarborBuddy pulls the exact image reference stored in each eligible container, such as `nginx:1.27`, and compares the pulled image ID with the image ID the container runs. A changed tag alone is not enough: the image itself must differ. Identical references are pulled once per cycle, and pulls run concurrently.
+
+## The replacement, step by step
+
+1. **Pull** the image reference stored in the container configuration.
+2. **Compare** the pulled image ID with the running image ID.
+3. **Re-inspect** the container to make sure it did not change during the cycle.
+4. **Back up** the original: rename it to `<name>-harborbuddy-backup-<n>` (the name records its restart policy), disable the restart policy temporarily, stop it, and disconnect its networks.
+5. **Create** the replacement with the original name, host configuration, reusable mounts, and network attachments. Settings that came from the old image, such as its `ENV` entries, labels, command, and health check, are dropped so the new image's defaults apply. Values you set yourself are kept.
+6. **Start and wait** for Docker to report the replacement `healthy`, or for two seconds of process stability when the image has no health check.
+7. **Remove the backup** once the replacement is ready.
+
+The old container stops before the new one starts, so each update causes a brief interruption. HarborBuddy is not a rolling or zero-downtime updater.
+
+## What happens when an update fails
+
+If creation, startup, or the readiness check fails, HarborBuddy removes the failed replacement, restores the original container's name, networks, and restart policy, and starts it again. The failed image is remembered: HarborBuddy reports `previously_failed` and does not retry that image for that container until a different image is published or HarborBuddy restarts.
+
+Rollback is best-effort. Docker or the host can also fail during recovery, so keep backups of stateful data and opt migration-sensitive services out of unattended updates.
+
+## Keep a known-good image
+
+Set `updates.rollback_image_retention` (or `HARBORBUDDY_ROLLBACK_IMAGE_RETENTION`) to keep that many previous working images per image reference, tagged as `localhost/harborbuddy-rollback/<sha256>:<slot>`. That lets you roll back by hand later, even after the registry tag moved on. The default is `0`.
+
+## Shutdown and crash recovery
+
+On `SIGTERM`, HarborBuddy starts no new replacements but finishes, or rolls back, the one in progress. Give it time to do that with `stop_grace_period: 2m` in Compose; Docker's default of 10 seconds can cut a transaction short.
+
+If HarborBuddy is killed anyway, the original can be left as a stopped backup. At the start of each cycle HarborBuddy looks for backups from the last 48 hours whose original name is free, renames them back, restores the recorded restart policy, reconnects the primary network, and starts them. Older backups and backups whose name is taken are only logged.
+
+## Following an update in the logs
+
+Every update logs stable event names with container, image, transaction, failure, and rollback fields. All work in one scheduled run shares a `cycle_id`. Set `HARBORBUDDY_LOG_JSON=true` to ship logs to a collector, or send `SIGUSR1` to switch to debug logging temporarily.
+
+---
+
+URL: https://mikeo7.github.io/HarborBuddy/docs/choosing-containers/
+Updated: 2026-11-06
+
+Filters and labels
+
+# Choose which containers update
+
+Every running container is eligible by default. Narrow that with an opt-out label on individual containers, or with allow and deny patterns on image references. Deny rules always win.
+
+## Opt out one container
+
+```
+services:
+  postgres:
+    image: postgres:17
+    labels:
+      com.harborbuddy.autoupdate: "false"
+```
+
+Use this for databases and anything that needs a manual migration step after an upgrade.
+
+## Allow and deny image patterns
+
+```
+updates:
+  allow_images:
+    - "ghcr.io/my-org/*"
+    - "nginx:*"
+  deny_images:
+    - "*:latest"
+    - "postgres:*"
+```
+
+A pattern is an exact value or has one `*` at either end. Each pattern is checked against the reference as written, its short form with the implicit `:latest` tag, and its fully qualified form. So `*:latest` matches `image: nginx`, and `nginx:*` matches `docker.io/library/nginx:1.27`.
+
+## Opt in instead of opting out
+
+To update only the images you list, replace the default `allow_images: ["*"]` with your own list. Anything that does not match is skipped and logged at debug level.
+
+## Pinned tags and digests
+
+HarborBuddy follows the reference you wrote. A container on `app:2.4` gets new `2.4` builds; one on `app:2.4.1` only changes if that exact tag is rebuilt. A container started from a digest (`app@sha256:…`) never changes, because the digest always resolves to the same image. Containers created from a bare image ID are skipped.
+
+## Containers that are always skipped
+
+Some containers cannot be recreated safely from Docker's inspection data. HarborBuddy skips Swarm tasks, auto-remove containers, containers that share or provide another container's namespaces (for example a VPN gateway used through `network_mode: service:gluetun`), and mounts it cannot reproduce. See limits and requirements (https://mikeo7.github.io/HarborBuddy/docs/limitations/).
+
+---
+
+URL: https://mikeo7.github.io/HarborBuddy/docs/configuration/
+Updated: 2026-11-06
+
+Reference
+
+# Configuration reference
+
+Configure HarborBuddy with environment variables, a YAML file, or command-line flags. Flags override environment variables, and `HARBORBUDDY_*` variables override YAML.
+
+## Environment variables
+
+Booleans accept `true`/`false`, `yes`/`no`, `on`/`off`, or `1`/`0` in any case. Invalid values stop startup instead of silently falling back, and an unknown `HARBORBUDDY_*` variable logs a warning with a suggestion for common typos.
+
+| Variable | Default | What it controls |
+| `HARBORBUDDY_CONFIG` | `/config/harborbuddy.yml` | Configuration file path |
+| `HARBORBUDDY_DOCKER_HOST` | empty | Explicit Docker endpoint; overrides `DOCKER_HOST` |
+| `HARBORBUDDY_INTERVAL` | `12h` | Update interval; at least `1s` |
+| `HARBORBUDDY_SCHEDULE_TIME` | empty | Daily run time in `HH:MM` |
+| `HARBORBUDDY_TIMEZONE` | `UTC` | IANA timezone; overrides `updates.timezone` and `TZ` |
+| `TZ` | empty | Timezone fallback when neither of the above is set |
+| `HARBORBUDDY_DRY_RUN` | `false` | Pull and report without replacing containers or deleting anything |
+| `HARBORBUDDY_UPDATES_ENABLED` | `true` | Enable update checks |
+| `HARBORBUDDY_SELF_UPDATE_ENABLED` | `true` | Let HarborBuddy update its own container |
+| `HARBORBUDDY_CONTAINER_NAME` | empty | Stable name that identifies the HarborBuddy container |
+| `HARBORBUDDY_CONTAINER_ID` | empty | Container ID, or a unique prefix of at least 12 characters |
+| `HARBORBUDDY_STOP_TIMEOUT` | `10s` | Graceful stop timeout for the old container |
+| `HARBORBUDDY_STARTUP_TIMEOUT` | `30s` | How long the replacement has to become ready |
+| `HARBORBUDDY_ROLLBACK_IMAGE_RETENTION` | `0` | Previous working images kept per image reference |
+| `HARBORBUDDY_CLEANUP_ENABLED` | `true` | Run cleanup after each cycle |
+| `HARBORBUDDY_CLEANUP_MIN_AGE_HOURS` | `24` | Minimum age of anything cleanup removes |
+| `HARBORBUDDY_CLEANUP_DANGLING_IMAGE_MIN_AGE_HOURS` | min age | Minimum age for untagged images |
+| `HARBORBUDDY_CLEANUP_CACHE_VOLUMES` | empty | Comma-separated volume-name globs treated as caches |
+| `HARBORBUDDY_CLEANUP_CACHE_VOLUME_MIN_AGE_HOURS` | min age | Minimum age for unused cache volumes |
+| `HARBORBUDDY_CLEANUP_KEEP_IMAGES` | empty | Image patterns cleanup never removes |
+| `HARBORBUDDY_CLEANUP_KEEP_VOLUMES` | empty | Volume-name globs cleanup never removes |
+| `HARBORBUDDY_CLEANUP_KEEP_VOLUME_LABELS` | empty | `key=value` or `key` labels that keep a volume |
+| `HARBORBUDDY_CLEANUP_DANGLING_ONLY` | `true` | Restrict image cleanup to untagged images |
+| `HARBORBUDDY_CLEANUP_ALL` | `false` | Enable every broader cleanup category |
+| `HARBORBUDDY_CLEANUP_STOPPED_CONTAINERS` | `false` | Remove old stopped containers whose restart policy is `no` |
+| `HARBORBUDDY_CLEANUP_UNUSED_NETWORKS` | `false` | Remove old unused local networks |
+| `HARBORBUDDY_CLEANUP_UNUSED_VOLUMES` | `false` | Remove old unreferenced volumes |
+| `HARBORBUDDY_CLEANUP_BUILD_CACHE` | `false` | Prune old unused build cache |
+| `HARBORBUDDY_LOG_LEVEL` | `info` | `debug`, `info`, `warn`, or `error` |
+| `HARBORBUDDY_LOG_JSON` | `false` | Write JSON logs |
+| `HARBORBUDDY_LOG_FILE` | empty | Optional rotating log file; stdout stays on |
+| `HARBORBUDDY_LOG_MAX_SIZE` | `10` | Rotation size in MiB |
+| `HARBORBUDDY_LOG_MAX_BACKUPS` | `1` | Rotated files to keep; at least `1` |
+| `HARBORBUDDY_HEALTH_FILE` | `/tmp/harborbuddy-health.json` | Status file shared by the daemon and `--healthcheck` |
+
+## YAML file
+
+HarborBuddy reads `/config/harborbuddy.yml` when it exists. Mount it read-only with `./harborbuddy.yml:/config/harborbuddy.yml:ro`. Parsing is strict: unknown fields fail startup. These are the defaults:
+
+```
+docker:
+  host: ""
+
+updates:
+  enabled: true
+  check_interval: 12h
+  schedule_time: ""
+  timezone: UTC
+  dry_run: false
+  self_update: true
+  allow_images: ["*"]
+  deny_images: []
+  stop_timeout: 10s
+  startup_timeout: 30s
+  rollback_image_retention: 0
+
+cleanup:
+  enabled: true
+  min_age_hours: 24
+  dangling_only: true
+  all: false
+  stopped_containers: false
+  unused_networks: false
+  unused_volumes: false
+  build_cache: false
+  # dangling_image_min_age_hours: 1
+  # cache_volumes: ["*gocache", "*gomod"]
+  # cache_volume_min_age_hours: 1
+  # keep_images: ["openthread/border-router:*"]
+  # keep_volumes: ["*-backups"]
+  # keep_volume_labels: ["com.example.keep=true"]
+
+log:
+  level: info
+  json: false
+  file: ""
+  max_size: 10
+  max_backups: 1
+```
+
+A fuller annotated example lives in examples/harborbuddy.yml (https://github.com/MikeO7/HarborBuddy/blob/main/examples/harborbuddy.yml).
+
+## Schedules and timezones
+
+With `schedule_time` set, HarborBuddy runs once a day at that `HH:MM` in the configured timezone and does not run at startup. Otherwise it runs every `check_interval`, starting immediately. Intervals below one minute log a warning, because every cycle pulls each eligible image and can hit registry rate limits.
+
+The timezone comes from `--timezone`, then `HARBORBUDDY_TIMEZONE`, then `updates.timezone`, then `TZ`, then UTC. If a daylight-saving change skips the scheduled time, that day's run starts right after the gap; a repeated hour runs once.
+
+## Docker connection and TLS
+
+With no explicit host, HarborBuddy uses the Docker SDK's standard `DOCKER_HOST`, `DOCKER_TLS_VERIFY`, `DOCKER_CERT_PATH`, and `DOCKER_API_VERSION` variables. To manage a remote daemon over TLS:
+
+```
+environment:
+  DOCKER_HOST: tcp://docker.example.net:2376
+  DOCKER_TLS_VERIFY: "1"
+  DOCKER_CERT_PATH: /certs/client
+  HARBORBUDDY_CONTAINER_NAME: harborbuddy
+volumes:
+  - ./certs/client:/certs/client:ro
+```
+
+Never expose an unauthenticated Docker TCP endpoint. A remote daemon must be reachable from both HarborBuddy and its self-update helper.
+
+## Logging
+
+Logs go to standard output as text with RFC 3339 timestamps, or as JSON with `HARBORBUDDY_LOG_JSON=true`. Colour is used only on a terminal and never when `NO_COLOR` is set. `HARBORBUDDY_LOG_FILE` adds a rotating file. Send `SIGUSR1` to toggle debug logging without a restart.
+
+## Command-line flags
+
+```
+--config PATH          configuration file
+--interval DURATION    override the update interval
+--schedule-time HH:MM  override the daily schedule
+--timezone ZONE        override the schedule timezone
+--once                 run one cycle and exit
+--dry-run              pull and report without replacement or cleanup deletion
+--cleanup-only         run cleanup and exit
+--log-level LEVEL      override the log level
+--version              print build information
+--healthcheck          check the daemon in this container and exit
+```
+
+## Container health check
+
+The image's `HEALTHCHECK` runs `/harborbuddy --healthcheck`. The daemon pings Docker every 15 seconds; the check fails when the last successful ping is over 60 seconds old or a cycle has run for over two hours, so monitoring tools see a HarborBuddy that lost Docker or got stuck. One-shot runs (`--once`, `--cleanup-only`) do not write the status file, so disable the health check for them with `docker run --no-healthcheck`.
+
+---
+
+URL: https://mikeo7.github.io/HarborBuddy/docs/self-update/
+Updated: 2026-11-06
+
+Self-update
+
+# How HarborBuddy updates itself
+
+A container cannot replace itself while it runs, so HarborBuddy starts a short-lived helper from the new image and exits. The helper runs the same staged replacement and readiness check as any other update, and restores the old daemon if anything fails.
+
+## The handoff
+
+1. HarborBuddy sees a new image for its own container.
+2. It starts a helper container from the new image with only what it needs to reach Docker: the socket or certificate mounts, the Docker and logging variables, and the daemon's user, groups, security options, and capabilities. With a Unix socket the helper has no network at all.
+3. The daemon exits cleanly, and the helper replaces it, keeping the old daemon as a backup until the new one is ready.
+
+## When self-update fails
+
+If the helper fails at any point after the daemon exits, it restores the daemon's original restart policy and starts the old container again. For the next 24 hours HarborBuddy does not retry that same image and logs `self_update_blocked` each cycle. It tries again after that, or as soon as a different image is published. Remove the failed helper container to retry immediately.
+
+Helpers are kept after they exit so their logs stay readable, and are removed after 7 days. List them with:
+
+```
+docker ps -a --filter label=com.harborbuddy.self-update-helper=true
+```
+
+## Help HarborBuddy find itself
+
+Set `HARBORBUDDY_CONTAINER_NAME` to the stable Compose container name, and always set it when managing a remote daemon. The `com.harborbuddy.role=daemon` label keeps an unidentified HarborBuddy container out of the ordinary update path.
+
+## Keep HarborBuddy under manual control
+
+```
+environment:
+  HARBORBUDDY_SELF_UPDATE_ENABLED: "false"
+```
+
+Then update it yourself with `docker compose pull harborbuddy && docker compose up -d --no-deps harborbuddy`. One-shot `--once` runs never self-update.
+
+## Which tag to follow
+
+The `0.1` tag follows 0.1.x patch releases, so self-update never jumps to a new minor version. Pin `0.1.0` or a digest to stop self-update entirely, or follow `latest` or `edge` to track the main branch.
+
+---
+
+URL: https://mikeo7.github.io/HarborBuddy/docs/cleanup/
+Updated: 2026-11-06
+
+Cleanup
+
+# Clean up old images and unused resources
+
+Updates leave old images behind. By default HarborBuddy removes dangling images older than 24 hours and nothing else. Broader cleanup is opt-in, one category at a time, and never touches anything in use.
+
+## What can be cleaned
+
+| Category | Setting | Default |
+| Dangling (untagged) images | `cleanup.enabled` | On |
+| Unused tagged images | `dangling_only: false` | Off |
+| Stopped containers | `stopped_containers` | Off |
+| Unused local networks | `unused_networks` | Off |
+| Unused volumes | `unused_volumes` | Off |
+| Build cache | `build_cache` | Off |
+
+`all: true` (`HARBORBUDDY_CLEANUP_ALL=true`) turns on every category. Individual switches are safer on shared hosts. Preview candidates with dry-run first: unused-volume cleanup can permanently delete application data.
+
+## What is never removed
+
+- Images used by any container, running or stopped, and images other images are built on.
+- Networks any container is attached to, and system networks.
+- Volumes any container references.
+- Stopped containers with a restart policy (`always`, `unless-stopped`, `on-failure`), such as a stopped Compose service. Only stopped containers with policy `no` are removed.
+- HarborBuddy's own update backups and self-update helper records.
+- After a failed or rolled-back update, the affected container and its volumes for that cycle.
+- Anything whose age or usage Docker cannot report.
+
+## Keep rules
+
+```
+cleanup:
+  keep_images: ["ghcr.io/org/tool*"]       # same syntax as allow_images
+  keep_volumes: ["*-backups"]              # volume-name globs
+  keep_volume_labels: ["com.example.keep=true"]
+```
+
+`keep_images` is for images only host tools run, such as a `docker run --rm` helper, which otherwise look unused between runs. Patterns match tags, digest references, and the repository of a digest reference.
+
+## Ages
+
+`min_age_hours` (default 24) applies to everything. Untagged images and cache volumes can expire sooner with `dangling_image_min_age_hours`, and `cache_volumes` with `cache_volume_min_age_hours`. For containers, networks, and volumes, age means time since creation, not time since the resource became unused.
+
+## Run cleanup on its own
+
+```
+docker run --rm --no-healthcheck \
+  -v /var/run/docker.sock:/var/run/docker.sock \
+  ghcr.io/mikeo7/harborbuddy:0.1 --cleanup-only --dry-run
+```
+
+Drop `--dry-run` to delete what it reports.
+
+---
+
+URL: https://mikeo7.github.io/HarborBuddy/docs/limitations/
+Updated: 2026-11-06
+
+Know the boundaries
+
+# Limits, requirements, and security
+
+HarborBuddy is built for one standalone Docker Engine and errs on the side of skipping a container rather than recreating it wrong. Know these limits before you let it run unattended.
+
+## Docker access is host access
+
+HarborBuddy needs read/write access to the Docker API to pull images and create, stop, rename, start, and remove containers. Anyone who controls the Docker socket controls the host, so treat HarborBuddy as an administrative tool. Run one HarborBuddy per Docker daemon.
+
+## Updates cause a brief interruption
+
+The old container stops before its replacement starts. HarborBuddy is not a rolling or zero-downtime updater. Rollback is best-effort, so keep backups of stateful services and opt databases out of unattended updates.
+
+## Containers HarborBuddy skips
+
+- Docker Swarm tasks. Use Swarm's own rolling updates instead.
+- Containers created with auto-remove (`--rm`).
+- Containers sharing another container's network, PID, IPC, or UTS namespace.
+- Containers whose namespaces another container joins, or that another container links to, such as a VPN gateway used through `network_mode: service:gluetun`. Update such groups together by hand.
+- Containers created from an image ID rather than a pullable reference.
+- Containers with mounts HarborBuddy cannot reproduce safely.
+
+## Compose files are not reread
+
+HarborBuddy recreates containers from Docker's inspection data. It does not call Docker Compose or read your Compose files, so it never changes them. After an update, `docker compose up` still sees the same configuration.
+
+## Private registries
+
+HarborBuddy sends no registry credentials when it pulls, so images that need authentication are not supported yet. Public images on Docker Hub, GHCR, Quay, and other registries work.
+
+## Podman
+
+Production use targets Docker Engine. HarborBuddy's integration suite, including updates, rollback, and self-update, also runs against Podman's Docker-compatible API in CI, and Podman-specific behaviour such as the `pasta` network is handled.
+
+## License
+
+HarborBuddy is source-available under the PolyForm Noncommercial License 1.0.0 (https://github.com/MikeO7/HarborBuddy/blob/main/LICENSE). Personal, homelab, and other noncommercial use is free; commercial use is not permitted by the current license.
+
+---
+
+URL: https://mikeo7.github.io/HarborBuddy/compare/
+Updated: 2026-11-06
+
+Comparison
+
+# Docker container update tools compared
+
+Tools that keep Docker containers up to date fall into two groups: **updaters** that pull new images and recreate containers, and **notifiers** that only tell you an update exists. This page compares the main options in each group, including where HarborBuddy falls short.
+
+Last reviewed November 6, 2026 against each project's own repository and documentation.
+
+## Feature comparison
+
+| Feature | HarborBuddy | Watchtower fork | What's Up Docker | Tugtainer | dockcheck | Diun | podman auto-update |
+| Applies updates | Yes | Yes | Via trigger | Yes, off by default | Yes | Notify only | Yes |
+| Detects changes by | Image ID after pull | Registry digest | Tags, semver, digest | Registry digest | Registry check before pull | Tags, digest | Digest |
+| Waits for readiness | Yes | Rolling restarts only | With rollback on | Yes | Not documented | n/a | With sd_notify |
+| Automatic rollback | Yes | Not documented | Opt-in | Yes | Manual, from image backups | n/a | Yes, default |
+| Recovers interrupted updates | Yes | Not documented | Not documented | Self-update only | n/a | n/a | Not documented |
+| Dry run | Yes | Yes | Yes | Check-only mode | Yes | n/a | Yes |
+| Minimum image age | No | Yes | Not documented | Yes | Yes | n/a | No |
+| Notifications | No | Yes | 30+ | Yes | Yes | 17 | No |
+| Web UI | No | HTTP API | Yes | Yes | No | No | No |
+| Private registries | Not yet | Yes | Yes | Yes | Not documented | Yes | Not documented |
+| Platforms | Docker Engine; Podman API tested | Docker, Podman | Docker, Swarm, Kubernetes, Nomad | Docker, Swarm, multi-host | Docker | Docker, Swarm, Kubernetes, Nomad | Podman with systemd |
+| License | PolyForm Noncommercial | Apache-2.0 | MIT | MIT | GPL-3.0 | MIT | Apache-2.0 |
+
+“Not documented” means we could not find the feature in the project's own documentation; it may still exist. Corrections are welcome as GitHub issues (https://github.com/MikeO7/HarborBuddy/issues).
+
+## The tools at a glance
+
+- **HarborBuddy (https://mikeo7.github.io/HarborBuddy/)**: A Go updater for one Docker host that replaces a container only when its image ID changed, waits for the health check, rolls back automatically, and recovers updates interrupted by a crash. No notifications, UI, or private registry support yet; free for noncommercial use.
+
+- **Watchtower (https://github.com/containrrr/watchtower) and its fork (https://github.com/nicholas-fedor/watchtower)**: The best-known updater. The original was archived in December 2025; the nicholas-fedor fork is actively maintained, keeps the same settings, and adds an HTTP API, metrics, and image cooldowns. HarborBuddy vs Watchtower (https://mikeo7.github.io/HarborBuddy/compare/watchtower/).
+
+- **What's Up Docker (https://getwud.app/)**: A web UI that watches Docker, Swarm, Kubernetes, and Nomad, with semver rules, many notification services, and a Docker trigger that can update, prune, and roll back. HarborBuddy vs What's Up Docker (https://mikeo7.github.io/HarborBuddy/compare/whats-up-docker/).
+
+- **Tugtainer (https://github.com/Quenary/tugtainer)**: A web UI updater with multi-host agents, Compose dependency ordering, and health-gated rollback. Auto-update is off by default, and its README says it is not intended for production.
+
+- **dockcheck (https://github.com/mag37/dockcheck)**: A Bash script that checks registries before pulling, which avoids Docker Hub rate limits, then updates through Docker Compose. Interactive or unattended.
+
+- **Diun (https://crazymax.dev/diun/) and Cup (https://github.com/sergi0g/cup)**: Notifiers. Diun sends update alerts to 17 services from Docker, Kubernetes, Swarm, and Nomad; Cup is a fast checker with a web UI and JSON output. Neither changes containers. HarborBuddy vs Diun (https://mikeo7.github.io/HarborBuddy/compare/diun/).
+
+- **podman auto-update (https://docs.podman.io/en/latest/markdown/podman-auto-update.1.html)**: Podman's built-in updater for containers run by systemd or Quadlet, with rollback on by default. The natural choice on Podman hosts.
+
+## How to choose
+
+- **You want updates to fix themselves when they go wrong:** HarborBuddy, or What's Up Docker with rollback enabled.
+- **You want Watchtower, maintained:** the nicholas-fedor fork.
+- **You want a dashboard and alerts:** What's Up Docker, Tugtainer, or Cup.
+- **You only want to be told:** Diun or Cup, alongside manual updates.
+- **You run Podman with systemd:** podman auto-update.
+- **You pin versions in Compose files:** Renovate, to bump tags through pull requests.
+
+## Comparison FAQ
+
+### What is the best tool to auto-update Docker containers?
+
+There is no single best tool. For unattended updates that roll back on failure, HarborBuddy, What's Up Docker with rollback enabled, and Tugtainer all qualify. For a drop-in Watchtower replacement, use the nicholas-fedor/watchtower fork. For notifications only, use Diun or Cup. For Podman with systemd, use the built-in podman auto-update.
+
+### Which Docker updaters roll back a failed update?
+
+As of November 2026: HarborBuddy (automatic), What's Up Docker (opt-in rollback on its Docker trigger), Tugtainer (health-gated rollback), and podman auto-update (rollback on by default). dockcheck can keep image backups for a manual rollback. The original Watchtower has no rollback.
+
+### Should I auto-update containers or just get notified?
+
+Auto-update the stateless services you trust, such as reverse proxies and dashboards, and use notifications for databases and services that need manual migrations. Most tools, including HarborBuddy, let you exclude containers by label or image pattern.
+
+### What about pinned versions in Docker Compose files?
+
+Updaters follow the tag a container already uses, so a pinned tag like `app:2.4.1` only changes if that tag is rebuilt. To move pinned versions forward, use Renovate, which opens pull requests that bump image tags in Compose files.
+
+---
+
+URL: https://mikeo7.github.io/HarborBuddy/compare/diun/
+Updated: 2026-11-06
+
+Comparison
+
+# HarborBuddy vs Diun
+
+**Diun** tells you when a Docker image has an update. **HarborBuddy** applies the update and rolls it back if the new container fails. They solve different problems, and they work well together.
+
+Last reviewed November 6, 2026 against crazymax.dev/diun (https://crazymax.dev/diun/).
+
+## Side by side
+
+| Feature | HarborBuddy | Diun |
+| Updates containers | Yes | No |
+| Rollback on failure | Yes | n/a |
+| Notifications | No | 17 services |
+| Watches | Running containers on one Docker host | Docker, Swarm, Kubernetes, Nomad, containerd, files |
+| Private registries | Not yet | Yes |
+| Language and license | Go, PolyForm Noncommercial | Go, MIT |
+
+## Run both
+
+A common setup: HarborBuddy updates stateless services automatically, databases carry the opt-out label, and Diun notifies you about every image so you can update the excluded ones by hand.
+
+```
+services:
+  postgres:
+    image: postgres:17
+    labels:
+      com.harborbuddy.autoupdate: "false"   # HarborBuddy skips it
+      diun.enable: "true"                   # Diun still notifies you
+```
+
+## FAQ
+
+### Does Diun update containers?
+
+No. Diun (Docker Image Update Notifier) only sends notifications when an image changes. It never pulls images into running containers or recreates them.
+
+### Can I use Diun and HarborBuddy together?
+
+Yes. They do different jobs. Let HarborBuddy update the containers you trust, exclude sensitive ones with `com.harborbuddy.autoupdate=false`, and let Diun notify you about everything, including the excluded containers.
+
+---
+
+URL: https://mikeo7.github.io/HarborBuddy/compare/watchtower/
+Updated: 2026-11-06
+
+Watchtower alternative
+
+# A Watchtower alternative that rolls back failed updates
+
+**HarborBuddy** does the job Watchtower did: it watches the containers on a Docker host and recreates them when their images change. It adds what Watchtower never had: it waits for the new container to pass its health check, and puts the original container back automatically if the update fails.
+
+Last reviewed November 6, 2026 against each project's own documentation.
+
+## What happened to Watchtower?
+
+- The original containrrr/watchtower (https://github.com/containrrr/watchtower) repository was **archived on December 17, 2025**. Its last release, v1.7.1, shipped in November 2023.
+- Its default Docker API version, 1.25, is rejected by **Docker Engine 29** with `client version 1.25 is too old` (issue #2124 (https://github.com/containrrr/watchtower/issues/2124)). `DOCKER_API_VERSION=1.44` is a stopgap.
+- An actively maintained fork, nicholas-fedor/watchtower (https://github.com/nicholas-fedor/watchtower), keeps the same variables and labels and is a true drop-in replacement.
+
+If you want Watchtower exactly as it was, use the fork. If you want unattended updates that check their own work, read on.
+
+## HarborBuddy vs Watchtower
+
+| Feature | HarborBuddy | Watchtower (containrrr) | Watchtower fork |
+| Detects updates by | Pulled image ID vs running image ID | Registry digest | Registry digest |
+| Waits for the new container's health check | Yes | No | Rolling restarts only |
+| Rolls back a failed update | Yes, automatically | No | Not documented |
+| Recovers an update interrupted by a crash | Yes, within 48 hours | Not documented | Not documented |
+| New image defaults apply on update | Yes | Not documented | Not documented |
+| Dry run | Yes | Monitor-only | Yes |
+| Schedule | Interval, or daily time with timezone | Interval or cron | Interval or cron |
+| Opt-in label mode | No; allow patterns instead | Yes | Yes |
+| Notifications | No, logs only | Yes | Yes |
+| Private registry login | Not yet | Yes | Yes |
+| HTTP API | No | Yes | Yes, with metrics |
+| Image cleanup | On by default, dangling images over 24 h | Opt-in | Opt-in |
+| Self-update | Helper container, 24 h block after a failure | Yes | Yes |
+| Maintained | Yes, v0.1.0 (November 2026) | Archived | Yes |
+| License | PolyForm Noncommercial 1.0.0 | Apache-2.0 | Apache-2.0 |
+
+## Which one should you use?
+
+### Choose HarborBuddy if
+
+- A broken image should never leave a service down.
+- You pull public images and read logs or use an uptime monitor.
+- You run it at home or for other noncommercial use.
+
+### Stay with the Watchtower fork if
+
+- You need private registry logins or built-in notifications.
+- You rely on cron schedules, the HTTP API, or opt-in labels.
+- You need a permissive open-source license for commercial use.
+
+## Migrate from Watchtower in four steps
+
+1. **Stop Watchtower** so two updaters never touch the same containers: `docker compose stop watchtower`.
+2. **Translate your settings** using the table below.
+3. **Start HarborBuddy in dry-run mode** and compare its plan with what Watchtower used to do.
+4. **Remove dry-run**, then remove the Watchtower service.
+
+### Settings and labels
+
+| Watchtower | HarborBuddy | Notes |
+| `com.centurylinklabs.watchtower.enable=false` | `com.harborbuddy.autoupdate=false` | Same meaning |
+| `WATCHTOWER_LABEL_ENABLE=true` | `updates.allow_images` | No opt-in label; list the images to update |
+| `WATCHTOWER_POLL_INTERVAL=86400` | `HARBORBUDDY_INTERVAL=24h` | Durations, not seconds; default 12h |
+| `WATCHTOWER_SCHEDULE="0 0 4 * * *"` | `HARBORBUDDY_SCHEDULE_TIME="04:00"` | Daily only; add `HARBORBUDDY_TIMEZONE` |
+| `WATCHTOWER_MONITOR_ONLY=true` | `HARBORBUDDY_DRY_RUN=true` | Global only; results go to logs |
+| `WATCHTOWER_CLEANUP=true` | `HARBORBUDDY_CLEANUP_ENABLED=true` | On by default; dangling images over 24 h |
+| `WATCHTOWER_RUN_ONCE=true` | `--once` |  |
+| `WATCHTOWER_TIMEOUT=10s` | `HARBORBUDDY_STOP_TIMEOUT=10s` | Also set `HARBORBUDDY_STARTUP_TIMEOUT` |
+| `WATCHTOWER_DISABLE_CONTAINERS` | Opt-out label or `deny_images` | Filters by image, not name |
+| `DOCKER_HOST` | `DOCKER_HOST` or `HARBORBUDDY_DOCKER_HOST` | TLS variables work the same |
+| `WATCHTOWER_NOTIFICATION_URL` | None | Use JSON logs or the container health check |
+| `WATCHTOWER_INCLUDE_STOPPED` | None | Only running containers are updated |
+| `com.centurylinklabs.watchtower.depends-on` | None | Linked and shared-namespace groups are skipped |
+| `/config.json` registry auth | None | Private registries are not supported yet |
+
+### Before and after
+
+```
+# Before: Watchtower
+watchtower:
+  image: containrrr/watchtower
+  volumes:
+    - /var/run/docker.sock:/var/run/docker.sock
+  environment:
+    WATCHTOWER_SCHEDULE: "0 0 4 * * *"
+    WATCHTOWER_CLEANUP: "true"
+    TZ: Europe/Berlin
+```
+
+```
+# After: HarborBuddy
+harborbuddy:
+  image: ghcr.io/mikeo7/harborbuddy:0.1
+  container_name: harborbuddy
+  restart: unless-stopped
+  stop_grace_period: 2m
+  volumes:
+    - /var/run/docker.sock:/var/run/docker.sock
+  environment:
+    HARBORBUDDY_SCHEDULE_TIME: "04:00"
+    HARBORBUDDY_TIMEZONE: Europe/Berlin
+    HARBORBUDDY_CONTAINER_NAME: harborbuddy
+    HARBORBUDDY_DRY_RUN: "true"
+  labels:
+    com.harborbuddy.role: daemon
+```
+
+## Watchtower alternative FAQ
+
+### Is Watchtower still maintained?
+
+No. The containrrr/watchtower repository was archived on December 17, 2025. Its last release, v1.7.1, shipped in November 2023. An actively maintained fork exists at nicholas-fedor/watchtower.
+
+### Does Watchtower work with Docker Engine 29?
+
+Not by default. The original Watchtower requests Docker API version 1.25, which Docker Engine 29 rejects with "client version 1.25 is too old". Setting `DOCKER_API_VERSION=1.44` works around it, or you can switch to the fork or another updater.
+
+### What is the best Watchtower alternative?
+
+It depends on what you need. The nicholas-fedor/watchtower fork is the closest drop-in replacement. What's Up Docker adds a web UI and many notification services. HarborBuddy focuses on safe unattended updates: it waits for the new container's health check and rolls back automatically when an update fails.
+
+### Can I run HarborBuddy and Watchtower together?
+
+No. Run one updater per Docker host, or both will try to recreate the same containers. Stop Watchtower before you start HarborBuddy.
+
+### Does HarborBuddy read Watchtower labels?
+
+No. Replace `com.centurylinklabs.watchtower.enable=false` with `com.harborbuddy.autoupdate=false`. Watchtower's opt-in label mode has no direct equivalent; use `updates.allow_images` patterns instead.
+
+Sources: containrrr/watchtower (https://github.com/containrrr/watchtower), archive announcement (https://github.com/containrrr/watchtower/discussions/2135), Watchtower arguments (https://containrrr.dev/watchtower/arguments/), nicholas-fedor/watchtower (https://github.com/nicholas-fedor/watchtower), fork documentation (https://watchtower.nickfedor.com/).
+
+---
+
+URL: https://mikeo7.github.io/HarborBuddy/compare/whats-up-docker/
+Updated: 2026-11-06
+
+Comparison
+
+# HarborBuddy vs What's Up Docker
+
+**What's Up Docker (WUD)** is a dashboard that finds image updates across Docker, Swarm, Kubernetes, and Nomad, notifies you, and can trigger updates. **HarborBuddy** is a single-purpose updater for one Docker host that focuses on replacing containers safely. Pick WUD for visibility and alerts; pick HarborBuddy for quiet, self-correcting updates.
+
+Last reviewed November 6, 2026 against getwud.app (https://getwud.app/) and the getwud/wud (https://github.com/getwud/wud) repository.
+
+## Side by side
+
+| Feature | HarborBuddy | What's Up Docker |
+| Main job | Update containers safely | Find updates, notify, optionally update |
+| Detects updates by | Image ID after pulling the current tag | Newer tags (semver rules) and digests |
+| Moves to newer version tags | No, follows the current tag | Yes |
+| Automatic rollback | Yes, always on | Opt-in on the Docker trigger |
+| Recovers interrupted updates | Yes | Not documented |
+| Dry run | Yes | Yes |
+| Notifications | No | 30+ services |
+| Web UI and API | No | Yes, with OIDC |
+| Private registries | Not yet | Yes |
+| Platforms | Docker Engine | Docker, Compose, Swarm, Kubernetes, Nomad |
+| Setup | One container, environment variables | One container, environment variables, UI |
+| License | PolyForm Noncommercial | MIT |
+
+## Which should you use?
+
+### Choose HarborBuddy if
+
+- You want updates to happen and fix themselves without a dashboard.
+- You follow rolling tags such as `stable` or `2.4`.
+- Recovery after a crash mid-update matters to you.
+
+### Choose What's Up Docker if
+
+- You want to see every pending update in a UI and get alerts.
+- You want to move to newer semver tags automatically.
+- You run Swarm, Kubernetes, Nomad, or private registries.
+
+## FAQ
+
+### Can What's Up Docker update containers automatically?
+
+Yes. WUD's Docker trigger can pull and recreate containers, with optional dry run, image pruning, and rollback when the new container is unhealthy. Updating is configured per trigger rather than on by default.
+
+### Is HarborBuddy simpler than What's Up Docker?
+
+Yes. HarborBuddy is one container with environment variables and no UI or database. WUD is broader: it adds a web interface, authentication, many registries and notification services, and watchers for Swarm, Kubernetes, and Nomad.

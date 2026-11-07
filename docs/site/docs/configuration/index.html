@@ -1,0 +1,283 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <title>Configuration Reference: Env Vars and YAML | HarborBuddy</title>
+    <meta name="description" content="Every HarborBuddy setting: YAML keys, HARBORBUDDY_* environment variables, CLI flags, schedules and timezones, Docker TLS, logging, and health checks.">
+    <meta name="robots" content="index,follow,max-image-preview:large,max-snippet:-1">
+    <link rel="canonical" href="https://mikeo7.github.io/HarborBuddy/docs/configuration/">
+    <meta name="theme-color" content="#071923">
+    <link rel="stylesheet" href="/HarborBuddy/styles.css">
+    <link rel="icon" href="/HarborBuddy/assets/favicon.svg" type="image/svg+xml">
+    <link rel="apple-touch-icon" href="/HarborBuddy/assets/apple-touch-icon.png">
+    <link rel="alternate" href="/HarborBuddy/llms.txt" type="text/plain" title="HarborBuddy facts for language models">
+    <link rel="alternate" type="application/atom+xml" title="HarborBuddy releases" href="https://github.com/MikeO7/HarborBuddy/releases.atom">
+    <meta property="og:type" content="article">
+    <meta property="og:locale" content="en_US">
+    <meta property="og:site_name" content="HarborBuddy">
+    <meta property="og:title" content="Configuration Reference: Env Vars and YAML | HarborBuddy">
+    <meta property="og:description" content="Every HarborBuddy setting: YAML keys, HARBORBUDDY_* environment variables, CLI flags, schedules and timezones, Docker TLS, logging, and health checks.">
+    <meta property="og:url" content="https://mikeo7.github.io/HarborBuddy/docs/configuration/">
+    <meta property="og:image" content="https://mikeo7.github.io/HarborBuddy/assets/harborbuddy-social.png">
+    <meta property="og:image:type" content="image/png">
+    <meta property="og:image:width" content="1200">
+    <meta property="og:image:height" content="630">
+    <meta property="og:image:alt" content="HarborBuddy guiding Docker containers through an update and rollback path">
+    <meta name="twitter:card" content="summary_large_image">
+    <meta name="twitter:title" content="Configuration Reference: Env Vars and YAML | HarborBuddy">
+    <meta name="twitter:description" content="Every HarborBuddy setting: YAML keys, HARBORBUDDY_* environment variables, CLI flags, schedules and timezones, Docker TLS, logging, and health checks.">
+    <meta name="twitter:image" content="https://mikeo7.github.io/HarborBuddy/assets/harborbuddy-social.png">
+    <meta name="twitter:image:alt" content="HarborBuddy guiding Docker containers through an update and rollback path">
+    <script type="application/ld+json">
+{
+  "@context": "https://schema.org",
+  "@graph": [
+    {
+      "@type": "Person",
+      "@id": "https://github.com/MikeO7#person",
+      "name": "MikeO7",
+      "url": "https://github.com/MikeO7"
+    },
+    {
+      "@type": "WebSite",
+      "@id": "https://mikeo7.github.io/HarborBuddy/#website",
+      "url": "https://mikeo7.github.io/HarborBuddy/",
+      "name": "HarborBuddy",
+      "description": "Documentation and comparisons for HarborBuddy, a self-hosted Docker container updater with rollback.",
+      "inLanguage": "en",
+      "publisher": {
+        "@id": "https://github.com/MikeO7#person"
+      }
+    },
+    {
+      "@type": "TechArticle",
+      "@id": "https://mikeo7.github.io/HarborBuddy/docs/configuration/#webpage",
+      "url": "https://mikeo7.github.io/HarborBuddy/docs/configuration/",
+      "name": "Configuration Reference: Env Vars and YAML | HarborBuddy",
+      "headline": "HarborBuddy configuration reference",
+      "description": "Every HarborBuddy setting: YAML keys, HARBORBUDDY_* environment variables, CLI flags, schedules and timezones, Docker TLS, logging, and health checks.",
+      "isPartOf": {
+        "@id": "https://mikeo7.github.io/HarborBuddy/#website"
+      },
+      "about": {
+        "@id": "https://mikeo7.github.io/HarborBuddy/#software"
+      },
+      "inLanguage": "en",
+      "dateModified": "2026-11-06",
+      "author": {
+        "@id": "https://github.com/MikeO7#person"
+      },
+      "breadcrumb": {
+        "@id": "https://mikeo7.github.io/HarborBuddy/docs/configuration/#breadcrumb"
+      }
+    },
+    {
+      "@type": "BreadcrumbList",
+      "@id": "https://mikeo7.github.io/HarborBuddy/docs/configuration/#breadcrumb",
+      "itemListElement": [
+        {
+          "@type": "ListItem",
+          "position": 1,
+          "name": "HarborBuddy",
+          "item": "https://mikeo7.github.io/HarborBuddy/"
+        },
+        {
+          "@type": "ListItem",
+          "position": 2,
+          "name": "Docs",
+          "item": "https://mikeo7.github.io/HarborBuddy/docs/"
+        },
+        {
+          "@type": "ListItem",
+          "position": 3,
+          "name": "Configuration reference",
+          "item": "https://mikeo7.github.io/HarborBuddy/docs/configuration/"
+        }
+      ]
+    }
+  ]
+}
+    </script>
+  </head>
+  <body>
+    <a class="skip-link" href="#main">Skip to content</a>
+    <header class="site-header">
+      <a class="brand" href="/HarborBuddy/" aria-label="HarborBuddy home"><svg class="brand-mark" viewBox="0 0 48 48" aria-hidden="true"><path d="M24 4v28M14 13h20M11 24c0 12 5 18 13 20 8-2 13-8 13-20M6 27c4 2 7 2 10 0M32 27c3 2 6 2 10 0"/></svg><span>HarborBuddy</span></a>
+      <a class="release-chip" href="https://github.com/MikeO7/HarborBuddy/releases/tag/v0.1.0">v0.1.0</a>
+      <nav aria-label="Main navigation">
+        <a href="/HarborBuddy/docs/" aria-current="page">Docs</a>
+        <a href="/HarborBuddy/compare/">Compare</a>
+        <a href="/HarborBuddy/compare/watchtower/">Watchtower alternative</a>
+        <a href="/HarborBuddy/#faq">FAQ</a>
+        <a class="nav-cta" href="https://github.com/MikeO7/HarborBuddy">GitHub</a>
+      </nav>
+    </header>
+
+    <main id="main">
+      <div class="docs-layout">
+        <nav class="docs-nav" aria-label="Documentation">
+          <p class="docs-nav-title">Documentation</p>
+          <ul>
+            <li><a href="/HarborBuddy/docs/">Overview</a></li>
+            <li><a href="/HarborBuddy/docs/quick-start/">Quick start</a></li>
+            <li><a href="/HarborBuddy/docs/how-updates-work/">How updates work</a></li>
+            <li><a href="/HarborBuddy/docs/choosing-containers/">Choose what updates</a></li>
+            <li><a href="/HarborBuddy/docs/configuration/" aria-current="page">Configuration reference</a></li>
+            <li><a href="/HarborBuddy/docs/self-update/">Self-update</a></li>
+            <li><a href="/HarborBuddy/docs/cleanup/">Cleanup</a></li>
+            <li><a href="/HarborBuddy/docs/limitations/">Limits and requirements</a></li>
+          </ul>
+        </nav>
+        <article class="prose">
+          <nav class="breadcrumbs" aria-label="Breadcrumb"><ol><li><a href="/HarborBuddy/">HarborBuddy</a></li><li><a href="/HarborBuddy/docs/">Docs</a></li><li aria-current="page">Configuration reference</li></ol></nav>
+          <p class="eyebrow"><span></span> Reference</p>
+          <h1>Configuration reference</h1>
+          <p class="lede">Configure HarborBuddy with environment variables, a YAML file, or command-line flags. Flags override environment variables, and <code>HARBORBUDDY_*</code> variables override YAML.</p>
+
+          <nav class="toc" aria-label="On this page">
+            <a href="#environment">Environment variables</a>
+            <a href="#yaml">YAML file</a>
+            <a href="#schedule">Schedules and timezones</a>
+            <a href="#docker">Docker connection and TLS</a>
+            <a href="#logging">Logging</a>
+            <a href="#cli">Command-line flags</a>
+            <a href="#healthcheck">Health check</a>
+          </nav>
+
+          <h2 id="environment">Environment variables</h2>
+          <p>Booleans accept <code>true</code>/<code>false</code>, <code>yes</code>/<code>no</code>, <code>on</code>/<code>off</code>, or <code>1</code>/<code>0</code> in any case. Invalid values stop startup instead of silently falling back, and an unknown <code>HARBORBUDDY_*</code> variable logs a warning with a suggestion for common typos.</p>
+          <div class="table-wrap">
+            <table>
+              <thead><tr><th scope="col">Variable</th><th scope="col">Default</th><th scope="col">What it controls</th></tr></thead>
+              <tbody>
+                <tr><td><code>HARBORBUDDY_CONFIG</code></td><td><code>/config/harborbuddy.yml</code></td><td>Configuration file path</td></tr>
+                <tr><td><code>HARBORBUDDY_DOCKER_HOST</code></td><td>empty</td><td>Explicit Docker endpoint; overrides <code>DOCKER_HOST</code></td></tr>
+                <tr><td><code>HARBORBUDDY_INTERVAL</code></td><td><code>12h</code></td><td>Update interval; at least <code>1s</code></td></tr>
+                <tr><td><code>HARBORBUDDY_SCHEDULE_TIME</code></td><td>empty</td><td>Daily run time in <code>HH:MM</code></td></tr>
+                <tr><td><code>HARBORBUDDY_TIMEZONE</code></td><td><code>UTC</code></td><td>IANA timezone; overrides <code>updates.timezone</code> and <code>TZ</code></td></tr>
+                <tr><td><code>TZ</code></td><td>empty</td><td>Timezone fallback when neither of the above is set</td></tr>
+                <tr><td><code>HARBORBUDDY_DRY_RUN</code></td><td><code>false</code></td><td>Pull and report without replacing containers or deleting anything</td></tr>
+                <tr><td><code>HARBORBUDDY_UPDATES_ENABLED</code></td><td><code>true</code></td><td>Enable update checks</td></tr>
+                <tr><td><code>HARBORBUDDY_SELF_UPDATE_ENABLED</code></td><td><code>true</code></td><td>Let HarborBuddy update its own container</td></tr>
+                <tr><td><code>HARBORBUDDY_CONTAINER_NAME</code></td><td>empty</td><td>Stable name that identifies the HarborBuddy container</td></tr>
+                <tr><td><code>HARBORBUDDY_CONTAINER_ID</code></td><td>empty</td><td>Container ID, or a unique prefix of at least 12 characters</td></tr>
+                <tr><td><code>HARBORBUDDY_STOP_TIMEOUT</code></td><td><code>10s</code></td><td>Graceful stop timeout for the old container</td></tr>
+                <tr><td><code>HARBORBUDDY_STARTUP_TIMEOUT</code></td><td><code>30s</code></td><td>How long the replacement has to become ready</td></tr>
+                <tr><td><code>HARBORBUDDY_ROLLBACK_IMAGE_RETENTION</code></td><td><code>0</code></td><td>Previous working images kept per image reference</td></tr>
+                <tr><td><code>HARBORBUDDY_CLEANUP_ENABLED</code></td><td><code>true</code></td><td>Run cleanup after each cycle</td></tr>
+                <tr><td><code>HARBORBUDDY_CLEANUP_MIN_AGE_HOURS</code></td><td><code>24</code></td><td>Minimum age of anything cleanup removes</td></tr>
+                <tr><td><code>HARBORBUDDY_CLEANUP_DANGLING_IMAGE_MIN_AGE_HOURS</code></td><td>min age</td><td>Minimum age for untagged images</td></tr>
+                <tr><td><code>HARBORBUDDY_CLEANUP_CACHE_VOLUMES</code></td><td>empty</td><td>Comma-separated volume-name globs treated as caches</td></tr>
+                <tr><td><code>HARBORBUDDY_CLEANUP_CACHE_VOLUME_MIN_AGE_HOURS</code></td><td>min age</td><td>Minimum age for unused cache volumes</td></tr>
+                <tr><td><code>HARBORBUDDY_CLEANUP_KEEP_IMAGES</code></td><td>empty</td><td>Image patterns cleanup never removes</td></tr>
+                <tr><td><code>HARBORBUDDY_CLEANUP_KEEP_VOLUMES</code></td><td>empty</td><td>Volume-name globs cleanup never removes</td></tr>
+                <tr><td><code>HARBORBUDDY_CLEANUP_KEEP_VOLUME_LABELS</code></td><td>empty</td><td><code>key=value</code> or <code>key</code> labels that keep a volume</td></tr>
+                <tr><td><code>HARBORBUDDY_CLEANUP_DANGLING_ONLY</code></td><td><code>true</code></td><td>Restrict image cleanup to untagged images</td></tr>
+                <tr><td><code>HARBORBUDDY_CLEANUP_ALL</code></td><td><code>false</code></td><td>Enable every broader cleanup category</td></tr>
+                <tr><td><code>HARBORBUDDY_CLEANUP_STOPPED_CONTAINERS</code></td><td><code>false</code></td><td>Remove old stopped containers whose restart policy is <code>no</code></td></tr>
+                <tr><td><code>HARBORBUDDY_CLEANUP_UNUSED_NETWORKS</code></td><td><code>false</code></td><td>Remove old unused local networks</td></tr>
+                <tr><td><code>HARBORBUDDY_CLEANUP_UNUSED_VOLUMES</code></td><td><code>false</code></td><td>Remove old unreferenced volumes</td></tr>
+                <tr><td><code>HARBORBUDDY_CLEANUP_BUILD_CACHE</code></td><td><code>false</code></td><td>Prune old unused build cache</td></tr>
+                <tr><td><code>HARBORBUDDY_LOG_LEVEL</code></td><td><code>info</code></td><td><code>debug</code>, <code>info</code>, <code>warn</code>, or <code>error</code></td></tr>
+                <tr><td><code>HARBORBUDDY_LOG_JSON</code></td><td><code>false</code></td><td>Write JSON logs</td></tr>
+                <tr><td><code>HARBORBUDDY_LOG_FILE</code></td><td>empty</td><td>Optional rotating log file; stdout stays on</td></tr>
+                <tr><td><code>HARBORBUDDY_LOG_MAX_SIZE</code></td><td><code>10</code></td><td>Rotation size in MiB</td></tr>
+                <tr><td><code>HARBORBUDDY_LOG_MAX_BACKUPS</code></td><td><code>1</code></td><td>Rotated files to keep; at least <code>1</code></td></tr>
+                <tr><td><code>HARBORBUDDY_HEALTH_FILE</code></td><td><code>/tmp/harborbuddy-health.json</code></td><td>Status file shared by the daemon and <code>--healthcheck</code></td></tr>
+              </tbody>
+            </table>
+          </div>
+
+          <h2 id="yaml">YAML file</h2>
+          <p>HarborBuddy reads <code>/config/harborbuddy.yml</code> when it exists. Mount it read-only with <code>./harborbuddy.yml:/config/harborbuddy.yml:ro</code>. Parsing is strict: unknown fields fail startup. These are the defaults:</p>
+<pre class="code-block"><code>docker:
+  host: ""
+
+updates:
+  enabled: true
+  check_interval: 12h
+  schedule_time: ""
+  timezone: UTC
+  dry_run: false
+  self_update: true
+  allow_images: ["*"]
+  deny_images: []
+  stop_timeout: 10s
+  startup_timeout: 30s
+  rollback_image_retention: 0
+
+cleanup:
+  enabled: true
+  min_age_hours: 24
+  dangling_only: true
+  all: false
+  stopped_containers: false
+  unused_networks: false
+  unused_volumes: false
+  build_cache: false
+  # dangling_image_min_age_hours: 1
+  # cache_volumes: ["*gocache", "*gomod"]
+  # cache_volume_min_age_hours: 1
+  # keep_images: ["openthread/border-router:*"]
+  # keep_volumes: ["*-backups"]
+  # keep_volume_labels: ["com.example.keep=true"]
+
+log:
+  level: info
+  json: false
+  file: ""
+  max_size: 10
+  max_backups: 1</code></pre>
+          <p>A fuller annotated example lives in <a href="https://github.com/MikeO7/HarborBuddy/blob/main/examples/harborbuddy.yml">examples/harborbuddy.yml</a>.</p>
+
+          <h2 id="schedule">Schedules and timezones</h2>
+          <p>With <code>schedule_time</code> set, HarborBuddy runs once a day at that <code>HH:MM</code> in the configured timezone and does not run at startup. Otherwise it runs every <code>check_interval</code>, starting immediately. Intervals below one minute log a warning, because every cycle pulls each eligible image and can hit registry rate limits.</p>
+          <p>The timezone comes from <code>--timezone</code>, then <code>HARBORBUDDY_TIMEZONE</code>, then <code>updates.timezone</code>, then <code>TZ</code>, then UTC. If a daylight-saving change skips the scheduled time, that day's run starts right after the gap; a repeated hour runs once.</p>
+
+          <h2 id="docker">Docker connection and TLS</h2>
+          <p>With no explicit host, HarborBuddy uses the Docker SDK's standard <code>DOCKER_HOST</code>, <code>DOCKER_TLS_VERIFY</code>, <code>DOCKER_CERT_PATH</code>, and <code>DOCKER_API_VERSION</code> variables. To manage a remote daemon over TLS:</p>
+<pre class="code-block"><code>environment:
+  DOCKER_HOST: tcp://docker.example.net:2376
+  DOCKER_TLS_VERIFY: "1"
+  DOCKER_CERT_PATH: /certs/client
+  HARBORBUDDY_CONTAINER_NAME: harborbuddy
+volumes:
+  - ./certs/client:/certs/client:ro</code></pre>
+          <p>Never expose an unauthenticated Docker TCP endpoint. A remote daemon must be reachable from both HarborBuddy and its self-update helper.</p>
+
+          <h2 id="logging">Logging</h2>
+          <p>Logs go to standard output as text with RFC 3339 timestamps, or as JSON with <code>HARBORBUDDY_LOG_JSON=true</code>. Colour is used only on a terminal and never when <code>NO_COLOR</code> is set. <code>HARBORBUDDY_LOG_FILE</code> adds a rotating file. Send <code>SIGUSR1</code> to toggle debug logging without a restart.</p>
+
+          <h2 id="cli">Command-line flags</h2>
+<pre class="code-block"><code>--config PATH          configuration file
+--interval DURATION    override the update interval
+--schedule-time HH:MM  override the daily schedule
+--timezone ZONE        override the schedule timezone
+--once                 run one cycle and exit
+--dry-run              pull and report without replacement or cleanup deletion
+--cleanup-only         run cleanup and exit
+--log-level LEVEL      override the log level
+--version              print build information
+--healthcheck          check the daemon in this container and exit</code></pre>
+
+          <h2 id="healthcheck">Container health check</h2>
+          <p>The image's <code>HEALTHCHECK</code> runs <code>/harborbuddy --healthcheck</code>. The daemon pings Docker every 15 seconds; the check fails when the last successful ping is over 60 seconds old or a cycle has run for over two hours, so monitoring tools see a HarborBuddy that lost Docker or got stuck. One-shot runs (<code>--once</code>, <code>--cleanup-only</code>) do not write the status file, so disable the health check for them with <code>docker run --no-healthcheck</code>.</p>
+        </article>
+      </div>
+    </main>
+
+    <footer class="site-footer">
+      <div class="footer-brand">
+        <a class="brand" href="/HarborBuddy/"><svg class="brand-mark" viewBox="0 0 48 48" aria-hidden="true"><path d="M24 4v28M14 13h20M11 24c0 12 5 18 13 20 8-2 13-8 13-20M6 27c4 2 7 2 10 0M32 27c3 2 6 2 10 0"/></svg><span>HarborBuddy</span></a>
+        <p>Careful, self-hosted container updates for standalone Docker Engine. Built by <a href="https://github.com/MikeO7">MikeO7</a>.</p>
+        <p class="footer-license">Noncommercial source-available software under the <a rel="license" href="https://github.com/MikeO7/HarborBuddy/blob/main/LICENSE">PolyForm Noncommercial License 1.0.0</a>.</p>
+      </div>
+      <div class="footer-groups">
+        <div><p class="footer-title">Product</p><ul><li><a href="/HarborBuddy/docs/quick-start/">Quick start</a></li><li><a href="/HarborBuddy/docs/">Documentation</a></li><li><a href="/HarborBuddy/docs/configuration/">Configuration reference</a></li><li><a href="/HarborBuddy/#faq">FAQ</a></li></ul></div>
+        <div><p class="footer-title">Compare</p><ul><li><a href="/HarborBuddy/compare/">Docker update tools compared</a></li><li><a href="/HarborBuddy/compare/watchtower/">Watchtower alternative</a></li><li><a href="/HarborBuddy/compare/watchtower/#migrate">Migrate from Watchtower</a></li><li><a href="/HarborBuddy/compare/whats-up-docker/">HarborBuddy vs What's Up Docker</a></li><li><a href="/HarborBuddy/compare/diun/">HarborBuddy vs Diun</a></li></ul></div>
+        <div><p class="footer-title">Project</p><ul><li><a href="https://github.com/MikeO7/HarborBuddy">Source code</a></li><li><a href="https://github.com/MikeO7/HarborBuddy/releases">Releases</a></li><li><a href="https://github.com/MikeO7/HarborBuddy/blob/main/CHANGELOG.md">Changelog</a></li><li><a href="https://github.com/MikeO7/HarborBuddy/issues">Issues</a></li><li><a href="https://github.com/MikeO7/HarborBuddy/security/policy">Security policy</a></li></ul></div>
+      </div>
+    </footer>
+  </body>
+</html>

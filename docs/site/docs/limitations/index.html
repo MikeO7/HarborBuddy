@@ -1,0 +1,182 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <title>Limits, Requirements, and Security | HarborBuddy</title>
+    <meta name="description" content="What HarborBuddy needs from your Docker host, what it skips on purpose, such as Swarm tasks and shared namespaces, and the risk of Docker socket access.">
+    <meta name="robots" content="index,follow,max-image-preview:large,max-snippet:-1">
+    <link rel="canonical" href="https://mikeo7.github.io/HarborBuddy/docs/limitations/">
+    <meta name="theme-color" content="#071923">
+    <link rel="stylesheet" href="/HarborBuddy/styles.css">
+    <link rel="icon" href="/HarborBuddy/assets/favicon.svg" type="image/svg+xml">
+    <link rel="apple-touch-icon" href="/HarborBuddy/assets/apple-touch-icon.png">
+    <link rel="alternate" href="/HarborBuddy/llms.txt" type="text/plain" title="HarborBuddy facts for language models">
+    <link rel="alternate" type="application/atom+xml" title="HarborBuddy releases" href="https://github.com/MikeO7/HarborBuddy/releases.atom">
+    <meta property="og:type" content="article">
+    <meta property="og:locale" content="en_US">
+    <meta property="og:site_name" content="HarborBuddy">
+    <meta property="og:title" content="Limits, Requirements, and Security | HarborBuddy">
+    <meta property="og:description" content="What HarborBuddy needs from your Docker host, what it skips on purpose, such as Swarm tasks and shared namespaces, and the risk of Docker socket access.">
+    <meta property="og:url" content="https://mikeo7.github.io/HarborBuddy/docs/limitations/">
+    <meta property="og:image" content="https://mikeo7.github.io/HarborBuddy/assets/harborbuddy-social.png">
+    <meta property="og:image:type" content="image/png">
+    <meta property="og:image:width" content="1200">
+    <meta property="og:image:height" content="630">
+    <meta property="og:image:alt" content="HarborBuddy guiding Docker containers through an update and rollback path">
+    <meta name="twitter:card" content="summary_large_image">
+    <meta name="twitter:title" content="Limits, Requirements, and Security | HarborBuddy">
+    <meta name="twitter:description" content="What HarborBuddy needs from your Docker host, what it skips on purpose, such as Swarm tasks and shared namespaces, and the risk of Docker socket access.">
+    <meta name="twitter:image" content="https://mikeo7.github.io/HarborBuddy/assets/harborbuddy-social.png">
+    <meta name="twitter:image:alt" content="HarborBuddy guiding Docker containers through an update and rollback path">
+    <script type="application/ld+json">
+{
+  "@context": "https://schema.org",
+  "@graph": [
+    {
+      "@type": "Person",
+      "@id": "https://github.com/MikeO7#person",
+      "name": "MikeO7",
+      "url": "https://github.com/MikeO7"
+    },
+    {
+      "@type": "WebSite",
+      "@id": "https://mikeo7.github.io/HarborBuddy/#website",
+      "url": "https://mikeo7.github.io/HarborBuddy/",
+      "name": "HarborBuddy",
+      "description": "Documentation and comparisons for HarborBuddy, a self-hosted Docker container updater with rollback.",
+      "inLanguage": "en",
+      "publisher": {
+        "@id": "https://github.com/MikeO7#person"
+      }
+    },
+    {
+      "@type": "TechArticle",
+      "@id": "https://mikeo7.github.io/HarborBuddy/docs/limitations/#webpage",
+      "url": "https://mikeo7.github.io/HarborBuddy/docs/limitations/",
+      "name": "Limits, Requirements, and Security | HarborBuddy",
+      "headline": "HarborBuddy limits, requirements, and security",
+      "description": "What HarborBuddy needs from your Docker host, what it skips on purpose, such as Swarm tasks and shared namespaces, and the risk of Docker socket access.",
+      "isPartOf": {
+        "@id": "https://mikeo7.github.io/HarborBuddy/#website"
+      },
+      "about": {
+        "@id": "https://mikeo7.github.io/HarborBuddy/#software"
+      },
+      "inLanguage": "en",
+      "dateModified": "2026-11-06",
+      "author": {
+        "@id": "https://github.com/MikeO7#person"
+      },
+      "breadcrumb": {
+        "@id": "https://mikeo7.github.io/HarborBuddy/docs/limitations/#breadcrumb"
+      }
+    },
+    {
+      "@type": "BreadcrumbList",
+      "@id": "https://mikeo7.github.io/HarborBuddy/docs/limitations/#breadcrumb",
+      "itemListElement": [
+        {
+          "@type": "ListItem",
+          "position": 1,
+          "name": "HarborBuddy",
+          "item": "https://mikeo7.github.io/HarborBuddy/"
+        },
+        {
+          "@type": "ListItem",
+          "position": 2,
+          "name": "Docs",
+          "item": "https://mikeo7.github.io/HarborBuddy/docs/"
+        },
+        {
+          "@type": "ListItem",
+          "position": 3,
+          "name": "Limits and requirements",
+          "item": "https://mikeo7.github.io/HarborBuddy/docs/limitations/"
+        }
+      ]
+    }
+  ]
+}
+    </script>
+  </head>
+  <body>
+    <a class="skip-link" href="#main">Skip to content</a>
+    <header class="site-header">
+      <a class="brand" href="/HarborBuddy/" aria-label="HarborBuddy home"><svg class="brand-mark" viewBox="0 0 48 48" aria-hidden="true"><path d="M24 4v28M14 13h20M11 24c0 12 5 18 13 20 8-2 13-8 13-20M6 27c4 2 7 2 10 0M32 27c3 2 6 2 10 0"/></svg><span>HarborBuddy</span></a>
+      <a class="release-chip" href="https://github.com/MikeO7/HarborBuddy/releases/tag/v0.1.0">v0.1.0</a>
+      <nav aria-label="Main navigation">
+        <a href="/HarborBuddy/docs/" aria-current="page">Docs</a>
+        <a href="/HarborBuddy/compare/">Compare</a>
+        <a href="/HarborBuddy/compare/watchtower/">Watchtower alternative</a>
+        <a href="/HarborBuddy/#faq">FAQ</a>
+        <a class="nav-cta" href="https://github.com/MikeO7/HarborBuddy">GitHub</a>
+      </nav>
+    </header>
+
+    <main id="main">
+      <div class="docs-layout">
+        <nav class="docs-nav" aria-label="Documentation">
+          <p class="docs-nav-title">Documentation</p>
+          <ul>
+            <li><a href="/HarborBuddy/docs/">Overview</a></li>
+            <li><a href="/HarborBuddy/docs/quick-start/">Quick start</a></li>
+            <li><a href="/HarborBuddy/docs/how-updates-work/">How updates work</a></li>
+            <li><a href="/HarborBuddy/docs/choosing-containers/">Choose what updates</a></li>
+            <li><a href="/HarborBuddy/docs/configuration/">Configuration reference</a></li>
+            <li><a href="/HarborBuddy/docs/self-update/">Self-update</a></li>
+            <li><a href="/HarborBuddy/docs/cleanup/">Cleanup</a></li>
+            <li><a href="/HarborBuddy/docs/limitations/" aria-current="page">Limits and requirements</a></li>
+          </ul>
+        </nav>
+        <article class="prose">
+          <nav class="breadcrumbs" aria-label="Breadcrumb"><ol><li><a href="/HarborBuddy/">HarborBuddy</a></li><li><a href="/HarborBuddy/docs/">Docs</a></li><li aria-current="page">Limits and requirements</li></ol></nav>
+          <p class="eyebrow"><span></span> Know the boundaries</p>
+          <h1>Limits, requirements, and security</h1>
+          <p class="lede">HarborBuddy is built for one standalone Docker Engine and errs on the side of skipping a container rather than recreating it wrong. Know these limits before you let it run unattended.</p>
+
+          <h2 id="access">Docker access is host access</h2>
+          <p>HarborBuddy needs read/write access to the Docker API to pull images and create, stop, rename, start, and remove containers. Anyone who controls the Docker socket controls the host, so treat HarborBuddy as an administrative tool. Run one HarborBuddy per Docker daemon.</p>
+
+          <h2 id="downtime">Updates cause a brief interruption</h2>
+          <p>The old container stops before its replacement starts. HarborBuddy is not a rolling or zero-downtime updater. Rollback is best-effort, so keep backups of stateful services and opt databases out of unattended updates.</p>
+
+          <h2 id="skipped">Containers HarborBuddy skips</h2>
+          <ul>
+            <li>Docker Swarm tasks. Use Swarm's own rolling updates instead.</li>
+            <li>Containers created with auto-remove (<code>--rm</code>).</li>
+            <li>Containers sharing another container's network, PID, IPC, or UTS namespace.</li>
+            <li>Containers whose namespaces another container joins, or that another container links to, such as a VPN gateway used through <code>network_mode: service:gluetun</code>. Update such groups together by hand.</li>
+            <li>Containers created from an image ID rather than a pullable reference.</li>
+            <li>Containers with mounts HarborBuddy cannot reproduce safely.</li>
+          </ul>
+
+          <h2 id="compose">Compose files are not reread</h2>
+          <p>HarborBuddy recreates containers from Docker's inspection data. It does not call Docker Compose or read your Compose files, so it never changes them. After an update, <code>docker compose up</code> still sees the same configuration.</p>
+
+          <h2 id="registries">Private registries</h2>
+          <p>HarborBuddy sends no registry credentials when it pulls, so images that need authentication are not supported yet. Public images on Docker Hub, GHCR, Quay, and other registries work.</p>
+
+          <h2 id="podman">Podman</h2>
+          <p>Production use targets Docker Engine. HarborBuddy's integration suite, including updates, rollback, and self-update, also runs against Podman's Docker-compatible API in CI, and Podman-specific behaviour such as the <code>pasta</code> network is handled.</p>
+
+          <h2 id="license">License</h2>
+          <p>HarborBuddy is source-available under the <a href="https://github.com/MikeO7/HarborBuddy/blob/main/LICENSE">PolyForm Noncommercial License 1.0.0</a>. Personal, homelab, and other noncommercial use is free; commercial use is not permitted by the current license.</p>
+        </article>
+      </div>
+    </main>
+
+    <footer class="site-footer">
+      <div class="footer-brand">
+        <a class="brand" href="/HarborBuddy/"><svg class="brand-mark" viewBox="0 0 48 48" aria-hidden="true"><path d="M24 4v28M14 13h20M11 24c0 12 5 18 13 20 8-2 13-8 13-20M6 27c4 2 7 2 10 0M32 27c3 2 6 2 10 0"/></svg><span>HarborBuddy</span></a>
+        <p>Careful, self-hosted container updates for standalone Docker Engine. Built by <a href="https://github.com/MikeO7">MikeO7</a>.</p>
+        <p class="footer-license">Noncommercial source-available software under the <a rel="license" href="https://github.com/MikeO7/HarborBuddy/blob/main/LICENSE">PolyForm Noncommercial License 1.0.0</a>.</p>
+      </div>
+      <div class="footer-groups">
+        <div><p class="footer-title">Product</p><ul><li><a href="/HarborBuddy/docs/quick-start/">Quick start</a></li><li><a href="/HarborBuddy/docs/">Documentation</a></li><li><a href="/HarborBuddy/docs/configuration/">Configuration reference</a></li><li><a href="/HarborBuddy/#faq">FAQ</a></li></ul></div>
+        <div><p class="footer-title">Compare</p><ul><li><a href="/HarborBuddy/compare/">Docker update tools compared</a></li><li><a href="/HarborBuddy/compare/watchtower/">Watchtower alternative</a></li><li><a href="/HarborBuddy/compare/watchtower/#migrate">Migrate from Watchtower</a></li><li><a href="/HarborBuddy/compare/whats-up-docker/">HarborBuddy vs What's Up Docker</a></li><li><a href="/HarborBuddy/compare/diun/">HarborBuddy vs Diun</a></li></ul></div>
+        <div><p class="footer-title">Project</p><ul><li><a href="https://github.com/MikeO7/HarborBuddy">Source code</a></li><li><a href="https://github.com/MikeO7/HarborBuddy/releases">Releases</a></li><li><a href="https://github.com/MikeO7/HarborBuddy/blob/main/CHANGELOG.md">Changelog</a></li><li><a href="https://github.com/MikeO7/HarborBuddy/issues">Issues</a></li><li><a href="https://github.com/MikeO7/HarborBuddy/security/policy">Security policy</a></li></ul></div>
+      </div>
+    </footer>
+  </body>
+</html>

@@ -149,6 +149,11 @@ jobs:
           --config /work/.hadolint.yaml
           /work/Dockerfile
 
+      - name: Check and validate the Pages site
+        run: |
+          python3 scripts/build-site.py --check
+          python3 scripts/validate-pages-site.py
+
       - name: Install pinned yamllint
         run: python3 -m pip install --disable-pip-version-check yamllint==1.38.0
 

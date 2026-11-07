@@ -6,6 +6,9 @@ on:
       - main
     paths:
       - "docs/site/**"
+      - "site/**"
+      - "scripts/build-site.py"
+      - "scripts/indexnow.py"
       - "scripts/validate-pages-site.py"
       - ".github/workflows/pages.yml"
   workflow_dispatch:
@@ -34,6 +37,9 @@ jobs:
       - name: Configure Pages
         uses: actions/configure-pages@45bfe0192ca1faeb007ade9deae92b16b8254a0d # v6.0.0
 
+      - name: Check generated pages are current
+        run: python3 scripts/build-site.py --check
+
       - name: Validate public site
         run: python3 scripts/validate-pages-site.py
 
@@ -46,3 +52,21 @@ jobs:
       - name: Deploy to GitHub Pages
         id: deployment
         uses: actions/deploy-pages@368f82528645a54fb793d4d04e342629a3f51346 # v5.0.1
+
+  notify-indexnow:
+    name: Notify IndexNow
+    needs: deploy
+    runs-on: ubuntu-latest
+    timeout-minutes: 3
+    permissions:
+      contents: read
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+
+      - name: Submit sitemap URLs
+        # Search engines fetch the key file from the live site, so this runs after deployment.
+        continue-on-error: true
+        run: python3 scripts/indexnow.py
