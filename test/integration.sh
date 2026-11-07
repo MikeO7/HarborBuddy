@@ -73,6 +73,13 @@ fail() {
     exit 1
 }
 
+# With the containerd image store, moving a tag deletes the old image record
+# even while a container still uses it. Pin the current image under a second
+# tag before rebuilding so restore_local_reference can move the tag back.
+pin_reference() {
+    docker image tag "$1" "$1-pin"
+}
+
 restore_local_reference() {
     local image_id="$1"
     local image_ref="$2"
@@ -81,6 +88,7 @@ restore_local_reference() {
     docker image tag "$image_id" "$image_ref"
     restored_id="$(docker image inspect "$image_ref" --format '{{.Id}}')"
     [[ "$restored_id" == "$image_id" ]] || fail "could not restore local reference $image_ref to $image_id"
+    docker image rm "$image_ref-pin" >/dev/null
 }
 
 cleanup() {
@@ -121,6 +129,7 @@ cleanup() {
         docker image rm -f "$NEW_SELF_IMAGE_ID" >/dev/null 2>&1
     fi
     docker image rm -f "$SELFUPDATE_NEW_IMAGE" >/dev/null 2>&1
+    docker image rm "$FIXTURE_REF-pin" "$OPT_OUT_REF-pin" "$SELFUPDATE_REF-pin" >/dev/null 2>&1
     docker image rm -f "$HARBORBUDDY_IMAGE" >/dev/null 2>&1
     rm -rf "$TMP_DIR"
 
@@ -220,6 +229,7 @@ TARGET_IMAGE_ID="$(docker inspect "$TARGET_NAME" --format '{{.Image}}')"
 [[ "$TARGET_IMAGE_ID" == "$OLD_IMAGE_ID" ]] || fail "target did not start from the initial image"
 
 log "publishing replacement fixture image"
+pin_reference "$FIXTURE_REF"
 docker build --no-cache \
     "${FIXTURE_BUILD_ARGS[@]}" \
     --build-arg REVISION=new \
@@ -344,6 +354,7 @@ docker run -d \
     --label com.harborbuddy.autoupdate=false \
     "$OPT_OUT_REF" >/dev/null
 OPT_OUT_CONTAINER_ID="$(docker inspect "$OPT_OUT_NAME" --format '{{.Id}}')"
+pin_reference "$OPT_OUT_REF"
 
 docker build --no-cache \
     "${FIXTURE_BUILD_ARGS[@]}" \
@@ -394,6 +405,7 @@ OPT_OUT_CURRENT_IMAGE="$(docker inspect "$OPT_OUT_NAME" --format '{{.Image}}')"
 [[ "$OPT_OUT_CURRENT_IMAGE" == "$OPT_OUT_OLD_IMAGE_ID" ]] || fail "opt-out container changed image"
 
 log "publishing an unhealthy fixture revision"
+pin_reference "$FIXTURE_REF"
 printf '%s\n' \
     'FROM docker.io/library/busybox:1.38.0' \
     'ARG REVISION' \
@@ -498,6 +510,7 @@ if [[ "$initial_cycle" != true ]]; then
 fi
 OLD_DAEMON_ID="$(docker inspect "$DAEMON_NAME" --format '{{.Id}}')"
 
+pin_reference "$SELFUPDATE_REF"
 docker image tag "$SELFUPDATE_NEW_IMAGE" "$SELFUPDATE_REF"
 docker push "$SELFUPDATE_REF" >/dev/null
 restore_local_reference "$OLD_SELF_IMAGE_ID" "$SELFUPDATE_REF"
