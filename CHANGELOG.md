@@ -24,6 +24,10 @@ All notable changes to HarborBuddy are documented here. The format follows [Keep
 
 - The weekly `Multi-Platform Runtime Verification` workflow; the publish workflow already runs the image on `linux/amd64`, `linux/arm64`, and `linux/arm/v7`.
 
+### Security
+
+- Build with Go 1.27.4, fixing standard-library advisory GO-2026-6859 (`net/http`).
+
 ### Fixed
 
 - A failed image pull no longer blocks unused-network cleanup for the cycle; only a replacement that actually started does.
