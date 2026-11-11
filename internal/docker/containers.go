@@ -20,13 +20,9 @@ func (d *DockerClient) ListContainers(ctx context.Context) ([]ContainerSummary, 
 
 	result := make([]ContainerSummary, 0, len(containers))
 	for _, current := range containers {
-		name := ""
-		if len(current.Names) > 0 {
-			name = strings.TrimPrefix(current.Names[0], "/")
-		}
 		result = append(result, ContainerSummary{
 			ID:        current.ID,
-			Name:      name,
+			Name:      primaryName(current.Names),
 			ImageRef:  d.containerImageRef(ctx, current),
 			ImageID:   current.ImageID,
 			Labels:    current.Labels,

@@ -144,7 +144,7 @@ labels:
 
 This is a sensible default for databases and services that require a manual migration.
 
-You can also narrow updates with `updates.allow_images` and `updates.deny_images`. Deny rules win. Patterns support an exact value or one `*` at either edge. A pattern matches the reference as written, its short form with the implicit `:latest` tag, or its fully qualified form, so `*:latest` matches `image: nginx` and `nginx:*` matches `docker.io/library/nginx:1.27`:
+You can also narrow updates with `updates.allow_images` and `updates.deny_images`. Deny rules win. Patterns support an exact value or one `*` at either edge. A pattern matches the reference as written, its short form with the implicit `:latest` tag, or its fully qualified form, so `*:latest` matches `image: nginx` and `nginx:*` matches `docker.io/library/nginx:1.27`. Without a config file, set the same lists with `HARBORBUDDY_ALLOW_IMAGES` and `HARBORBUDDY_DENY_IMAGES`, comma-separated:
 
 ```yaml
 updates:
@@ -217,7 +217,7 @@ YAML parsing is strict. Unknown fields and a second non-empty YAML document caus
 
 When `log.file` is set, `log.max_backups` must be at least `1`. The rotation library treats `0` as "keep every rotated file", so HarborBuddy rejects it rather than letting old logs grow without limit.
 
-Set `updates.rollback_image_retention` to `N` to keep `N` prior images that completed a successful update, independently for each full registry/repository/tag reference. The default `0` performs no retention work. HarborBuddy uses deterministic local `localhost/harborbuddy-rollback/<sha256>:<slot>` tags, rotates them only after the replacement is ready, and treats retention errors as warnings. It never deliberately removes an overflow image referenced by any running or stopped container. Container-referenced images can therefore remain on disk beyond the configured slots.
+Set `updates.rollback_image_retention` to `N` to keep `N` prior images that completed a successful update, independently for each full registry/repository/tag reference. The default `0` keeps none. Lowering the setting removes the tags above the new limit the next time a container on that image reference is updated. HarborBuddy uses deterministic local `localhost/harborbuddy-rollback/<sha256>:<slot>` tags, rotates them only after the replacement is ready, and treats retention errors as warnings. It never deliberately removes an overflow image referenced by any running or stopped container. Container-referenced images can therefore remain on disk beyond the configured slots.
 
 ### Environment variables
 
@@ -229,12 +229,14 @@ Boolean variables accept `true`/`false`, `yes`/`no`, `on`/`off`, or `1`/`0`, in 
 | --- | --- | --- |
 | `HARBORBUDDY_CONFIG` | `/config/harborbuddy.yml` | Configuration file path |
 | `HARBORBUDDY_DOCKER_HOST` | empty | Explicit Docker endpoint; overrides `DOCKER_HOST` |
-| `HARBORBUDDY_INTERVAL` | `12h` | Update interval; at least `1s` |
+| `HARBORBUDDY_INTERVAL` | `12h` | Update interval; at least `1s`. Ignored, with a startup warning, when a schedule time is set |
 | `HARBORBUDDY_SCHEDULE_TIME` | empty | Daily run time in `HH:MM` |
 | `HARBORBUDDY_TIMEZONE` | `UTC` | IANA timezone; overrides `updates.timezone` and `TZ` |
 | `TZ` | empty | Timezone fallback, used only when `updates.timezone` and `HARBORBUDDY_TIMEZONE` are unset |
 | `HARBORBUDDY_DRY_RUN` | `false` | Pull and report without replacement or cleanup deletion |
 | `HARBORBUDDY_UPDATES_ENABLED` | `true` | Enable update checks |
+| `HARBORBUDDY_ALLOW_IMAGES` | `*` | Comma-separated image patterns to update; replaces `updates.allow_images` |
+| `HARBORBUDDY_DENY_IMAGES` | empty | Comma-separated image patterns never to update; replaces `updates.deny_images` |
 | `HARBORBUDDY_SELF_UPDATE_ENABLED` | `true` | Let HarborBuddy update its own container |
 | `HARBORBUDDY_CONTAINER_NAME` | empty | Stable name used to identify the HarborBuddy container |
 | `HARBORBUDDY_CONTAINER_ID` | empty | Optional container ID or unique prefix of at least 12 characters |
@@ -356,6 +358,8 @@ Logs go to standard output. Set `HARBORBUDDY_LOG_JSON=true` for JSON or `HARBORB
 --healthcheck          check the daemon in this container and exit
 ```
 
+`--once` and `--cleanup-only` exit non-zero when the cycle could not run or when any container update or cleanup removal failed. The daemon logs such a cycle as `partial_failure` and keeps running.
+
 ### Container health check
 
 The image defines a Docker `HEALTHCHECK` that runs `/harborbuddy --healthcheck`. A long-running daemon pings Docker every 15 seconds and writes the result to `HARBORBUDDY_HEALTH_FILE`. The check fails when the last successful ping is more than 60 seconds old or when an update cycle has run for more than two hours, so Docker, and any tool that watches container health, sees a daemon that lost Docker or got stuck. The two-hour cycle limit is fixed; it matters only when a single cycle legitimately runs that long, such as many large pulls over a slow link or long startup timeouts across many containers, and the container then reports unhealthy until the cycle ends. `--once` and `--cleanup-only` runs do not write the file, so disable the health check for one-shot containers (`docker run --no-healthcheck`, or `healthcheck: { disable: true }` in Compose). With a read-only root filesystem, mount a tmpfs at `/tmp` or point `HARBORBUDDY_HEALTH_FILE` at a writable path. Self-update helpers run with the health check disabled.
@@ -369,7 +373,7 @@ go mod download
 make verify-local
 ```
 
-The suite covers formatting, source limits, vet, lint, vulnerability checks, unit coverage, the race detector, bounded fuzzing, a binary build, non-Go linters, and disposable Docker or Podman integration tests. Podman is supported as a local compatibility test engine; production targets standalone Docker Engine.
+The suite covers formatting, source limits, vet, lint, vulnerability checks, unit coverage, the race detector, bounded fuzzing, protocol E2E journeys, a binary build, non-Go linters, and disposable Docker or Podman integration tests. The E2E journeys need Node; run `npm ci` once first. Podman is supported as a local compatibility test engine; production targets standalone Docker Engine.
 
 See [CONTRIBUTING.md](CONTRIBUTING.md), [SECURITY.md](SECURITY.md), [docs/repository-policy.md](docs/repository-policy.md), and [test/README.md](test/README.md).
 

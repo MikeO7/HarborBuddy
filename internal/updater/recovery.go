@@ -3,6 +3,8 @@ package updater
 import (
 	"context"
 
+	operational "github.com/MikeO7/HarborBuddy/internal/logging"
+
 	"github.com/MikeO7/HarborBuddy/internal/docker"
 	"github.com/rs/zerolog"
 )
@@ -37,7 +39,7 @@ func logRecovery(logger zerolog.Logger, recovery docker.BackupRecovery) {
 		event = logger.Debug()
 	}
 	event = event.Str("event", "backup_recovery").
-		Str("container_id", shortID(recovery.ContainerID)).
+		Str("container_id", operational.ShortID(recovery.ContainerID)).
 		Str("backup_name", recovery.BackupName).
 		Str("container_name", recovery.OriginalName).
 		Bool("restored", recovery.Restored)

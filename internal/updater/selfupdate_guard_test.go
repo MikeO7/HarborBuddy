@@ -117,6 +117,12 @@ func TestRolledBackHelperStillRunningIsAwaitedInsteadOfTreatedAsHandoff(t *testi
 	}
 
 	client = newGuardClient(t, helper)
+	client.waitErr = errors.New("daemon unavailable")
+	if _, _, err := runGuardCycle(t, config.Default(), client); err == nil || isShutdown(err) || len(client.actions) != 0 {
+		t.Fatalf("a failed wait must fail the cycle before any action, not exit as a handoff: err %v actions %v", err, client.actions)
+	}
+
+	client = newGuardClient(t, helper)
 	client.waitErr = context.DeadlineExceeded
 	_, _, err = runGuardCycle(t, config.Default(), client)
 	if signal, ok := selfupdate.AsShutdownRequired(err); !ok || signal.HelperContainerID != helper.ID || len(client.actions) != 0 {

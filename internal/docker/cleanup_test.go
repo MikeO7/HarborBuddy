@@ -205,8 +205,8 @@ func TestCleanupAdapterReportsDockerFailures(t *testing.T) {
 }
 
 func TestCleanupAdapterHelpers(t *testing.T) {
-	if firstContainerName(nil) != "" || firstContainerName([]string{"/name"}) != "name" {
-		t.Fatal("firstContainerName did not normalize names")
+	if primaryName(nil) != "" || primaryName([]string{"/consumer/alias", "/name"}) != "name" {
+		t.Fatal("primaryName did not skip link aliases")
 	}
 	if !removableContainerState(containertypes.StateExited) || removableContainerState(containertypes.StatePaused) {
 		t.Fatal("removableContainerState classified a state incorrectly")

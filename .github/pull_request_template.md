@@ -21,7 +21,8 @@
 
 - [ ] `make fmt-check source-limits`
 - [ ] `make vet lint vuln`
-- [ ] `make test-cover test-race build`
+- [ ] `make test-cover test-race test-fuzz build`
+- [ ] `make test-e2e`
 - [ ] `make lint-nongo`
 - [ ] `make docker-build`
 - [ ] `make test-integration`

@@ -22,17 +22,19 @@ func rollbackImageRepository(imageRef string) string {
 }
 
 func (d *DockerClient) retainRollbackImage(ctx context.Context, imageRef, imageID string, retention int) error {
-	if retention <= 0 {
-		return nil
-	}
 	repository := rollbackImageRepository(imageRef)
+	// Slots above the current retention are left over from a higher setting.
+	stale := d.removeRollbackSlotsAbove(ctx, repository, retention)
+	if retention <= 0 {
+		return stale
+	}
 	// Containers sharing an image reference retain the same image once.
 	// Rotating again would evict an older slot, and at retention 1 it would
 	// remove the image's last tag just before tagging it.
 	if latest, ok, err := d.rollbackSlotImage(ctx, repository, 1); err == nil && ok && latest == imageID {
-		return nil
+		return stale
 	}
-	var warnings []error
+	warnings := appendError(nil, stale)
 
 	if overflow, ok, err := d.rollbackSlotImage(ctx, repository, retention); err != nil {
 		warnings = append(warnings, err)
@@ -61,6 +63,30 @@ func (d *DockerClient) retainRollbackImage(ctx context.Context, imageRef, imageI
 	}
 	if _, err := d.cli.ImageTag(ctx, client.ImageTagOptions{Source: imageID, Target: rollbackSlot(repository, 1)}); err != nil {
 		warnings = append(warnings, fmt.Errorf("tag last-known-working image %s: %w", imageID, err))
+	}
+	return errors.Join(warnings...)
+}
+
+// maxRollbackSlots bounds the search for slots left by a higher retention.
+const maxRollbackSlots = 64
+
+// removeRollbackSlotsAbove untags every consecutive slot above retention.
+// Docker deletes an image when its last tag goes, and refuses while a
+// container still uses it; that refusal is reported as a warning.
+func (d *DockerClient) removeRollbackSlotsAbove(ctx context.Context, repository string, retention int) error {
+	var warnings []error
+	for slot := max(retention, 0) + 1; slot <= maxRollbackSlots; slot++ {
+		_, ok, err := d.rollbackSlotImage(ctx, repository, slot)
+		if err != nil {
+			warnings = append(warnings, err)
+			break
+		}
+		if !ok {
+			break
+		}
+		if _, err := d.cli.ImageRemove(ctx, rollbackSlot(repository, slot), client.ImageRemoveOptions{Force: false, PruneChildren: true}); err != nil {
+			warnings = append(warnings, fmt.Errorf("clean rollback slot %d: %w", slot, err))
+		}
 	}
 	return errors.Join(warnings...)
 }

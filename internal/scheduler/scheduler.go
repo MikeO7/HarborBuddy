@@ -12,6 +12,7 @@ import (
 	"github.com/MikeO7/HarborBuddy/internal/config"
 	"github.com/MikeO7/HarborBuddy/internal/docker"
 	"github.com/MikeO7/HarborBuddy/internal/health"
+	"github.com/MikeO7/HarborBuddy/internal/logging"
 	"github.com/MikeO7/HarborBuddy/internal/selfupdate"
 	"github.com/MikeO7/HarborBuddy/internal/updater"
 	"github.com/rs/zerolog"
@@ -37,7 +38,10 @@ func newScheduler(clock clock) *scheduler {
 		clock:     clock,
 		runUpdate: updater.RunUpdateCycle,
 		runCleanup: func(ctx context.Context, cfg config.Config, client docker.Client, logger zerolog.Logger, options cleanup.Options) error {
-			_, err := cleanup.RunCleanupWithOptions(ctx, cfg, client, logger, options)
+			report, err := cleanup.RunCleanupWithOptions(ctx, cfg, client, logger, options)
+			if failed := report.Failed(); err == nil && failed > 0 {
+				return &partialFailureError{message: fmt.Sprintf("%d cleanup removal(s) failed", failed)}
+			}
 			return err
 		},
 		cycleID: generateCycleID,
@@ -137,14 +141,14 @@ func (s *scheduler) runCycle(ctx context.Context, cfg config.Config, client dock
 		updateLogger := cycleLogger.With().Str("operation", "update").Logger()
 		report, err := s.runUpdate(ctx, cfg, client, updateLogger)
 		cleanupOptions = cleanupOptionsFrom(report)
-		if err != nil {
-			if signal, ok := selfupdate.AsShutdownRequired(err); ok {
-				cycleLogger.Info().Str("event", "cycle_complete").Str("outcome", "self_update_handoff").
-					Str("target_container_id", shortID(signal.TargetContainerID)).Str("helper_container_id", shortID(signal.HelperContainerID)).
-					Int64("duration_ms", time.Since(started).Milliseconds()).Msg("Cycle handed off to self-update helper")
-				return err
-			}
-			cycleErrors = append(cycleErrors, fmt.Errorf("update cycle: %w", err))
+		if signal, ok := selfupdate.AsShutdownRequired(err); ok {
+			cycleLogger.Info().Str("event", "cycle_complete").Str("outcome", "self_update_handoff").
+				Str("target_container_id", logging.ShortID(signal.TargetContainerID)).Str("helper_container_id", logging.ShortID(signal.HelperContainerID)).
+				Int64("duration_ms", time.Since(started).Milliseconds()).Msg("Cycle handed off to self-update helper")
+			return err
+		}
+		if phaseErr := updatePhaseError(report, err); phaseErr != nil {
+			cycleErrors = append(cycleErrors, phaseErr)
 		}
 	} else {
 		cycleLogger.Debug().Str("event", "update_skipped").Str("reason", "updates_disabled").Msg("Updates are disabled")
@@ -163,14 +167,7 @@ func (s *scheduler) runCycle(ctx context.Context, cfg config.Config, client dock
 	}
 
 	joined := errors.Join(cycleErrors...)
-	completion := cycleLogger.Info()
-	outcome := "completed"
-	if ctx.Err() != nil {
-		outcome = "cancelled"
-	} else if joined != nil {
-		completion = cycleLogger.Error().Err(joined)
-		outcome = "failed"
-	}
+	completion, outcome := cycleCompletion(ctx, cycleLogger, joined, onlyPartialFailures(cycleErrors...))
 	completion.Str("event", "cycle_complete").Str("outcome", outcome).
 		Int64("duration_ms", time.Since(started).Milliseconds()).Msg("Cycle complete")
 	return joined
@@ -182,35 +179,10 @@ func (s *scheduler) runCleanupOnly(ctx context.Context, cfg config.Config, clien
 	cycleLogger.Info().Str("event", "cycle_started").Str("mode", "cleanup_only").Bool("dry_run", cfg.Updates.DryRun).
 		Bool("cleanup_all", cfg.Cleanup.All).Int("cleanup_min_age_hours", cfg.Cleanup.MinAgeHours).Msg("Cleanup-only cycle started")
 	err := s.runCleanup(ctx, cfg, client, cycleLogger, cleanup.Options{})
-	event := cycleLogger.Info()
-	outcome := "completed"
-	if err != nil {
-		event = cycleLogger.Error().Err(err)
-		outcome = "failed"
-	}
+	event, outcome := cycleCompletion(context.WithoutCancel(ctx), cycleLogger, err, onlyPartialFailures(err))
 	event.Str("event", "cycle_complete").Str("mode", "cleanup_only").Str("outcome", outcome).
 		Int64("duration_ms", time.Since(started).Milliseconds()).Msg("Cleanup-only cycle complete")
 	return err
-}
-
-// cleanupOptionsFrom keeps containers whose update failed or was rolled back
-// this cycle away from stopped-container cleanup: a failed rollback can leave
-// the user's original container stopped.
-func cleanupOptionsFrom(report updater.Report) cleanup.Options {
-	var options cleanup.Options
-	for _, result := range report.Results {
-		if result.Status == updater.StatusFailed || result.RollbackTried {
-			options.ProtectedContainerIDs = append(options.ProtectedContainerIDs, result.Container.ID)
-		}
-	}
-	return options
-}
-
-func shortID(id string) string {
-	if len(id) > 12 {
-		return id[:12]
-	}
-	return id
 }
 
 func gracefulResult(ctx context.Context, err error) error {

@@ -3,7 +3,6 @@ package cleanup
 import (
 	"fmt"
 	"sort"
-	"strings"
 
 	"github.com/MikeO7/HarborBuddy/internal/docker"
 	operational "github.com/MikeO7/HarborBuddy/internal/logging"
@@ -121,7 +120,7 @@ func displayResourceID(resource docker.CleanupResource) string {
 	if resource.Kind == docker.CleanupVolume {
 		return resource.ID
 	}
-	return shortID(resource.ID)
+	return operational.ShortID(resource.ID)
 }
 
 func formatBytes(bytes int64) string {
@@ -135,12 +134,4 @@ func formatBytes(bytes int64) string {
 		exponent++
 	}
 	return fmt.Sprintf("%.1f %ciB", float64(bytes)/float64(divisor), "KMGTPE"[exponent])
-}
-
-func shortID(id string) string {
-	id = strings.TrimPrefix(id, "sha256:")
-	if len(id) > 12 {
-		return id[:12]
-	}
-	return id
 }

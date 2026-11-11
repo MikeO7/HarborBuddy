@@ -16,7 +16,9 @@ import (
 
 func TestRunCycleProtectsContainersWhoseUpdateFailed(t *testing.T) {
 	report := updater.Report{Results: []updater.ContainerResult{
-		{Container: docker.ContainerSummary{ID: "failed"}, Status: updater.StatusFailed},
+		{Container: docker.ContainerSummary{ID: "pull-failed"}, Status: updater.StatusFailed},
+		{Container: docker.ContainerSummary{ID: "failed"}, Status: updater.StatusFailed, FailureStage: "stop_old_container"},
+		{Container: docker.ContainerSummary{ID: "cancelled"}, Status: updater.StatusCancelled, FailureStage: docker.FailureStageCancelledBeforeStart},
 		{Container: docker.ContainerSummary{ID: "rolled-back"}, Status: updater.StatusFailed, RollbackTried: true},
 		{Container: docker.ContainerSummary{ID: "rollback-only"}, Status: updater.StatusUpdated, RollbackTried: true},
 		{Container: docker.ContainerSummary{ID: "updated"}, Status: updater.StatusUpdated},

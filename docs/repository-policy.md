@@ -10,7 +10,7 @@ Changes to `main` are expected to pass these stable GitHub Actions job names:
 - `Container smoke test`
 - `Validate image`
 
-Release publication additionally requires `Publish multi-platform image` before `Publish GitHub release` runs. The scheduled `Multi-Platform Runtime Verification` workflow is an additional architecture smoke test rather than a pull-request gate.
+Release publication additionally requires `Publish multi-platform image` before `Publish GitHub release` runs.
 
 The repository currently has no branch protection or repository rulesets. These checks are therefore documented and automated but do not block direct pushes or enforce approvals server-side. Configure a `main` branch rule to require pull requests, the checks above, resolved conversations, blocked force-pushes/deletion, and code-owner review where a second trusted reviewer is available.
 

@@ -441,7 +441,9 @@ UNHEALTHY_IMAGE_ID="$(docker image inspect "$FIXTURE_REF" --format '{{.Id}}')"
 restore_local_reference "$HEALTHY_IMAGE_ID" "$FIXTURE_REF"
 
 log "verifying readiness failure rolls back the healthy container"
-if ! output="$(docker run --rm \
+# A one-shot run exits non-zero when a container update failed.
+rollback_status=0
+output="$(docker run --rm \
     "${CONTAINER_SECURITY_ARGS[@]}" \
     --name "$DAEMON_NAME" \
     --label "$TEST_LABEL" \
@@ -450,12 +452,11 @@ if ! output="$(docker run --rm \
     --volume "$DOCKER_SOCKET:/var/run/docker.sock" \
     --volume "$TMP_DIR/harborbuddy.yml:/config/harborbuddy.yml:$BIND_READ_ONLY" \
     "$HARBORBUDDY_IMAGE" \
-    --once 2>&1)"; then
-    printf '%s\n' "$output" >&2
-    fail "HarborBuddy rollback cycle exited unexpectedly"
-fi
+    --once 2>&1)" || rollback_status=$?
 printf '%s\n' "$output"
+(( rollback_status != 0 )) || fail "HarborBuddy exited 0 although a container update failed"
 grep -Eq '"result":"failed"|Container update failed|did not become ready' <<< "$output" || fail "readiness failure was not reported"
+grep -q 'partial_failure' <<< "$output" || fail "failed update did not mark the cycle as a partial failure"
 # The rolled-back container still runs the image the pull just untagged, so
 # cleanup must skip that dangling image as in use rather than fail on it.
 ! grep -q 'Cleanup resource failed' <<< "$output" || fail "cleanup tried to remove an image that a container still uses"

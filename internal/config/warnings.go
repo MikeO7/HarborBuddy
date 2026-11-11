@@ -60,6 +60,13 @@ func StartupWarnings(cfg Config, environ []string) []Warning {
 				cfg.Updates.CheckInterval, ShortIntervalWarning),
 		})
 	}
+	if cfg.IntervalOverride && cfg.Updates.ScheduleTime != "" && !cfg.RunOnce && !cfg.CleanupOnly {
+		warnings = append(warnings, Warning{
+			Setting: "updates.check_interval",
+			Message: fmt.Sprintf("the check interval set by HARBORBUDDY_INTERVAL or --interval is ignored because schedule_time %s is set; the daily schedule takes precedence",
+				cfg.Updates.ScheduleTime),
+		})
+	}
 	return append(warnings, unknownEnvironment(environ)...)
 }
 

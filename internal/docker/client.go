@@ -10,7 +10,8 @@ import (
 )
 
 type DockerClient struct {
-	cli *client.Client
+	cli        *client.Client
+	dependents dependentCache
 }
 
 func NewClient(ctx context.Context, host string) (*DockerClient, error) {

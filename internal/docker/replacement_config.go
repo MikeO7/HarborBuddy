@@ -37,6 +37,9 @@ func cloneHostConfig(source *containertypes.HostConfig) *containertypes.HostConf
 	cloned := *source
 	cloned.Binds = append([]string(nil), source.Binds...)
 	cloned.Mounts = append([]mount.Mount(nil), source.Mounts...)
+	// Inspection cannot tell an explicit swappiness of 0 from the zero some
+	// engines report when none was set, and cgroup v2 hosts reject the field
+	// on create, so a zero is treated as unset.
 	if cloned.MemorySwappiness != nil && *cloned.MemorySwappiness == 0 {
 		cloned.MemorySwappiness = nil
 	}
@@ -133,6 +136,9 @@ func sanitizedEndpoint(settings *network.EndpointSettings) *network.EndpointSett
 	cloned.GlobalIPv6Address = netip.Addr{}
 	cloned.GlobalIPv6PrefixLen = 0
 	cloned.DNSNames = nil
+	// Inspection reports the generated MAC address the same way as a
+	// configured one. It is kept only alongside a static address, where the
+	// endpoint is pinned anyway; otherwise the engine generates a new one.
 	if cloned.IPAMConfig == nil {
 		cloned.MacAddress = nil
 	}

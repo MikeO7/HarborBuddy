@@ -127,15 +127,37 @@ func TestFailedHandoffMatchesOnlyRecentFinishedHelpersForThisDaemonAndImage(t *t
 }
 
 func TestAwaitHelperExit(t *testing.T) {
-	if !AwaitHelperExit(context.Background(), &fakeClient{}, "helper") {
-		t.Fatal("an exited helper must be reported as finished")
+	if exited, err := AwaitHelperExit(context.Background(), &fakeClient{}, "helper"); !exited || err != nil {
+		t.Fatalf("exited helper = %v, %v; want finished", exited, err)
 	}
-	if AwaitHelperExit(context.Background(), &fakeClient{waitErr: context.DeadlineExceeded}, "helper") {
-		t.Fatal("a helper that keeps running must be treated as an active handoff")
+	if exited, err := AwaitHelperExit(context.Background(), &clientWithoutWait{}, "helper"); exited || err != nil {
+		t.Fatalf("client that cannot wait = %v, %v; want the conservative handoff behavior", exited, err)
 	}
-	if AwaitHelperExit(context.Background(), &clientWithoutWait{}, "helper") {
-		t.Fatal("a client that cannot wait must keep the conservative handoff behavior")
+	apiErr := errors.New("daemon unavailable")
+	if exited, err := AwaitHelperExit(context.Background(), &fakeClient{waitErr: apiErr}, "helper"); exited || !errors.Is(err, apiErr) {
+		t.Fatalf("wait failure = %v, %v; want the error, not an active handoff", exited, err)
 	}
+	cancelled, cancel := context.WithCancel(context.Background())
+	cancel()
+	if exited, err := AwaitHelperExit(cancelled, &fakeClient{waitErr: context.Canceled}, "helper"); exited || !errors.Is(err, context.Canceled) {
+		t.Fatalf("shutdown during wait = %v, %v; want the cancellation", exited, err)
+	}
+}
+
+func TestAwaitHelperExitTreatsSettleTimeoutAsActiveHandoff(t *testing.T) {
+	original := helperSettleTimeout
+	helperSettleTimeout = time.Millisecond
+	t.Cleanup(func() { helperSettleTimeout = original })
+	if exited, err := AwaitHelperExit(context.Background(), blockingWaiter{}, "helper"); exited || err != nil {
+		t.Fatalf("helper still running after the settle timeout = %v, %v; want an active handoff", exited, err)
+	}
+}
+
+type blockingWaiter struct{ clientWithoutWait }
+
+func (blockingWaiter) WaitContainerExit(ctx context.Context, _ string) error {
+	<-ctx.Done()
+	return ctx.Err()
 }
 
 type fakeHistory struct {

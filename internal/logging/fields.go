@@ -7,6 +7,16 @@ import (
 
 const maxFieldLength = 256
 
+// ShortID shortens a container or image ID to the 12 characters Docker shows,
+// without the "sha256:" prefix.
+func ShortID(id string) string {
+	id = strings.TrimPrefix(id, "sha256:")
+	if len(id) > 12 {
+		return id[:12]
+	}
+	return id
+}
+
 // BoundedField keeps daemon-provided descriptions useful without allowing one
 // Docker resource to dominate an operational log stream.
 func BoundedField(value string) (string, bool) {

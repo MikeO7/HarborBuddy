@@ -27,7 +27,7 @@ build: ## Build a reproducible local binary
 	CGO_ENABLED=0 go build -trimpath -buildvcs=false -ldflags "$(LDFLAGS)" -o $(BINARY_NAME) ./cmd/harborbuddy
 
 clean: ## Remove local build artifacts
-	rm -f $(BINARY_NAME) coverage.out coverage-packages.txt
+	rm -f $(BINARY_NAME) coverage.out coverage-tests.out coverage-packages.txt
 	rm -rf .e2e
 	go clean -testcache
 
@@ -35,7 +35,8 @@ test: ## Run unit tests
 	go test ./...
 
 test-cover: ## Run tests with aggregate and per-package coverage gates
-	go test -coverprofile=coverage.out ./...
+	@rm -f coverage-tests.out
+	go test -coverprofile=coverage.out ./... > coverage-tests.out 2>&1; status=$$?; cat coverage-tests.out; exit $$status
 	go tool cover -func=coverage.out
 	@coverage="$$(go tool cover -func=coverage.out | awk '/^total:/ {gsub(/%/, "", $$3); print $$3}')"; \
 		awk -v coverage="$$coverage" 'BEGIN { if (coverage + 0 < 100) { printf "coverage %.1f%% is below 100%%\n", coverage; exit 1 } }'
@@ -57,7 +58,7 @@ test-integration: ## Run the Docker/Podman integration suite
 test-e2e: ## Run production-binary journeys against an isolated Docker protocol fixture
 	npm run test:e2e
 
-verify-local: fmt-check source-limits vet lint vuln test-cover test-race test-fuzz build lint-nongo test-integration ## Run the comprehensive local verification suite
+verify-local: fmt-check source-limits vet lint vuln test-cover test-race test-fuzz test-e2e build lint-nongo test-integration ## Run the comprehensive local verification suite
 
 fmt: ## Format all repository Go source
 	@gofmt -w $$(find . -type f -name '*.go' -not -path './.git/*' -not -path './.claude/*' -not -path './vendor/*')
@@ -92,7 +93,7 @@ lint-docker: ## Lint the Dockerfile with pinned Hadolint
 		--config /work/.hadolint.yaml /work/Dockerfile
 
 lint-yaml: ## Lint repository YAML files with pinned yamllint
-	pipx run --spec yamllint==1.38.0 yamllint -c .yamllint.yml .github examples
+	pipx run --spec yamllint==1.38.0 yamllint -c .yamllint.yml .github examples .golangci.yml .hadolint.yaml .yamllint.yml
 
 lint-nongo: lint-actions lint-shell lint-docker lint-yaml ## Run all non-Go linters
 

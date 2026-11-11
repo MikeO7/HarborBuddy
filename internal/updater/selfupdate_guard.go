@@ -4,6 +4,8 @@ import (
 	"context"
 	"time"
 
+	operational "github.com/MikeO7/HarborBuddy/internal/logging"
+
 	"github.com/MikeO7/HarborBuddy/internal/config"
 	"github.com/MikeO7/HarborBuddy/internal/docker"
 	"github.com/MikeO7/HarborBuddy/internal/selfupdate"
@@ -21,12 +23,16 @@ func settleActiveHelper(ctx context.Context, client docker.Client, results []Con
 	if helperID == "" {
 		return "", nil
 	}
-	if !selfupdate.AwaitHelperExit(ctx, client, helperID) {
+	exited, err := selfupdate.AwaitHelperExit(ctx, client, helperID)
+	if err != nil {
+		return "", err
+	}
+	if !exited {
 		return "", &selfupdate.ShutdownRequiredError{TargetContainerID: selfID, HelperContainerID: helperID}
 	}
 	logger.Info().Str("event", "self_update_helper_finished").
-		Str("helper_container_id", shortID(helperID)).
-		Str("container_id", shortID(selfID)).
+		Str("helper_container_id", operational.ShortID(helperID)).
+		Str("container_id", operational.ShortID(selfID)).
 		Msg("A self-update helper for this container finished without replacing it; continuing")
 	return helperID, nil
 }
@@ -79,17 +85,12 @@ func loadHelperHistory(ctx context.Context, cfg config.Config, client docker.Cli
 	return records
 }
 
-// skipSelfCandidate stops a self-update that must not start: one-shot runs
-// never hand off to a helper, and an image that a previous helper already
-// failed to start is not retried for a day unless a different image is published.
-func skipSelfCandidate(cfg config.Config, result *ContainerResult, history []docker.SelfUpdateHelperRecord, logger zerolog.Logger) bool {
+// skipSelfCandidate stops a self-update that must not start: an image that a
+// previous helper already failed to start is not retried for a day unless a
+// different image is published.
+func skipSelfCandidate(result *ContainerResult, history []docker.SelfUpdateHelperRecord, logger zerolog.Logger) bool {
 	if result.Status != StatusWouldUpdate {
 		return false
-	}
-	if cfg.RunOnce {
-		result.Status = StatusExcluded
-		result.Reason = "self-update never runs in run-once mode"
-		return true
 	}
 	helperID := selfupdate.FailedHandoff(history, result.Container.ID, result.TargetImageID, helperClock())
 	if helperID == "" {
@@ -99,9 +100,9 @@ func skipSelfCandidate(cfg config.Config, result *ContainerResult, history []doc
 	result.HelperID = helperID
 	result.Reason = "a previous self-update to this image failed and was rolled back; retrying after 24 hours or when a different image is published"
 	logger.Warn().Str("event", "self_update_blocked").
-		Str("container_id", shortID(result.Container.ID)).
-		Str("target_image_id", shortID(result.TargetImageID)).
-		Str("helper_container_id", shortID(helperID)).
+		Str("container_id", operational.ShortID(result.Container.ID)).
+		Str("target_image_id", operational.ShortID(result.TargetImageID)).
+		Str("helper_container_id", operational.ShortID(helperID)).
 		Msg("Skipping self-update to an image that already failed; inspect the helper logs")
 	return true
 }

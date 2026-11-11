@@ -8,6 +8,8 @@ import (
 	"sync"
 	"testing"
 
+	operational "github.com/MikeO7/HarborBuddy/internal/logging"
+
 	"github.com/MikeO7/HarborBuddy/internal/config"
 	"github.com/MikeO7/HarborBuddy/internal/docker"
 	containertypes "github.com/moby/moby/api/types/container"
@@ -93,7 +95,7 @@ func TestDiscoveryClassifiesCurrentPullFailureCancellationAndOrdering(t *testing
 	client := &cycleFakeClient{images: map[string]docker.ImageInfo{"same:latest": {ID: "new"}}, pullErrors: map[string]error{"same:latest": errors.New("pull failed")}}
 	results[0].Container.ImageRef = "same:latest"
 	results[1].Container.ImageRef = "same:latest"
-	discoverCandidates(context.Background(), config.UpdatesConfig{AllowImages: []string{"*"}}, client, results[:2], "")
+	discoverCandidates(context.Background(), config.Config{Updates: config.UpdatesConfig{AllowImages: []string{"*"}}}, client, results[:2], "")
 	if results[0].Status != StatusFailed || results[0].Err == nil || results[1].Status != StatusFailed {
 		t.Fatalf("pull failures = %+v", results[:2])
 	}
@@ -153,8 +155,8 @@ func TestReportLoggingAndShortIDCoverOptionalFields(t *testing.T) {
 	if !strings.Contains(output.String(), "warning") || !strings.Contains(output.String(), "failed") || !strings.Contains(output.String(), "123456789012") {
 		t.Fatalf("report log = %q", output.String())
 	}
-	if got := shortID("short"); got != "short" {
-		t.Fatalf("shortID(short) = %q", got)
+	if got := operational.ShortID("short"); got != "short" {
+		t.Fatalf("operational.ShortID(short) = %q", got)
 	}
 }
 

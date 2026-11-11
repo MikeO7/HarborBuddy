@@ -25,6 +25,7 @@ updates:
   self_update: true
 
   # Deny patterns take precedence. One wildcard is supported at either edge.
+  # HARBORBUDDY_ALLOW_IMAGES and HARBORBUDDY_DENY_IMAGES (comma-separated) replace these lists.
   allow_images:
     - "*"
   deny_images:

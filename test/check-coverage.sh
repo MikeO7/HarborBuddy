@@ -5,8 +5,12 @@ IFS=$'\n\t'
 ROOT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 BASELINE_FILE="${1:-$ROOT_DIR/test/coverage-baseline.txt}"
 REPORT_FILE="${COVERAGE_REPORT:-$ROOT_DIR/coverage-packages.txt}"
+# Output of the single `go test -coverprofile` run that `make test-cover` saves,
+# so the per-package floors are checked without running the tests again.
+TEST_OUTPUT_FILE="${COVERAGE_TEST_OUTPUT:-$ROOT_DIR/coverage-tests.out}"
 
 [[ -f "$BASELINE_FILE" ]] || { printf 'coverage baseline not found: %s\n' "$BASELINE_FILE" >&2; exit 1; }
+[[ -f "$TEST_OUTPUT_FILE" ]] || { printf 'go test output not found: %s (run make test-cover)\n' "$TEST_OUTPUT_FILE" >&2; exit 1; }
 
 packages=$(go list ./...)
 status=0
@@ -22,8 +26,7 @@ while IFS= read -r package; do
         continue
     fi
 
-    output=$(go test -cover "$package")
-    coverage=$(awk '{ for (i = 1; i <= NF; i++) if ($i == "coverage:" && i < NF) { value=$(i + 1); gsub(/%/, "", value); print value; exit } }' <<< "$output")
+    coverage=$(awk -v package="$package" '$1 == "ok" && $2 == package { for (i = 3; i < NF; i++) if ($i == "coverage:") { value=$(i + 1); gsub(/%/, "", value); print value; exit } }' "$TEST_OUTPUT_FILE")
     coverage=${coverage:-0.0}
     printf '%-70s %9s%% %9s%%\n' "$package" "$coverage" "$minimum" >> "$REPORT_FILE"
     if ! awk -v coverage="$coverage" -v minimum="$minimum" 'BEGIN { exit !(coverage + 0 >= minimum + 0) }'; then

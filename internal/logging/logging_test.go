@@ -185,3 +185,16 @@ func waitForLevel(t *testing.T, controller *LevelController, want zerolog.Level)
 	}
 	t.Fatalf("current level = %v, want %v", controller.CurrentLevel(), want)
 }
+
+func TestShortID(t *testing.T) {
+	for id, want := range map[string]string{
+		"sha256:1234567890123456": "123456789012",
+		"1234567890123456":        "123456789012",
+		"short":                   "short",
+		"":                        "",
+	} {
+		if got := ShortID(id); got != want {
+			t.Errorf("ShortID(%q) = %q, want %q", id, got, want)
+		}
+	}
+}

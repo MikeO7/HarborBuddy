@@ -109,7 +109,7 @@ func (d *DockerClient) listCleanupContainers(ctx context.Context) ([]CleanupReso
 		resource := CleanupResource{
 			Kind:      CleanupContainer,
 			ID:        container.ID,
-			Name:      firstContainerName(container.Names),
+			Name:      primaryName(container.Names),
 			CreatedAt: time.Unix(container.Created, 0),
 			Size:      nonNegative(container.SizeRw),
 			InUse:     !removableContainerState(container.State),
@@ -197,13 +197,6 @@ func (d *DockerClient) listCleanupBuildCache(ctx context.Context) ([]CleanupReso
 
 func removableContainerState(state containertypes.ContainerState) bool {
 	return state == containertypes.StateCreated || state == containertypes.StateExited || state == containertypes.StateDead
-}
-
-func firstContainerName(names []string) string {
-	if len(names) == 0 {
-		return ""
-	}
-	return strings.TrimPrefix(names[0], "/")
 }
 
 func isDefaultNetwork(name string) bool {

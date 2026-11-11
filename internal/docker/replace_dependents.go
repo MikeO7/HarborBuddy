@@ -4,6 +4,7 @@ import (
 	"context"
 	"fmt"
 	"strings"
+	"sync"
 
 	"github.com/containerd/errdefs"
 	containertypes "github.com/moby/moby/api/types/container"
@@ -32,19 +33,20 @@ func (d *DockerClient) CheckNamespaceDependents(ctx context.Context, current Con
 			names[strings.TrimPrefix(name, "/")] = struct{}{}
 		}
 	}
+	d.dependents.keep(listed.Items)
 	for _, item := range listed.Items {
 		if item.ID == current.Summary.ID {
 			continue
 		}
-		inspected, err := d.cli.ContainerInspect(ctx, item.ID, client.ContainerInspectOptions{})
-		if errdefs.IsNotFound(err) {
+		host, found, err := d.dependentHostConfig(ctx, item.ID)
+		if err != nil {
+			return err
+		}
+		if !found {
 			continue
 		}
-		if err != nil {
-			return fmt.Errorf("inspect container %s to check namespace dependents: %w", item.ID, err)
-		}
-		if shared := sharedWith(inspected.Container.HostConfig, current.Summary, names); shared != "" {
-			name := strings.TrimPrefix(inspected.Container.Name, "/")
+		if shared := sharedWith(host, current.Summary, names); shared != "" {
+			name := primaryName(item.Names)
 			return &UnsupportedError{Reason: fmt.Sprintf(
 				"container %s depends on this container's %s; recreating it would disconnect %s, so update them together manually",
 				name, shared, name,
@@ -52,6 +54,47 @@ func (d *DockerClient) CheckNamespaceDependents(ctx context.Context, current Con
 		}
 	}
 	return nil
+}
+
+// dependentCache remembers each container's host configuration between
+// checks. Namespace modes and links are fixed when a container is created, so
+// one inspection per container ID serves every candidate in every cycle.
+type dependentCache struct {
+	mu    sync.Mutex
+	hosts map[string]*containertypes.HostConfig
+}
+
+// keep drops entries for containers that no longer exist.
+func (c *dependentCache) keep(listed []containertypes.Summary) {
+	c.mu.Lock()
+	defer c.mu.Unlock()
+	current := make(map[string]*containertypes.HostConfig, len(listed))
+	for _, item := range listed {
+		if host, ok := c.hosts[item.ID]; ok {
+			current[item.ID] = host
+		}
+	}
+	c.hosts = current
+}
+
+func (d *DockerClient) dependentHostConfig(ctx context.Context, id string) (*containertypes.HostConfig, bool, error) {
+	d.dependents.mu.Lock()
+	host, ok := d.dependents.hosts[id]
+	d.dependents.mu.Unlock()
+	if ok {
+		return host, true, nil
+	}
+	inspected, err := d.cli.ContainerInspect(ctx, id, client.ContainerInspectOptions{})
+	if errdefs.IsNotFound(err) {
+		return nil, false, nil
+	}
+	if err != nil {
+		return nil, false, fmt.Errorf("inspect container %s to check namespace dependents: %w", id, err)
+	}
+	d.dependents.mu.Lock()
+	d.dependents.hosts[id] = inspected.Container.HostConfig
+	d.dependents.mu.Unlock()
+	return inspected.Container.HostConfig, true, nil
 }
 
 // sharedWith names what host shares with target, or returns "".

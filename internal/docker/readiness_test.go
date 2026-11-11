@@ -82,28 +82,47 @@ func TestReadinessTrackerResetsOnlyWhenProcessChanges(t *testing.T) {
 	}
 }
 
-func TestInspectReadinessReportsInspectAndStabilizationResults(t *testing.T) {
-	transport := newMockTransport()
-	transport.register("GET", "/v1.41/containers/new/json", func(*http.Request) (*http.Response, error) {
-		return jsonResponse(http.StatusOK, inspectedContainer("new", "app", "sha256:new", true))
-	})
-	client := testDockerClient(t, transport)
+func TestReadinessTrackerEvaluatesStabilization(t *testing.T) {
+	details := ContainerDetails{State: &containertypes.State{Running: true, Pid: 10, StartedAt: "first"}}
 	tracker := &readinessTracker{stabilization: time.Hour}
-	ready, err := client.inspectReadiness(context.Background(), "new", tracker)
-	if err != nil || ready {
-		t.Fatalf("inspectReadiness() = %v, %v; want not ready", ready, err)
+	if ready, err := tracker.evaluate(details); err != nil || ready {
+		t.Fatalf("evaluate() = %v, %v; want not ready", ready, err)
 	}
 	tracker.stableSince = time.Now().Add(-time.Hour)
-	ready, err = client.inspectReadiness(context.Background(), "new", tracker)
-	if err != nil || !ready {
-		t.Fatalf("stabilized inspectReadiness() = %v, %v; want ready", ready, err)
+	if ready, err := tracker.evaluate(details); err != nil || !ready {
+		t.Fatalf("stabilized evaluate() = %v, %v; want ready", ready, err)
+	}
+}
+
+func TestWaitUntilReadyRetriesInspectErrorsExceptMissing(t *testing.T) {
+	options := ReplaceOptions{StartupTimeout: time.Second, PollInterval: time.Millisecond}
+	transport := newMockTransport()
+	failures := 2
+	transport.register("GET", "/v1.41/containers/flaky/json", func(*http.Request) (*http.Response, error) {
+		if failures > 0 {
+			failures--
+			return jsonResponse(http.StatusInternalServerError, map[string]string{"message": "daemon busy"})
+		}
+		return jsonResponse(http.StatusOK, inspectedContainer("flaky", "app", "sha256:new", true))
+	})
+	client := testDockerClient(t, transport)
+	if err := client.waitUntilReady(context.Background(), "flaky", nil, options); err != nil {
+		t.Fatalf("waitUntilReady() after transient inspect errors = %v", err)
 	}
 
 	transport.register("GET", "/v1.41/containers/missing/json", func(*http.Request) (*http.Response, error) {
 		return jsonResponse(http.StatusNotFound, map[string]string{"message": "missing"})
 	})
-	if _, err := client.inspectReadiness(context.Background(), "missing", tracker); err == nil || !strings.Contains(err.Error(), "inspect container") {
-		t.Fatalf("inspectReadiness() missing error = %v", err)
+	if err := client.waitUntilReady(context.Background(), "missing", nil, options); err == nil || !strings.Contains(err.Error(), "inspect container") || strings.Contains(err.Error(), "startup timeout") {
+		t.Fatalf("waitUntilReady() missing error = %v, want immediate inspect error", err)
+	}
+
+	transport.register("GET", "/v1.41/containers/down/json", func(*http.Request) (*http.Response, error) {
+		return jsonResponse(http.StatusInternalServerError, map[string]string{"message": "daemon busy"})
+	})
+	options.StartupTimeout = 5 * time.Millisecond
+	if err := client.waitUntilReady(context.Background(), "down", nil, options); err == nil || !strings.Contains(err.Error(), "startup timeout") || !strings.Contains(err.Error(), "daemon busy") {
+		t.Fatalf("waitUntilReady() persistent inspect error = %v, want timeout naming the cause", err)
 	}
 }
 

@@ -28,6 +28,15 @@ func (c *Config) applyUpdateEnvironment(getenv environmentReader) error {
 	if err := applyDuration(getenv, "HARBORBUDDY_INTERVAL", &c.Updates.CheckInterval); err != nil {
 		return err
 	}
+	if strings.TrimSpace(getenv("HARBORBUDDY_INTERVAL")) != "" {
+		c.IntervalOverride = true
+	}
+	if raw := getenv("HARBORBUDDY_ALLOW_IMAGES"); raw != "" {
+		c.Updates.AllowImages = splitList(raw)
+	}
+	if raw := getenv("HARBORBUDDY_DENY_IMAGES"); raw != "" {
+		c.Updates.DenyImages = splitList(raw)
+	}
 	applyString(getenv, "HARBORBUDDY_SCHEDULE_TIME", &c.Updates.ScheduleTime)
 	c.applyTimezone(getenv)
 	if err := applyBool(getenv, "HARBORBUDDY_DRY_RUN", &c.Updates.DryRun); err != nil {
@@ -106,7 +115,7 @@ func applyString(getenv environmentReader, name string, target *string) {
 }
 
 func applyDuration(getenv environmentReader, name string, target *time.Duration) error {
-	value := getenv(name)
+	value := strings.TrimSpace(getenv(name))
 	if value == "" {
 		return nil
 	}
@@ -148,7 +157,7 @@ func parseBool(value string) (bool, error) {
 }
 
 func applyInt(getenv environmentReader, name string, target *int) error {
-	value := getenv(name)
+	value := strings.TrimSpace(getenv(name))
 	if value == "" {
 		return nil
 	}

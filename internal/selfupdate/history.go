@@ -3,6 +3,7 @@ package selfupdate
 import (
 	"context"
 	"errors"
+	"fmt"
 	"time"
 
 	"github.com/MikeO7/HarborBuddy/internal/docker"
@@ -16,10 +17,11 @@ const (
 	// at the same image. After it, the daemon tries again, so a failure caused
 	// by a passing engine problem does not block that image for good.
 	FailedHandoffWindow = 24 * time.Hour
-	// helperSettleTimeout bounds how long a daemon waits for a running helper
-	// that targets it to finish before treating it as an active handoff.
-	helperSettleTimeout = time.Minute
 )
+
+// helperSettleTimeout bounds how long a daemon waits for a running helper
+// that targets it to finish before treating it as an active handoff.
+var helperSettleTimeout = time.Minute
 
 // HelperHistory is implemented by Docker clients that can list and remove
 // kept self-update helper containers.
@@ -69,13 +71,23 @@ func FailedHandoff(records []docker.SelfUpdateHelperRecord, selfID, imageID stri
 // bounded time to finish. A helper that rolls back restarts the daemon before
 // it exits, so the restarted daemon can briefly see it still running. It
 // reports true once the helper has exited, and false when the helper is still
-// running, which is a genuine handoff in progress, or cannot be awaited.
-func AwaitHelperExit(ctx context.Context, client docker.Client, helperID string) bool {
+// running after the settle timeout, which is a genuine handoff in progress, or
+// cannot be awaited. Any other failure to wait, such as shutdown or a Docker
+// API error, is returned: it says nothing about whether a handoff is active.
+func AwaitHelperExit(ctx context.Context, client docker.Client, helperID string) (bool, error) {
 	waiter, ok := client.(ContainerExitWaiter)
 	if !ok {
-		return false
+		return false, nil
 	}
 	waitCtx, cancel := context.WithTimeout(ctx, helperSettleTimeout)
 	defer cancel()
-	return waiter.WaitContainerExit(waitCtx, helperID) == nil
+	err := waiter.WaitContainerExit(waitCtx, helperID)
+	switch {
+	case err == nil:
+		return true, nil
+	case ctx.Err() == nil && errors.Is(err, context.DeadlineExceeded):
+		return false, nil
+	default:
+		return false, fmt.Errorf("wait for self-update helper %s: %w", helperID, err)
+	}
 }

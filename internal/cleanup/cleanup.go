@@ -30,6 +30,11 @@ type Report struct {
 	Duration       time.Duration
 }
 
+// Failed counts the resources whose removal was attempted and failed.
+func (r Report) Failed() int {
+	return countResults(r.Results, "").Failed
+}
+
 type resourceCleaner interface {
 	ListCleanupResources(context.Context, docker.CleanupResourceKind) ([]docker.CleanupResource, error)
 	RemoveCleanupResource(context.Context, docker.CleanupResource) error
@@ -127,7 +132,7 @@ func cleanupResourceKind(
 		return report, fmt.Errorf("list %s resources: %w", kind, err)
 	}
 	resources = options.protect(resources)
-	if kind != docker.CleanupBuildCache || cfg.Updates.DryRun {
+	if kind != docker.CleanupBuildCache {
 		return removeResources(ctx, cfg, cleaner, logger, now, kind, resources, report), nil
 	}
 	return pruneBuildCache(ctx, cfg, cleaner, logger, now, resources, report)
@@ -168,7 +173,7 @@ func removeResources(
 			}
 		}
 		report.Results = append(report.Results, result)
-		if kind != docker.CleanupBuildCache || cfg.Updates.DryRun {
+		if kind != docker.CleanupBuildCache {
 			logResult(logger, result)
 		}
 	}

@@ -24,13 +24,18 @@ func RunUpdateCycle(ctx context.Context, cfg config.Config, client docker.Client
 	sortContainers(containers)
 	results := newResults(containers)
 	selfID := detectCurrentContainer(containers)
-	discoverCandidates(ctx, cfg.Updates, client, results, selfID)
+	// An active handoff ends this cycle, so it is settled before any pull.
+	settledHelper, err := settleActiveHelper(ctx, client, results, selfID, logger)
+	if err != nil {
+		return finishCycle(logger, results, started, cfg.Updates.DryRun), err
+	}
+	discoverCandidates(ctx, cfg, client, results, selfID)
 
 	if err := ctx.Err(); err != nil {
 		return finishCycle(logger, results, started, cfg.Updates.DryRun), err
 	}
 
-	shutdownSignal := processCandidates(ctx, cfg, client, results, selfID, logger)
+	shutdownSignal := processCandidates(ctx, cfg, client, results, selfID, settledHelper, logger)
 	return finishCycle(logger, results, started, cfg.Updates.DryRun), shutdownSignal
 }
 

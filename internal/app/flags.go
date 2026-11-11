@@ -103,6 +103,7 @@ func applyFlagOverrides(flags *pflag.FlagSet, values *flagValues, cfg *config.Co
 		switch flag.Name {
 		case "interval":
 			cfg.Updates.CheckInterval = values.interval
+			cfg.IntervalOverride = true
 		case "schedule-time":
 			cfg.Updates.ScheduleTime = values.scheduleTime
 		case "timezone":

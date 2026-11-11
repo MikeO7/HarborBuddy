@@ -25,6 +25,9 @@ type Config struct {
 
 	RunOnce     bool `yaml:"-"`
 	CleanupOnly bool `yaml:"-"`
+	// IntervalOverride records that the environment or a flag set the check
+	// interval, so a schedule_time that outranks it can be reported.
+	IntervalOverride bool `yaml:"-"`
 }
 
 type DockerConfig struct {
