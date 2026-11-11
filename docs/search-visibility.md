@@ -11,7 +11,7 @@ python3 scripts/build-site.py
 python3 scripts/validate-pages-site.py
 ```
 
-The build writes `docs/site/**/index.html`, `sitemap.xml`, `robots.txt`, and `llms-full.txt`. `styles.css`, `llms.txt`, `assets/`, and the IndexNow key file (a 32-character hex name ending in `.txt`, public by design) in `docs/site/` are edited by hand. CI fails when the generated files are out of date.
+The build writes `docs/site/**/index.html`, `404.html`, `sitemap.xml`, `robots.txt`, and `llms-full.txt`. `styles.css`, `llms.txt`, `assets/`, and the IndexNow key file (a 32-character hex name ending in `.txt`, public by design) in `docs/site/` are edited by hand. CI fails when the generated files are out of date.
 
 ## Strategy
 

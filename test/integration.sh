@@ -541,7 +541,7 @@ for _ in {1..180}; do
     CURRENT_DAEMON_ID="$(docker inspect "$DAEMON_NAME" --format '{{.Id}}' 2>/dev/null || true)"
     CURRENT_DAEMON_IMAGE="$(docker inspect "$DAEMON_NAME" --format '{{.Image}}' 2>/dev/null || true)"
     CURRENT_DAEMON_RUNNING="$(docker inspect "$DAEMON_NAME" --format '{{.State.Running}}' 2>/dev/null || true)"
-    # Helpers are auto-removed, so keep a copy of their logs for diagnosis.
+    # Keep a copy of helper logs for diagnosis; cleanup removes the helpers at exit.
     for helper_id in $(docker ps -aq --filter label=com.harborbuddy.self-update-helper 2>/dev/null || true); do
         docker logs "$helper_id" > "$TMP_DIR/helper-$helper_id.log" 2>&1 || true
     done

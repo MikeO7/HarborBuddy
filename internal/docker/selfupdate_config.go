@@ -3,6 +3,7 @@ package docker
 import (
 	"errors"
 	"path/filepath"
+	"slices"
 	"strconv"
 	"strings"
 
@@ -84,7 +85,7 @@ func helperDockerEnvironment(source []string, configuredHost string) (environmen
 		dockerHost = "unix:///var/run/docker.sock"
 	}
 	values[harborBuddyDockerHost] = dockerHost
-	if !containsString(order, harborBuddyDockerHost) {
+	if !slices.Contains(order, harborBuddyDockerHost) {
 		order = append(order, harborBuddyDockerHost)
 	}
 
@@ -139,26 +140,19 @@ func relevantMounts(mounts []mount.Mount, relevantPaths []string) []mount.Mount 
 	return result
 }
 
+// bindTarget returns the container path of a "source:target[:mode]" bind. The
+// target is always absolute, so a trailing field that is not absolute is the
+// mode. That holds for every mode Docker accepts, including ones such as
+// "cached" that a fixed list would miss.
 func bindTarget(bind string) string {
 	parts := strings.Split(bind, ":")
 	if len(parts) < 2 {
 		return ""
 	}
-	if len(parts) >= 3 && isBindMode(parts[len(parts)-1]) {
+	if last := parts[len(parts)-1]; len(parts) >= 3 && !strings.HasPrefix(last, "/") {
 		return parts[len(parts)-2]
 	}
 	return parts[len(parts)-1]
-}
-
-func isBindMode(value string) bool {
-	for _, option := range strings.Split(value, ",") {
-		switch option {
-		case "ro", "rw", "z", "Z", "private", "rprivate", "shared", "rshared", "slave", "rslave", "nocopy", "nosuid", "nodev", "rbind":
-		default:
-			return false
-		}
-	}
-	return value != ""
 }
 
 func pathRelevant(target string, relevantPaths []string) bool {
@@ -172,15 +166,6 @@ func pathRelevant(target string, relevantPaths []string) bool {
 		}
 		relevant = filepath.Clean(relevant)
 		if target == relevant || strings.HasPrefix(relevant, target+string(filepath.Separator)) || strings.HasPrefix(target, relevant+string(filepath.Separator)) {
-			return true
-		}
-	}
-	return false
-}
-
-func containsString(values []string, target string) bool {
-	for _, value := range values {
-		if value == target {
 			return true
 		}
 	}

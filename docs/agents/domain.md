@@ -19,8 +19,7 @@ This repository uses a single-context layout:
 ├── docs/
 │   └── adr/
 ├── cmd/
-├── internal/
-└── pkg/
+└── internal/
 ```
 
 ## Use the glossary's vocabulary

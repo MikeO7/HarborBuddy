@@ -142,7 +142,7 @@ func (d *DockerClient) replaceInTransaction(ctx context.Context, current Contain
 
 	disconnected, err := d.disconnectNetworks(ctx, current)
 	if err != nil {
-		return d.failedReplacement(ctx, result, current, true, disconnected, "", timeoutSeconds, "disconnect_old_networks", "release old container network endpoints", err)
+		return d.failedReplacement(ctx, result, current, disconnected, "", timeoutSeconds, "disconnect_old_networks", "release old container network endpoints", err)
 	}
 
 	created, err := d.cli.ContainerCreate(ctx, client.ContainerCreateOptions{
@@ -152,12 +152,12 @@ func (d *DockerClient) replaceInTransaction(ctx context.Context, current Contain
 		Name:             current.Summary.Name,
 	})
 	if err != nil {
-		return d.failedReplacement(ctx, result, current, true, disconnected, "", timeoutSeconds, "create_replacement", "create replacement container", err)
+		return d.failedReplacement(ctx, result, current, disconnected, "", timeoutSeconds, "create_replacement", "create replacement container", err)
 	}
 	result.NewContainerID = created.ID
 
 	if err := d.startReplacement(ctx, created.ID, target, options); err != nil {
-		return d.failedReplacement(ctx, result, current, true, disconnected, created.ID, timeoutSeconds, "start_replacement", "start replacement container", err)
+		return d.failedReplacement(ctx, result, current, disconnected, created.ID, timeoutSeconds, FailureStageStartReplacement, "start replacement container", err)
 	}
 	if _, err := d.cli.ContainerRemove(ctx, current.Summary.ID, client.ContainerRemoveOptions{Force: true}); err != nil {
 		result.BackupCleanupErr = fmt.Errorf("remove backup container %s: %w", backupName, err)
@@ -187,11 +187,6 @@ func (d *DockerClient) startReplacement(ctx context.Context, id string, target I
 	return nil
 }
 
-func (d *DockerClient) handleStopFailure(ctx context.Context, current ContainerDetails, restartSuppressed bool, stopErr error) error {
-	failure, _ := d.handleStopFailureDetails(ctx, current, restartSuppressed, stopErr)
-	return failure
-}
-
 func (d *DockerClient) handleStopFailureDetails(ctx context.Context, current ContainerDetails, restartSuppressed bool, stopErr error) (error, error) {
 	rollbackCtx, cancel := context.WithTimeout(context.WithoutCancel(ctx), 30*time.Second)
 	defer cancel()
@@ -212,8 +207,8 @@ func (d *DockerClient) undoRename(ctx context.Context, current ContainerDetails)
 	return d.restoreContainerName(rollbackCtx, current)
 }
 
-func (d *DockerClient) failedReplacement(ctx context.Context, result ReplaceResult, current ContainerDetails, renamed bool, disconnected []string, replacementID string, timeoutSeconds int, stage string, action string, cause error) (ReplaceResult, error) {
-	rollbackErr := d.restoreOldContainer(ctx, current, renamed, disconnected, replacementID, timeoutSeconds)
+func (d *DockerClient) failedReplacement(ctx context.Context, result ReplaceResult, current ContainerDetails, disconnected []string, replacementID string, timeoutSeconds int, stage string, action string, cause error) (ReplaceResult, error) {
+	rollbackErr := d.restoreOldContainer(ctx, current, disconnected, replacementID, timeoutSeconds)
 	result.FailureStage = stage
 	result.RollbackAttempted = true
 	result.RollbackErr = rollbackErr

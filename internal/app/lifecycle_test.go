@@ -96,10 +96,11 @@ func TestRunHelperReportsDependencyFailuresAndCloseErrors(t *testing.T) {
 }
 
 func TestMergeCloseErrorPreservesExistingRunError(t *testing.T) {
-	runErr := errors.New("run failed")
+	original := errors.New("run failed")
+	runErr := original
 	closeErr := errors.New("close failed")
 	mergeCloseError(&runErr, "resource", func() error { return closeErr })
-	if !errors.Is(runErr, runErr) || errors.Is(runErr, closeErr) {
+	if !errors.Is(runErr, original) || errors.Is(runErr, closeErr) {
 		t.Fatalf("mergeCloseError replaced existing error: %v", runErr)
 	}
 	var nilErr error

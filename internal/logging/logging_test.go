@@ -168,6 +168,10 @@ func TestBoundedField(t *testing.T) {
 	if got, truncated := BoundedField(long); len(got) <= maxFieldLength || !truncated || !strings.HasSuffix(got, "…") {
 		t.Fatalf("BoundedField(long) length=%d truncated=%v", len(got), truncated)
 	}
+	multibyte := strings.Repeat("x", maxFieldLength-1) + "é" + "tail"
+	if got, _ := BoundedField(multibyte); got != strings.Repeat("x", maxFieldLength-1)+"…" {
+		t.Fatalf("BoundedField split a multi-byte character: %q", got[maxFieldLength-4:])
+	}
 }
 
 func waitForLevel(t *testing.T, controller *LevelController, want zerolog.Level) {

@@ -17,7 +17,7 @@ func TestPullResponseRejectedBeforeImageInspection(t *testing.T) {
 		{"malformed", `{"status":`, "unexpected EOF"},
 		{"wrong type", `[]`, "cannot unmarshal array"},
 		{"empty", " \n", "empty pull response"},
-		{"oversized", strings.Repeat(" ", 16*1024*1024+1), "pull response exceeds"},
+		{"error after long progress stream", strings.Repeat(`{"status":"`+strings.Repeat("x", 1024*1024)+`"}`+"\n", 17) + `{"error":"late failure"}`, "late failure"},
 	} {
 		t.Run(tc.name, func(t *testing.T) {
 			transport := newMockTransport()

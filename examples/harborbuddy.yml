@@ -1,7 +1,7 @@
 # HarborBuddy configuration example. HARBORBUDDY_* environment variables override
 # these values; TZ is used only when timezone is not set here or by HARBORBUDDY_TIMEZONE.
-# Safe helper-based self-update is enabled by default. Set the environment variable
-# HARBORBUDDY_SELF_UPDATE_ENABLED=false to opt out while retaining other updates.
+# Safe helper-based self-update is enabled by default. Set updates.self_update: false
+# or HARBORBUDDY_SELF_UPDATE_ENABLED=false to opt out while retaining other updates.
 
 docker:
   # Empty uses standard Docker SDK variables such as DOCKER_HOST,
@@ -20,6 +20,9 @@ updates:
   # Dry-run still pulls eligible images, but never recreates/deletes containers
   # and never removes any cleanup resource or build cache.
   dry_run: false
+
+  # Let HarborBuddy replace its own daemon container through a helper.
+  self_update: true
 
   # Deny patterns take precedence. One wildcard is supported at either edge.
   allow_images:

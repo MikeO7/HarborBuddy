@@ -42,7 +42,7 @@ func updatePathCandidate(target string) (docker.ContainerSummary, ContainerResul
 
 func TestProcessCandidateStopsStartingTransactionsAfterShutdown(t *testing.T) {
 	container, result := updatePathCandidate("sha256:new")
-	client := &updatePathFakeClient{cycleFakeClient: cycleFakeClient{details: map[string]docker.ContainerDetails{"app": cycleRunningDetails(container)}}}
+	client := &updatePathFakeClient{cycleFakeClient: cycleFakeClient{details: map[string]docker.ContainerDetails{"app": runningDetails(container)}}}
 	ctx, cancel := context.WithCancel(context.Background())
 	cancel()
 	if err := processCandidate(ctx, config.Default(), client, &result, false); err != nil || result.Status != StatusCancelled || len(client.replacements) != 0 {
@@ -61,7 +61,7 @@ func TestFailedTargetIsSkippedUntilTheImageChanges(t *testing.T) {
 	resetFailedTargets(t)
 	container, result := updatePathCandidate("sha256:bad")
 	client := &updatePathFakeClient{cycleFakeClient: cycleFakeClient{
-		details:        map[string]docker.ContainerDetails{"app": cycleRunningDetails(container)},
+		details:        map[string]docker.ContainerDetails{"app": runningDetails(container)},
 		replaceResults: map[string]docker.ReplaceResult{"app": {FailureStage: "start_replacement", RollbackAttempted: true}},
 		replaceErrors:  map[string]error{"app": errors.New("replacement did not become ready")},
 	}}
@@ -102,7 +102,7 @@ func TestFailedTargetIsSkippedUntilTheImageChanges(t *testing.T) {
 func TestCandidateChecksNamespaceDependentsAndSurfacesConfigWarning(t *testing.T) {
 	container, result := updatePathCandidate("sha256:new")
 	client := &updatePathFakeClient{
-		cycleFakeClient: cycleFakeClient{details: map[string]docker.ContainerDetails{"app": cycleRunningDetails(container)}},
+		cycleFakeClient: cycleFakeClient{details: map[string]docker.ContainerDetails{"app": runningDetails(container)}},
 		dependentsErr:   &docker.UnsupportedError{Reason: "container vpn-client depends on this container's network namespace"},
 	}
 	cfg := config.Default()

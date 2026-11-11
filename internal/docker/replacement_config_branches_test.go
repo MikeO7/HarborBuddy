@@ -99,3 +99,21 @@ func TestSanitizedEndpointPreservesIPAMMacButClearsRuntimeIdentity(t *testing.T)
 		t.Fatal("sanitizedEndpoint(nil) must return nil")
 	}
 }
+
+func TestConfiguredMountTargetsMatchInspectedDestinations(t *testing.T) {
+	host := &containertypes.HostConfig{
+		Binds:  []string{"/host/data:/data/:cached", "malformed"},
+		Mounts: []mount.Mount{{Type: mount.TypeVolume, Source: "cache", Target: "/var//cache/"}},
+	}
+	inspected := []containertypes.MountPoint{
+		{Type: mount.TypeBind, Source: "/host/data", Destination: "/data", RW: true},
+		{Type: mount.TypeVolume, Name: "cache", Destination: "/var/cache", RW: true},
+	}
+	preserveInspectedMounts(host, inspected)
+	if len(host.Mounts) != 1 {
+		t.Fatalf("mounts = %#v, want no duplicate of an already configured target", host.Mounts)
+	}
+	if _, ok := configuredMountTargets(host)[""]; !ok {
+		t.Fatal("a bind without a target was not kept as an empty key")
+	}
+}

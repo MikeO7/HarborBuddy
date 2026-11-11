@@ -515,7 +515,7 @@ Never expose an unauthenticated Docker TCP endpoint. A remote daemon must be rea
 
 ## Logging
 
-Logs go to standard output as text with RFC 3339 timestamps, or as JSON with `HARBORBUDDY_LOG_JSON=true`. Colour is used only on a terminal and never when `NO_COLOR` is set. `HARBORBUDDY_LOG_FILE` adds a rotating file. Send `SIGUSR1` to toggle debug logging without a restart.
+Logs go to standard output as text with RFC 3339 timestamps, or as JSON with `HARBORBUDDY_LOG_JSON=true`. Colour is used only on a terminal and never when `NO_COLOR` is set to a non-empty value. `HARBORBUDDY_LOG_FILE` adds a rotating file. Send `SIGUSR1` to toggle debug logging without a restart.
 
 ## Command-line flags
 

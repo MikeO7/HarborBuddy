@@ -24,7 +24,7 @@ func processCandidates(
 	if err != nil {
 		return err
 	}
-	history := loadHelperHistory(ctx, cfg, client, selfID, logger)
+	history := loadHelperHistory(ctx, cfg, client, logger)
 	markFinished(history, settledHelper)
 	selfIndex := -1
 	for index := range results {

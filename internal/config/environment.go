@@ -2,17 +2,12 @@ package config
 
 import (
 	"fmt"
-	"os"
 	"strconv"
 	"strings"
 	"time"
 )
 
 type environmentReader func(string) string
-
-func (c *Config) ApplyEnvironmentOverrides() error {
-	return c.ApplyEnvironment(os.Getenv)
-}
 
 func (c *Config) ApplyEnvironment(getenv func(string) string) error {
 	c.applyDockerEnvironment(getenv)

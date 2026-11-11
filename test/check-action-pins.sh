@@ -9,7 +9,7 @@ if (( ${#workflow_files[@]} == 0 )); then
     exit 0
 fi
 while IFS= read -r reference; do
-    if [[ "$reference" =~ ^[A-Za-z0-9_.-]+/[A-Za-z0-9_.-]+@[0-9a-f]{40}$ ]]; then
+    if [[ "$reference" =~ ^[A-Za-z0-9_.-]+(/[A-Za-z0-9_.-]+)+@[0-9a-f]{40}$ ]]; then
         continue
     fi
     if [[ "$reference" =~ ^docker://.+@sha256:[0-9a-f]{64}$ ]]; then

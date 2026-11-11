@@ -55,6 +55,9 @@ func validateImagePatterns(allow, deny []string) error {
 	patterns = append(patterns, allow...)
 	patterns = append(patterns, deny...)
 	for _, pattern := range patterns {
+		if pattern == "" {
+			return fmt.Errorf("updates.allow_images and updates.deny_images must not contain an empty pattern")
+		}
 		if !validImagePattern(pattern) {
 			return fmt.Errorf("unsupported image pattern %q: wildcard must be at one edge", pattern)
 		}

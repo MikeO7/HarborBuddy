@@ -4,6 +4,15 @@ All notable changes to HarborBuddy are documented here. The format follows [Keep
 
 ## [Unreleased]
 
+### Fixed
+
+- Containers with a bind mount that uses a mode such as `cached`, `delegated`, or `consistent`, or a mount target written with a trailing slash, are no longer recreated with a duplicate mount that Docker rejects.
+- Image pulls with a very long progress stream no longer fail with `pull response exceeds 16777216 bytes`; the stream is validated as it arrives.
+- With `updates.rollback_image_retention`, a second container that shares an image reference no longer rotates the same image into another slot, and at retention `1` no longer removes that image before tagging it.
+- An empty entry in `updates.allow_images` or `updates.deny_images` is rejected at startup instead of silently matching nothing.
+- A shutdown during the update phase no longer runs cleanup and logs a failed cleanup.
+- Long log fields are truncated on a character boundary.
+
 ## [0.1.0] - 2026-11-06
 
 First versioned release.
@@ -47,7 +56,7 @@ First versioned release.
 - Image validation, multi-platform publication, and GitHub release creation are sequenced in the container workflow with least-privilege job permissions.
 - Container builds use an allow-listed context, explicit source copies, and digest-pinned Dockerfile and Go builder images.
 - Go was updated to 1.27.3 to include current standard-library security fixes.
-- The default branch publishes `latest`, `edge`, and commit-specific `sha-*` tags. Version tags will also trigger GitHub release publication when the first versioned release is created.
+- The default branch publishes `latest`, `edge`, and commit-specific `sha-*` tags. Version tags also trigger GitHub release publication.
 - Configuration loading is strict and rejects unknown fields or multiple YAML documents.
 - Routine no-op results now log at debug, warnings at warn, and failures at error; daemon-provided descriptions are bounded to keep logs concise.
 

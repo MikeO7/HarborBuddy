@@ -26,6 +26,12 @@ func (d *DockerClient) retainRollbackImage(ctx context.Context, imageRef, imageI
 		return nil
 	}
 	repository := rollbackImageRepository(imageRef)
+	// Containers sharing an image reference retain the same image once.
+	// Rotating again would evict an older slot, and at retention 1 it would
+	// remove the image's last tag just before tagging it.
+	if latest, ok, err := d.rollbackSlotImage(ctx, repository, 1); err == nil && ok && latest == imageID {
+		return nil
+	}
 	var warnings []error
 
 	if overflow, ok, err := d.rollbackSlotImage(ctx, repository, retention); err != nil {

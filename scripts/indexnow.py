@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 """Tell IndexNow search engines (Bing, Yandex, and others) about every sitemap URL.
 
-Runs after a Pages deployment. The key file is published by scripts/build-site.py.
+Runs after a Pages deployment. The key file in docs/site/ is maintained by hand and deployed with the site.
 """
 
 from __future__ import annotations

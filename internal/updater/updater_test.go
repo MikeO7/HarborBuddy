@@ -7,7 +7,6 @@ import (
 
 	"github.com/MikeO7/HarborBuddy/internal/config"
 	"github.com/MikeO7/HarborBuddy/internal/docker"
-	containertypes "github.com/moby/moby/api/types/container"
 	"github.com/rs/zerolog"
 )
 
@@ -64,8 +63,8 @@ func TestRunUpdateCycleDeterministicResults(t *testing.T) {
 	client := &cycleFakeClient{
 		containers: []docker.ContainerSummary{current, excluded, outdated},
 		details: map[string]docker.ContainerDetails{
-			"current":  cycleRunningDetails(current),
-			"outdated": cycleRunningDetails(outdated),
+			"current":  runningDetails(current),
+			"outdated": runningDetails(outdated),
 		},
 		images: map[string]docker.ImageInfo{
 			"current:latest":  {ID: "sha256:current"},
@@ -97,8 +96,8 @@ func TestRunUpdateCyclePullsSharedImageOnce(t *testing.T) {
 	client := &cycleFakeClient{
 		containers: []docker.ContainerSummary{first, second},
 		details: map[string]docker.ContainerDetails{
-			"one": cycleRunningDetails(first),
-			"two": cycleRunningDetails(second),
+			"one": runningDetails(first),
+			"two": runningDetails(second),
 		},
 		images: map[string]docker.ImageInfo{"shared:latest": {ID: "sha256:new"}},
 	}
@@ -120,7 +119,7 @@ func TestRunUpdateCycleDryRunDiscoversWithoutReplacing(t *testing.T) {
 	container := docker.ContainerSummary{ID: "app", Name: "app", ImageRef: "app:latest", ImageID: "sha256:old"}
 	client := &cycleFakeClient{
 		containers: []docker.ContainerSummary{container},
-		details:    map[string]docker.ContainerDetails{"app": cycleRunningDetails(container)},
+		details:    map[string]docker.ContainerDetails{"app": runningDetails(container)},
 		images:     map[string]docker.ImageInfo{"app:latest": {ID: "sha256:new"}},
 	}
 	withoutDetectedSelf(t)
@@ -143,7 +142,7 @@ func TestRunUpdateCycleNeverOrdinarilyReplacesUnidentifiedDaemon(t *testing.T) {
 	}
 	client := &cycleFakeClient{
 		containers: []docker.ContainerSummary{container},
-		details:    map[string]docker.ContainerDetails{"daemon": cycleRunningDetails(container)},
+		details:    map[string]docker.ContainerDetails{"daemon": runningDetails(container)},
 		images:     map[string]docker.ImageInfo{"harborbuddy:latest": {ID: "sha256:new"}},
 	}
 	withoutDetectedSelf(t)
@@ -154,15 +153,6 @@ func TestRunUpdateCycleNeverOrdinarilyReplacesUnidentifiedDaemon(t *testing.T) {
 	}
 	if report.Count(StatusExcluded) != 1 || len(client.replacements) != 0 || client.pulls["harborbuddy:latest"] != 0 {
 		t.Fatalf("unidentified daemon was not protected: results=%+v pulls=%v replacements=%v", report.Results, client.pulls, client.replacements)
-	}
-}
-
-func cycleRunningDetails(summary docker.ContainerSummary) docker.ContainerDetails {
-	return docker.ContainerDetails{
-		Summary: summary,
-		Config:  &containertypes.Config{},
-		Host:    &containertypes.HostConfig{},
-		State:   &containertypes.State{Running: true},
 	}
 }
 

@@ -35,7 +35,7 @@ func TestCandidateProcessingClassifiesInspectionReplacementAndSelfBoundaries(t *
 		t.Fatalf("external change classification = %+v, %v", result, err)
 	}
 
-	client.details["app"] = cycleRunningDetails(container)
+	client.details["app"] = runningDetails(container)
 	client.checkErrors = map[string]error{"app": &docker.UnsupportedError{Reason: "unsafe mount"}}
 	result = ContainerResult{Container: container, Status: StatusWouldUpdate, TargetImageID: "sha256:new"}
 	if err := processCandidate(context.Background(), config.Default(), client, &result, false); err != nil || result.Status != StatusUnsupported {
@@ -73,7 +73,7 @@ func TestCandidateProcessingClassifiesInspectionReplacementAndSelfBoundaries(t *
 func TestSelfCandidateWithoutHelperIsReportedAsFailure(t *testing.T) {
 	container := docker.ContainerSummary{ID: "self", Name: "self", ImageRef: "harborbuddy:latest", ImageID: "old"}
 	result := ContainerResult{Container: container, Status: StatusWouldUpdate, TargetImageID: "new"}
-	client := &cycleFakeClient{details: map[string]docker.ContainerDetails{"self": cycleRunningDetails(container)}}
+	client := &cycleFakeClient{details: map[string]docker.ContainerDetails{"self": runningDetails(container)}}
 	if err := processCandidate(context.Background(), config.Default(), client, &result, true); err != nil || result.Status != StatusFailed || result.Err == nil {
 		t.Fatalf("self candidate without helper = %+v, %v", result, err)
 	}

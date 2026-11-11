@@ -70,7 +70,7 @@ func TestHelperFlagsAreHidden(t *testing.T) {
 	var output bytes.Buffer
 	flags.SetOutput(&output)
 	flags.PrintDefaults()
-	for _, name := range []string{"updater-mode", "target-container-id", "new-image-id", "helper-stop-timeout", "helper-startup-timeout", "helper-restart-policy", "helper-restart-max-retries"} {
+	for _, name := range []string{"updater-mode", "target-container-id", "new-image-id", "helper-stop-timeout", "helper-startup-timeout", "helper-restart-policy", "helper-restart-max-retries", "helper-rollback-image-retention"} {
 		if strings.Contains(output.String(), name) {
 			t.Fatalf("help output contains hidden flag %q: %s", name, output.String())
 		}

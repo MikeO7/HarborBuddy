@@ -67,15 +67,21 @@ The build date must come from source control or another reproducible source, not
 
 ```text
 cmd/harborbuddy/       CLI entry point
+internal/app/          flags, startup, signals, and process lifecycle
 internal/buildinfo/    injected version metadata
-internal/cleanup/      image cleanup policy
+internal/cleanup/      cleanup policy for images, containers, networks, volumes, and build cache
 internal/config/       strict configuration loading and validation
 internal/docker/       Docker SDK adapter and transactional replacement
+internal/health/       heartbeat file and container health check
+internal/imageref/     image reference parsing
+internal/logging/      logger construction and shared log fields
 internal/scheduler/    interval and daily scheduling
 internal/selfupdate/   helper-container self-update lifecycle
 internal/updater/      discovery, filtering, pulls, and update decisions
-pkg/                   shared packages
 examples/              supported Compose and YAML examples
+scripts/               GitHub Pages build, validation, and IndexNow scripts
+site/pages/            GitHub Pages source; scripts/build-site.py writes docs/site/
+test/e2e/              production-binary journeys against a Docker protocol fixture
 test/integration.sh    Docker integration smoke test
 .github/workflows/     CI, image publication, release, and platform smoke tests
 ```
@@ -89,7 +95,7 @@ Changes to update behavior must preserve these properties unless an approved des
 - The old container remains recoverable until the replacement passes readiness checks.
 - Failed replacements roll back the original name, networks, and running state where Docker permits it.
 - Auto-remove containers, Swarm tasks, and container-network-namespace dependents are rejected rather than recreated unsafely.
-- The HarborBuddy daemon uses `com.harborbuddy.role=daemon`; safe helper-based self-update is enabled by default and can be disabled only with `HARBORBUDDY_SELF_UPDATE_ENABLED=false`.
+- The HarborBuddy daemon uses `com.harborbuddy.role=daemon`; safe helper-based self-update is enabled by default and can be disabled only with `updates.self_update: false` or `HARBORBUDDY_SELF_UPDATE_ENABLED=false`.
 - Docker socket and remote-daemon credentials must not be logged.
 
 Add focused unit tests for success, cancellation, unsupported configurations, and rollback failures. Avoid tests that depend on mutable public tags unless the integration boundary specifically requires them.
@@ -101,7 +107,7 @@ When changing configuration:
 1. Update defaults, validation, environment parsing, and tests together.
 2. Keep YAML decoding strict.
 3. Add a clear migration hint for removed keys.
-4. Update `README.md`, `examples/harborbuddy.yml`, and `CHANGELOG.md`.
+4. Update `README.md`, `examples/harborbuddy.yml`, `CHANGELOG.md`, and the site (`site/pages/docs/configuration.html` and `docs/site/llms.txt`, then run `python3 scripts/build-site.py`).
 5. Never document a setting before the implementation accepts it.
 
 The removed keys `docker.tls`, `updates.update_all`, and top-level `logging` must not be reintroduced accidentally. Docker TLS uses standard `DOCKER_*` variables.

@@ -131,11 +131,11 @@ func TestReplaceContainerReportsStopTimeoutAndRestoresRestartPolicy(t *testing.T
 	current := replacementFixture()
 	current.Host.RestartPolicy.Name = "always"
 	stopErr := errors.New("stop failed")
-	if err := client.handleStopFailure(context.Background(), current, true, stopErr); !errors.Is(err, stopErr) {
-		t.Fatalf("handleStopFailure() error = %v", err)
+	if err, _ := client.handleStopFailureDetails(context.Background(), current, true, stopErr); !errors.Is(err, stopErr) {
+		t.Fatalf("handleStopFailureDetails() error = %v", err)
 	}
-	if err := client.handleStopFailure(context.Background(), current, false, stopErr); !errors.Is(err, stopErr) {
-		t.Fatalf("handleStopFailure(no suppression) error = %v", err)
+	if err, _ := client.handleStopFailureDetails(context.Background(), current, false, stopErr); !errors.Is(err, stopErr) {
+		t.Fatalf("handleStopFailureDetails(no suppression) error = %v", err)
 	}
 }
 

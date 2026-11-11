@@ -1,6 +1,9 @@
 package logging
 
-import "strings"
+import (
+	"strings"
+	"unicode/utf8"
+)
 
 const maxFieldLength = 256
 
@@ -11,5 +14,9 @@ func BoundedField(value string) (string, bool) {
 	if len(value) <= maxFieldLength {
 		return value, false
 	}
-	return value[:maxFieldLength] + "…", true
+	cut := maxFieldLength
+	for cut > 0 && !utf8.RuneStart(value[cut]) {
+		cut--
+	}
+	return value[:cut] + "…", true
 }

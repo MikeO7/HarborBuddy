@@ -150,7 +150,10 @@ func (s *scheduler) runCycle(ctx context.Context, cfg config.Config, client dock
 		cycleLogger.Debug().Str("event", "update_skipped").Str("reason", "updates_disabled").Msg("Updates are disabled")
 	}
 
-	if cfg.Cleanup.Enabled {
+	if ctx.Err() != nil {
+		// Shutdown arrived during the update phase; cleanup could only fail.
+		cycleLogger.Debug().Str("event", "cleanup_skipped").Str("reason", "cancelled").Msg("Cleanup skipped during shutdown")
+	} else if cfg.Cleanup.Enabled {
 		cleanupLogger := cycleLogger.With().Str("operation", "cleanup").Logger()
 		if err := s.runCleanup(ctx, cfg, client, cleanupLogger, cleanupOptions); err != nil {
 			cycleErrors = append(cycleErrors, fmt.Errorf("cleanup cycle: %w", err))
