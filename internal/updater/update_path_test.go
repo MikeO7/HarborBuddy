@@ -129,7 +129,7 @@ func TestDiscoverySkipsContainersCreatedFromImageIDs(t *testing.T) {
 	id := "sha256:" + strings.Repeat("a", 64)
 	results := newResults([]docker.ContainerSummary{{ID: "a", Name: "a", ImageRef: id}, {ID: "b", Name: "b", ImageRef: strings.Repeat("b", 64)}})
 	client := &cycleFakeClient{}
-	discoverCandidates(context.Background(), config.UpdatesConfig{}, client, results, "")
+	discoverCandidates(context.Background(), config.Config{}, client, results, "")
 	for _, result := range results {
 		if result.Status != StatusUnsupported || !strings.Contains(result.Reason, "image ID") {
 			t.Fatalf("image-ID container = %+v", result)

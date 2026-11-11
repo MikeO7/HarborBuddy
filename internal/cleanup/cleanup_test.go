@@ -7,6 +7,8 @@ import (
 	"testing"
 	"time"
 
+	operational "github.com/MikeO7/HarborBuddy/internal/logging"
+
 	"github.com/MikeO7/HarborBuddy/internal/config"
 	"github.com/MikeO7/HarborBuddy/internal/docker"
 	"github.com/rs/zerolog"
@@ -364,8 +366,8 @@ func TestFormatBytesAndShortIDBoundaries(t *testing.T) {
 		{id: "short", want: "short"},
 		{id: "sha256:", want: ""},
 	} {
-		if got := shortID(test.id); got != test.want {
-			t.Errorf("shortID(%q) = %q, want %q", test.id, got, test.want)
+		if got := operational.ShortID(test.id); got != test.want {
+			t.Errorf("operational.ShortID(%q) = %q, want %q", test.id, got, test.want)
 		}
 	}
 }

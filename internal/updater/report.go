@@ -1,7 +1,6 @@
 package updater
 
 import (
-	"strings"
 	"time"
 
 	"github.com/MikeO7/HarborBuddy/internal/docker"
@@ -100,18 +99,18 @@ func logResult(logger zerolog.Logger, result ContainerResult, dryRun bool) {
 	imageRef, imageRefTruncated := operational.BoundedField(result.Container.ImageRef)
 	event := resultEvent(logger, result).
 		Str("event", "container_update_result").
-		Str("container_id", shortID(result.Container.ID)).
+		Str("container_id", operational.ShortID(result.Container.ID)).
 		Str("container_name", result.Container.Name).
 		Str("image_ref", imageRef).
 		Bool("image_ref_truncated", imageRefTruncated).
-		Str("current_image_id", shortID(result.Container.ImageID)).
+		Str("current_image_id", operational.ShortID(result.Container.ImageID)).
 		Str("result", string(result.Status))
 	if result.TargetImageID != "" {
-		event = event.Str("target_image_id", shortID(result.TargetImageID))
+		event = event.Str("target_image_id", operational.ShortID(result.TargetImageID))
 		event = event.Str("transaction_id", transactionID(result))
 	}
 	if result.HelperID != "" {
-		event = event.Str("helper_container_id", shortID(result.HelperID))
+		event = event.Str("helper_container_id", operational.ShortID(result.HelperID))
 	}
 	if result.Reason != "" {
 		event = event.Str("reason", result.Reason)
@@ -167,7 +166,7 @@ func transactionID(result ContainerResult) string {
 	if result.TargetImageID == "" {
 		return ""
 	}
-	return shortID(result.Container.ID) + "-" + shortID(result.TargetImageID)
+	return operational.ShortID(result.Container.ID) + "-" + operational.ShortID(result.TargetImageID)
 }
 
 func resultMessage(result ContainerResult, dryRun bool) string {
@@ -200,12 +199,4 @@ func resultMessage(result ContainerResult, dryRun bool) string {
 	default:
 		return "Container update result is invalid"
 	}
-}
-
-func shortID(id string) string {
-	id = strings.TrimPrefix(id, "sha256:")
-	if len(id) > 12 {
-		return id[:12]
-	}
-	return id
 }

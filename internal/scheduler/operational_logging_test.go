@@ -30,9 +30,3 @@ func TestCleanupOnlyFailureKeepsCycleCorrelation(t *testing.T) {
 		t.Fatalf("cleanup-only failure log = %q", text)
 	}
 }
-
-func TestOperationalShortID(t *testing.T) {
-	if shortID("1234567890123456") != "123456789012" || shortID("short") != "short" {
-		t.Fatal("shortID did not preserve expected forms")
-	}
-}

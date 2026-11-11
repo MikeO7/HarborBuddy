@@ -21,12 +21,14 @@
               <tbody>
                 <tr><td><code>HARBORBUDDY_CONFIG</code></td><td><code>/config/harborbuddy.yml</code></td><td>Configuration file path</td></tr>
                 <tr><td><code>HARBORBUDDY_DOCKER_HOST</code></td><td>empty</td><td>Explicit Docker endpoint; overrides <code>DOCKER_HOST</code></td></tr>
-                <tr><td><code>HARBORBUDDY_INTERVAL</code></td><td><code>12h</code></td><td>Update interval; at least <code>1s</code></td></tr>
+                <tr><td><code>HARBORBUDDY_INTERVAL</code></td><td><code>12h</code></td><td>Update interval; at least <code>1s</code>. Ignored when a schedule time is set</td></tr>
                 <tr><td><code>HARBORBUDDY_SCHEDULE_TIME</code></td><td>empty</td><td>Daily run time in <code>HH:MM</code></td></tr>
                 <tr><td><code>HARBORBUDDY_TIMEZONE</code></td><td><code>UTC</code></td><td>IANA timezone; overrides <code>updates.timezone</code> and <code>TZ</code></td></tr>
                 <tr><td><code>TZ</code></td><td>empty</td><td>Timezone fallback when neither of the above is set</td></tr>
                 <tr><td><code>HARBORBUDDY_DRY_RUN</code></td><td><code>false</code></td><td>Pull and report without replacing containers or deleting anything</td></tr>
                 <tr><td><code>HARBORBUDDY_UPDATES_ENABLED</code></td><td><code>true</code></td><td>Enable update checks</td></tr>
+                <tr><td><code>HARBORBUDDY_ALLOW_IMAGES</code></td><td><code>*</code></td><td>Comma-separated image patterns to update</td></tr>
+                <tr><td><code>HARBORBUDDY_DENY_IMAGES</code></td><td>empty</td><td>Comma-separated image patterns never to update</td></tr>
                 <tr><td><code>HARBORBUDDY_SELF_UPDATE_ENABLED</code></td><td><code>true</code></td><td>Let HarborBuddy update its own container</td></tr>
                 <tr><td><code>HARBORBUDDY_CONTAINER_NAME</code></td><td>empty</td><td>Stable name that identifies the HarborBuddy container</td></tr>
                 <tr><td><code>HARBORBUDDY_CONTAINER_ID</code></td><td>empty</td><td>Container ID, or a unique prefix of at least 12 characters</td></tr>

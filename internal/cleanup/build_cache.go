@@ -37,9 +37,14 @@ func pruneBuildCache(
 	if !buildCachePruneIsPrecise(results, cutoff) {
 		for index := range results {
 			if results[index].Eligible {
+				results[index].WouldRemove = false
 				results[index].Reason = unsafeBuildCachePruneReason
 			}
 		}
+		logResults(logger, results)
+		return report, nil
+	}
+	if cfg.Updates.DryRun {
 		logResults(logger, results)
 		return report, nil
 	}

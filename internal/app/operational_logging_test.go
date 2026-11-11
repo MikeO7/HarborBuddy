@@ -34,9 +34,18 @@ func TestEffectiveConfigurationLogsRollbackImageRetention(t *testing.T) {
 	var output bytes.Buffer
 	cfg := config.Default()
 	cfg.Updates.RollbackImageRetention = 2
+	cfg.Updates.DenyImages = []string{"postgres:*"}
 	logEffectiveConfig(zerolog.New(&output), cfg)
-	if text := output.String(); !strings.Contains(text, `"rollback_image_retention":2`) {
-		t.Fatalf("effective configuration log = %q", text)
+	text := output.String()
+	for _, want := range []string{`"rollback_image_retention":2`, `"stop_timeout":"10s"`, `"startup_timeout":"30s"`, `"allow_images":"*"`, `"deny_images":"postgres:*"`, `"cleanup_cache_volume_min_age_hours":24`, `"log_max_backups":1`} {
+		if !strings.Contains(text, want) {
+			t.Fatalf("effective configuration log lacks %s: %s", want, text)
+		}
+	}
+	override := 2
+	cfg.Cleanup.CacheVolumeMinAgeHours = &override
+	if got := cacheVolumeMinAge(cfg.Cleanup); got != 2 {
+		t.Fatalf("cacheVolumeMinAge(override) = %d, want 2", got)
 	}
 }
 
@@ -53,8 +62,8 @@ func TestHelperCompletionLogsWarningsAndRollbackOutcomes(t *testing.T) {
 			t.Errorf("rollbackOutcome(%+v) = %q", test.result, got)
 		}
 	}
-	if shortOperationalID("sha256:1234567890123456") != "123456789012" || shortOperationalID("short") != "short" {
-		t.Fatal("shortOperationalID did not normalize IDs")
+	if logging.ShortID("sha256:1234567890123456") != "123456789012" || logging.ShortID("short") != "short" {
+		t.Fatal("ShortID did not normalize IDs")
 	}
 
 	var output bytes.Buffer

@@ -2,6 +2,7 @@ package config
 
 import (
 	"path/filepath"
+	"slices"
 	"strings"
 	"testing"
 	"time"
@@ -182,6 +183,62 @@ func TestStartupWarningsUnknownEnvironment(t *testing.T) {
 	for i := range want {
 		if warnings[i] != want[i] {
 			t.Fatalf("warning %d = %+v, want %+v", i, warnings[i], want[i])
+		}
+	}
+}
+
+func TestEnvironmentSetsImageListsAndTrimsNumbers(t *testing.T) {
+	cfg := Default()
+	err := cfg.ApplyEnvironment(envReader(map[string]string{
+		"HARBORBUDDY_ALLOW_IMAGES":          " ghcr.io/me/* , nginx:* ",
+		"HARBORBUDDY_DENY_IMAGES":           "postgres:*",
+		"HARBORBUDDY_INTERVAL":              " 2h ",
+		"HARBORBUDDY_CLEANUP_MIN_AGE_HOURS": " 12 ",
+	}))
+	if err != nil {
+		t.Fatalf("ApplyEnvironment() error = %v", err)
+	}
+	if !slices.Equal(cfg.Updates.AllowImages, []string{"ghcr.io/me/*", "nginx:*"}) || !slices.Equal(cfg.Updates.DenyImages, []string{"postgres:*"}) {
+		t.Fatalf("image lists = %v / %v", cfg.Updates.AllowImages, cfg.Updates.DenyImages)
+	}
+	if cfg.Updates.CheckInterval != 2*time.Hour || cfg.Cleanup.MinAgeHours != 12 || !cfg.IntervalOverride {
+		t.Fatalf("interval = %v, min age = %d, override = %v", cfg.Updates.CheckInterval, cfg.Cleanup.MinAgeHours, cfg.IntervalOverride)
+	}
+	untouched := Default()
+	if err := untouched.ApplyEnvironment(envReader(nil)); err != nil || untouched.IntervalOverride {
+		t.Fatalf("empty environment marked the interval as overridden: %v", err)
+	}
+}
+
+func TestStartupWarningsIgnoredInterval(t *testing.T) {
+	cfg := Default()
+	cfg.Updates.ScheduleTime = "03:00"
+	cfg.IntervalOverride = true
+	warnings := StartupWarnings(cfg, nil)
+	if len(warnings) != 1 || !strings.Contains(warnings[0].Message, "is ignored because schedule_time 03:00 is set") {
+		t.Fatalf("StartupWarnings() = %+v, want the ignored-interval warning", warnings)
+	}
+	cfg.RunOnce = true
+	if warnings := StartupWarnings(cfg, nil); len(warnings) != 0 {
+		t.Fatalf("one-shot run warned about an unused interval: %+v", warnings)
+	}
+}
+
+func TestIntervalIsValidatedOnlyWhenTheIntervalSchedulerUsesIt(t *testing.T) {
+	cfg := Default()
+	cfg.Updates.CheckInterval = 0
+	if err := cfg.Validate(); err == nil || !strings.Contains(err.Error(), "updates.check_interval must be at least") {
+		t.Fatalf("Validate() = %v, want the interval error", err)
+	}
+	for _, edit := range []func(*Config){
+		func(c *Config) { c.RunOnce = true },
+		func(c *Config) { c.CleanupOnly = true },
+		func(c *Config) { c.Updates.ScheduleTime = "03:00" },
+	} {
+		unused := cfg
+		edit(&unused)
+		if err := unused.Validate(); err != nil {
+			t.Fatalf("Validate() = %v, want an unused interval accepted", err)
 		}
 	}
 }

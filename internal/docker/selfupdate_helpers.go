@@ -4,7 +4,6 @@ import (
 	"context"
 	"errors"
 	"fmt"
-	"strings"
 	"time"
 
 	containertypes "github.com/moby/moby/api/types/container"
@@ -40,13 +39,9 @@ func (d *DockerClient) ListSelfUpdateHelpers(ctx context.Context) ([]SelfUpdateH
 		if current.Labels[SelfUpdateHelperLabel] != "true" {
 			continue
 		}
-		name := ""
-		if len(current.Names) > 0 {
-			name = strings.TrimPrefix(current.Names[0], "/")
-		}
 		records = append(records, SelfUpdateHelperRecord{
 			ID:                current.ID,
-			Name:              name,
+			Name:              primaryName(current.Names),
 			TargetContainerID: current.Labels[SelfUpdateTargetLabel],
 			TargetImageID:     current.Labels[SelfUpdateImageLabel],
 			Finished:          helperFinished(current.State),

@@ -4,7 +4,34 @@ All notable changes to HarborBuddy are documented here. The format follows [Keep
 
 ## [Unreleased]
 
+### Added
+
+- `HARBORBUDDY_ALLOW_IMAGES` and `HARBORBUDDY_DENY_IMAGES` set the update allow and deny lists without a config file.
+- A startup warning when `HARBORBUDDY_INTERVAL` or `--interval` is set but ignored because a schedule time takes precedence.
+- The effective-configuration log now includes the stop and startup timeouts, allow and deny lists, the cache-volume age, log rotation limits, and the one-shot modes.
+
+### Changed
+
+- `--once` and `--cleanup-only` exit non-zero when a container update or cleanup removal failed. A daemon cycle with such failures is logged as `partial_failure` at warning level instead of `completed`.
+- The update interval is no longer validated for `--once` and `--cleanup-only`, which never use it.
+- Integer and duration environment variables ignore surrounding whitespace, as booleans already did.
+- One container inspection per container is reused when checking for namespace dependents, instead of one per update candidate per container.
+- An active self-update handoff is detected before images are pulled, and `--once` no longer pulls HarborBuddy's own image.
+- `make verify-local` now also runs the protocol E2E journeys (`make test-e2e`), so it needs Node after `npm ci`.
+- `make test-cover` checks per-package coverage floors from its single test run instead of running each package again.
+
+### Removed
+
+- The weekly `Multi-Platform Runtime Verification` workflow; the publish workflow already runs the image on `linux/amd64`, `linux/arm64`, and `linux/arm/v7`.
+
 ### Fixed
+
+- A failed image pull no longer blocks unused-network cleanup for the cycle; only a replacement that actually started does.
+- A Docker API error while waiting for a self-update helper no longer makes the daemon exit as if a handoff were in progress; the cycle fails and the next one retries.
+- A transient inspect error during the readiness wait no longer rolls back an otherwise healthy replacement; inspection is retried until the startup timeout.
+- Rollback image tags above a lowered `updates.rollback_image_retention`, including `0`, are removed at the next update of that image reference instead of staying protected forever.
+- Dry-run no longer reports build-cache records as removable when a real run would skip the prune.
+- Container names are taken from the container's own name everywhere, never from a legacy link alias.
 
 - Containers with a bind mount that uses a mode such as `cached`, `delegated`, or `consistent`, or a mount target written with a trailing slash, are no longer recreated with a duplicate mount that Docker rejects.
 - Image pulls with a very long progress stream no longer fail with `pull response exceeds 16777216 bytes`; the stream is validated as it arrives.

@@ -59,14 +59,36 @@ func TestRetainRollbackImageReplacesOldestSlotAndCleansSupersededImage(t *testin
 	}
 }
 
-func TestRetainRollbackImageDisabledMakesNoDockerCalls(t *testing.T) {
+func TestRetainRollbackImageDisabledOnlyChecksForLeftoverSlots(t *testing.T) {
 	transport := newMockTransport()
 	client := testDockerClient(t, transport)
 	if err := client.retainRollbackImage(context.Background(), "app:latest", "sha256:old", 0); err != nil {
 		t.Fatalf("retainRollbackImage() error = %v", err)
 	}
-	if calls := transport.getCalls(); len(calls) != 0 {
-		t.Fatalf("disabled retention made Docker calls: %v", calls)
+	if calls := transport.getCalls(); len(calls) != 1 || !strings.HasPrefix(calls[0], "GET ") {
+		t.Fatalf("disabled retention calls = %v, want one slot inspection", calls)
+	}
+}
+
+func TestRetainRollbackImageRemovesSlotsAboveLoweredRetention(t *testing.T) {
+	transport := newMockTransport()
+	repository := rollbackImageRepository("app:latest")
+	registerImageInspect(transport, repository+":1", "sha256:one")
+	registerImageInspect(transport, repository+":2", "sha256:two")
+	registerServerError(transport, "GET", "/v1.41/images/"+repository+":3/json", "inspect failed")
+	transport.register("DELETE", "/v1.41/images/"+repository+":1", func(*http.Request) (*http.Response, error) {
+		return jsonResponse(http.StatusOK, []map[string]string{{"Untagged": repository + ":1"}})
+	})
+	registerServerError(transport, "DELETE", "/v1.41/images/"+repository+":2", "image is in use")
+	client := testDockerClient(t, transport)
+
+	err := client.retainRollbackImage(context.Background(), "app:latest", "sha256:old", 0)
+	if err == nil || !strings.Contains(err.Error(), "clean rollback slot 2") || !strings.Contains(err.Error(), "inspect rollback slot 3") {
+		t.Fatalf("retainRollbackImage() error = %v, want slot 2 removal and slot 3 inspection warnings", err)
+	}
+	calls := transport.getCalls()
+	if !slices.Contains(calls, "DELETE /v1.41/images/"+repository+":1") || slices.ContainsFunc(calls, func(call string) bool { return strings.HasPrefix(call, "POST ") }) {
+		t.Fatalf("calls = %v, want leftover slots removed and nothing tagged", calls)
 	}
 }
 
@@ -253,7 +275,7 @@ func TestRetainRollbackImageKeepsImageAlreadyInFirstSlot(t *testing.T) {
 	if err := client.retainRollbackImage(context.Background(), "registry.example/team/app:stable", "sha256:old", 1); err != nil {
 		t.Fatalf("retainRollbackImage() error = %v", err)
 	}
-	if calls := transport.getCalls(); len(calls) != 1 || !strings.HasPrefix(calls[0], "GET ") {
-		t.Fatalf("calls = %v, want one slot inspection and no removal or retag", calls)
+	if calls := transport.getCalls(); slices.ContainsFunc(calls, func(call string) bool { return !strings.HasPrefix(call, "GET ") }) {
+		t.Fatalf("calls = %v, want slot inspections only, no removal or retag", calls)
 	}
 }

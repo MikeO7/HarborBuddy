@@ -19,7 +19,7 @@
   deny_images:
     - "*:latest"
     - "postgres:*"</code></pre>
-          <p>A pattern is an exact value or has one <code>*</code> at either end. Each pattern is checked against the reference as written, its short form with the implicit <code>:latest</code> tag, and its fully qualified form. So <code>*:latest</code> matches <code>image: nginx</code>, and <code>nginx:*</code> matches <code>docker.io/library/nginx:1.27</code>.</p>
+          <p>A pattern is an exact value or has one <code>*</code> at either end. Each pattern is checked against the reference as written, its short form with the implicit <code>:latest</code> tag, and its fully qualified form. So <code>*:latest</code> matches <code>image: nginx</code>, and <code>nginx:*</code> matches <code>docker.io/library/nginx:1.27</code>. Without a config file, set the same lists with <code>HARBORBUDDY_ALLOW_IMAGES</code> and <code>HARBORBUDDY_DENY_IMAGES</code>, comma-separated.</p>
 
           <h2 id="opt-in">Opt in instead of opting out</h2>
           <p>To update only the images you list, replace the default <code>allow_images: ["*"]</code> with your own list. Anything that does not match is skipped and logged at debug level.</p>

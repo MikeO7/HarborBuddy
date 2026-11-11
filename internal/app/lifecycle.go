@@ -5,8 +5,9 @@ import (
 	"errors"
 	"fmt"
 	"io"
-	"strings"
 	"time"
+
+	"github.com/MikeO7/HarborBuddy/internal/logging"
 
 	"github.com/MikeO7/HarborBuddy/internal/buildinfo"
 	"github.com/MikeO7/HarborBuddy/internal/config"
@@ -91,8 +92,8 @@ func runHelper(ctx context.Context, stdout io.Writer, deps Dependencies, values 
 
 	started := time.Now()
 	logger.Info().Str("event", "self_update_helper_starting").
-		Str("target_container_id", shortOperationalID(values.targetContainer)).
-		Str("target_image_id", shortOperationalID(values.newImage)).
+		Str("target_container_id", logging.ShortID(values.targetContainer)).
+		Str("target_image_id", logging.ShortID(values.newImage)).
 		Msg("Self-update helper starting")
 	if _, err := fmt.Fprintln(stdout, docker.SelfUpdateHelperReadyMarker); err != nil {
 		return fmt.Errorf("acknowledge self-update helper readiness: %w", err)
@@ -111,8 +112,8 @@ func runHelper(ctx context.Context, stdout io.Writer, deps Dependencies, values 
 	result, helperErr := deps.RunHelper(ctx, client, request)
 	if helperErr != nil {
 		logger.Error().Str("event", "self_update_helper_failed").
-			Str("target_container_id", shortOperationalID(values.targetContainer)).
-			Str("target_image_id", shortOperationalID(values.newImage)).
+			Str("target_container_id", logging.ShortID(values.targetContainer)).
+			Str("target_image_id", logging.ShortID(values.newImage)).
 			Str("failure_stage", result.FailureStage).
 			Bool("rollback_attempted", result.RollbackAttempted).
 			Str("rollback_outcome", rollbackOutcome(result)).
@@ -122,16 +123,16 @@ func runHelper(ctx context.Context, stdout io.Writer, deps Dependencies, values 
 		return fmt.Errorf("run self-update helper: %w", helperErr)
 	}
 	event := logger.Info().Str("event", "self_update_helper_complete").
-		Str("target_container_id", shortOperationalID(values.targetContainer)).
-		Str("target_image_id", shortOperationalID(values.newImage)).
-		Str("new_container_id", shortOperationalID(result.NewContainerID)).
+		Str("target_container_id", logging.ShortID(values.targetContainer)).
+		Str("target_image_id", logging.ShortID(values.newImage)).
+		Str("new_container_id", logging.ShortID(result.NewContainerID)).
 		Int64("duration_ms", time.Since(started).Milliseconds())
 	warning := errors.Join(result.BackupCleanupErr, result.RollbackImageRetentionErr)
 	if warning != nil {
 		event = logger.Warn().Str("event", "self_update_helper_complete").
-			Str("target_container_id", shortOperationalID(values.targetContainer)).
-			Str("target_image_id", shortOperationalID(values.newImage)).
-			Str("new_container_id", shortOperationalID(result.NewContainerID)).
+			Str("target_container_id", logging.ShortID(values.targetContainer)).
+			Str("target_image_id", logging.ShortID(values.newImage)).
+			Str("new_container_id", logging.ShortID(result.NewContainerID)).
 			Str("warning", warning.Error()).
 			Int64("duration_ms", time.Since(started).Milliseconds())
 	}
@@ -147,14 +148,6 @@ func rollbackOutcome(result docker.ReplaceResult) string {
 		return "failed"
 	}
 	return "succeeded"
-}
-
-func shortOperationalID(id string) string {
-	id = strings.TrimPrefix(id, "sha256:")
-	if len(id) > 12 {
-		return id[:12]
-	}
-	return id
 }
 
 func mergeCloseError(runErr *error, resource string, closeResource func() error) {

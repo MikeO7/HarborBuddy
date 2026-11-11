@@ -17,7 +17,7 @@ Telemetry is disabled by the runner script. Port 39070 must be free.
 The journeys cover CLI and config rejection, precedence, filters, dry-run,
 replacement, rollback, cleanup, scheduling, and self-update handoff/helper mode.
 Rejected input must leave Docker resources and log files untouched. Docker pull
-responses are bounded to 16 MiB and checked before inspecting a cached image.
+responses are checked before inspecting a cached image.
 
 Evidence lives in `.e2e/report.json`, `environment.json`, `junit.xml`, `summary.md`,
 and `fixtures/`. It records revision, command, environment, synthetic data, process
@@ -25,7 +25,7 @@ output, and protocol requests. These tests verify HarborBuddy's real executable
 against a protocol fixture. The live runtime suite below verifies actual Docker
 and Podman behavior, image pulls, health checks, and autonomous helper execution.
 
-`make verify-local` is the comprehensive developer suite. It combines the Go and repository-policy checks with `test/integration.sh`, the disposable Docker-compatible runtime test.
+`make verify-local` is the comprehensive developer suite. It combines the Go and repository-policy checks with the protocol journeys above and `test/integration.sh`, the disposable Docker-compatible runtime test, so it needs Node (after `npm ci`) as well as a container engine.
 
 ## Requirements
 
@@ -84,11 +84,11 @@ This is an end-to-end test for the image, Docker-compatible connection, discover
 ```bash
 make fmt-check source-limits
 make vet lint vuln
-make test-cover test-race test-fuzz build
+make test-cover test-race test-fuzz test-e2e build
 make lint-nongo
 ```
 
-CI runs the full disposable integration suite against both Docker and Podman on `linux/amd64`. It also builds and runs the scratch image directly. The scheduled multi-platform workflow builds and runs it under QEMU for `linux/amd64`, `linux/arm64`, and `linux/arm/v7`.
+CI runs the full disposable integration suite against both Docker and Podman on `linux/amd64`. The image publication workflow builds the scratch image and runs it on `linux/amd64` for every pull request, and under QEMU for `linux/amd64`, `linux/arm64`, and `linux/arm/v7` when it publishes.
 
 ## Troubleshooting
 

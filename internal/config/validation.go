@@ -13,6 +13,9 @@ const maxCleanupMinAgeHours = int((1<<63 - 1) / int64(time.Hour))
 const MinCheckInterval = time.Second
 
 func (c Config) Validate() error {
+	if err := validateInterval(c); err != nil {
+		return err
+	}
 	if err := validateUpdates(c.Updates); err != nil {
 		return err
 	}
@@ -25,10 +28,16 @@ func (c Config) Validate() error {
 	return validateLog(c.Log)
 }
 
-func validateUpdates(cfg UpdatesConfig) error {
-	if cfg.ScheduleTime == "" && cfg.CheckInterval < MinCheckInterval {
-		return fmt.Errorf("updates.check_interval must be at least %s when schedule_time is not set", MinCheckInterval)
+// validateInterval checks the interval only when the interval scheduler will
+// use it: a daily schedule and the one-shot modes never read it.
+func validateInterval(c Config) error {
+	if c.Updates.ScheduleTime != "" || c.RunOnce || c.CleanupOnly || c.Updates.CheckInterval >= MinCheckInterval {
+		return nil
 	}
+	return fmt.Errorf("updates.check_interval must be at least %s when schedule_time is not set", MinCheckInterval)
+}
+
+func validateUpdates(cfg UpdatesConfig) error {
 	if cfg.StopTimeout <= 0 {
 		return errors.New("updates.stop_timeout must be positive")
 	}

@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"time"
 
+	"github.com/containerd/errdefs"
 	containertypes "github.com/moby/moby/api/types/container"
 )
 
@@ -27,37 +28,42 @@ func (d *DockerClient) waitUntilReady(ctx context.Context, id string, healthchec
 		healthcheck:   healthcheckEnabled(healthcheck),
 		stabilization: options.StabilizationTime,
 	}
+	// A failed inspection says nothing about the replacement, so it is retried
+	// until the startup timeout; only a missing container fails at once.
+	var inspectErr error
 	for {
-		ready, err := d.inspectReadiness(readyCtx, id, &tracker)
-		if err != nil {
+		details, err := d.InspectContainer(readyCtx, id)
+		switch {
+		case err == nil:
+			inspectErr = nil
+			ready, stateErr := tracker.evaluate(details)
+			if stateErr != nil || ready {
+				return stateErr
+			}
+		case errdefs.IsNotFound(err):
 			return err
-		}
-		if ready {
-			return nil
+		case readyCtx.Err() == nil:
+			inspectErr = err
 		}
 		select {
 		case <-readyCtx.Done():
-			return fmt.Errorf("startup timeout: %w", readyCtx.Err())
+			return fmt.Errorf("startup timeout: %w", errors.Join(readyCtx.Err(), inspectErr))
 		case <-ticker.C:
 		}
 	}
 }
 
-func (d *DockerClient) inspectReadiness(ctx context.Context, id string, tracker *readinessTracker) (bool, error) {
-	details, err := d.InspectContainer(ctx, id)
-	if err != nil {
-		return false, err
-	}
+func (t *readinessTracker) evaluate(details ContainerDetails) (bool, error) {
 	if err := validateRunningState(details.State); err != nil {
 		return false, err
 	}
 
 	now := time.Now()
-	tracker.observeProcess(details.State, now)
-	if tracker.healthcheck {
+	t.observeProcess(details.State, now)
+	if t.healthcheck {
 		return healthReady(details.State)
 	}
-	return now.Sub(tracker.stableSince) >= tracker.stabilization, nil
+	return now.Sub(t.stableSince) >= t.stabilization, nil
 }
 
 func validateRunningState(state *containertypes.State) error {

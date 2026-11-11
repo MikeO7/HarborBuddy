@@ -18,12 +18,9 @@ func processCandidates(
 	client docker.Client,
 	results []ContainerResult,
 	selfID string,
+	settledHelper string,
 	logger zerolog.Logger,
 ) error {
-	settledHelper, err := settleActiveHelper(ctx, client, results, selfID, logger)
-	if err != nil {
-		return err
-	}
 	history := loadHelperHistory(ctx, cfg, client, logger)
 	markFinished(history, settledHelper)
 	selfIndex := -1
@@ -34,7 +31,7 @@ func processCandidates(
 		}
 		_ = processCandidate(ctx, cfg, client, &results[index], false)
 	}
-	if selfIndex < 0 || skipSelfCandidate(cfg, &results[selfIndex], history, logger) {
+	if selfIndex < 0 || skipSelfCandidate(&results[selfIndex], history, logger) {
 		return nil
 	}
 	return processCandidate(ctx, cfg, client, &results[selfIndex], true)

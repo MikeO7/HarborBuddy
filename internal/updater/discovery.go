@@ -32,7 +32,7 @@ func newResults(containers []docker.ContainerSummary) []ContainerResult {
 
 func discoverCandidates(
 	ctx context.Context,
-	cfg config.UpdatesConfig,
+	cfg config.Config,
 	client docker.Client,
 	results []ContainerResult,
 	selfID string,
@@ -51,20 +51,25 @@ func discoverCandidates(
 	wait.Wait()
 }
 
-func excludeCandidate(cfg config.UpdatesConfig, result *ContainerResult, selfID string) bool {
+func excludeCandidate(cfg config.Config, result *ContainerResult, selfID string) bool {
 	isSelf := selfID != "" && result.Container.ID == selfID
 	switch {
 	case result.Container.Labels[RoleLabel] == DaemonRole && !isSelf:
 		result.Status = StatusExcluded
 		result.Reason = "HarborBuddy daemon identity is not the current process"
 		return true
-	case isSelf && !cfg.SelfUpdate:
+	case isSelf && !cfg.Updates.SelfUpdate:
 		result.Status = StatusExcluded
 		result.Reason = "self-update is disabled"
 		return true
+	case isSelf && cfg.RunOnce:
+		// A one-shot run never hands off to a helper, so it does not pull either.
+		result.Status = StatusExcluded
+		result.Reason = "self-update never runs in run-once mode"
+		return true
 	}
 
-	decision := DetermineEligibility(result.Container, cfg)
+	decision := DetermineEligibility(result.Container, cfg.Updates)
 	if decision.Eligible {
 		return false
 	}

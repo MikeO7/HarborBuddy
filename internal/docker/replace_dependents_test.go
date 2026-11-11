@@ -114,3 +114,28 @@ func TestCheckNamespaceDependentsReportsDockerFailures(t *testing.T) {
 		t.Fatalf("inspect failure = %v", err)
 	}
 }
+
+func TestCheckNamespaceDependentsInspectsEachContainerOnce(t *testing.T) {
+	transport := dependentsTransport(t, map[string]*containertypes.HostConfig{"web": {NetworkMode: "bridge"}})
+	client := testDockerClient(t, transport)
+	for range 3 {
+		if err := client.CheckNamespaceDependents(context.Background(), providerDetails()); err != nil {
+			t.Fatalf("CheckNamespaceDependents() error = %v", err)
+		}
+	}
+	inspections := 0
+	for _, call := range transport.getCalls() {
+		if call == "GET /v1.41/containers/web-id/json" {
+			inspections++
+		}
+	}
+	if inspections != 1 {
+		t.Fatalf("inspected the same container %d times across three checks, want 1", inspections)
+	}
+
+	// A container that is gone is dropped, so a reused ID is inspected again.
+	client.dependents.keep(nil)
+	if len(client.dependents.hosts) != 0 {
+		t.Fatalf("cache kept removed containers: %v", client.dependents.hosts)
+	}
+}

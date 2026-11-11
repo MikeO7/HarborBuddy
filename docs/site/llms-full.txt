@@ -379,7 +379,7 @@ updates:
     - "postgres:*"
 ```
 
-A pattern is an exact value or has one `*` at either end. Each pattern is checked against the reference as written, its short form with the implicit `:latest` tag, and its fully qualified form. So `*:latest` matches `image: nginx`, and `nginx:*` matches `docker.io/library/nginx:1.27`.
+A pattern is an exact value or has one `*` at either end. Each pattern is checked against the reference as written, its short form with the implicit `:latest` tag, and its fully qualified form. So `*:latest` matches `image: nginx`, and `nginx:*` matches `docker.io/library/nginx:1.27`. Without a config file, set the same lists with `HARBORBUDDY_ALLOW_IMAGES` and `HARBORBUDDY_DENY_IMAGES`, comma-separated.
 
 ## Opt in instead of opting out
 
@@ -411,12 +411,14 @@ Booleans accept `true`/`false`, `yes`/`no`, `on`/`off`, or `1`/`0` in any case. 
 | Variable | Default | What it controls |
 | `HARBORBUDDY_CONFIG` | `/config/harborbuddy.yml` | Configuration file path |
 | `HARBORBUDDY_DOCKER_HOST` | empty | Explicit Docker endpoint; overrides `DOCKER_HOST` |
-| `HARBORBUDDY_INTERVAL` | `12h` | Update interval; at least `1s` |
+| `HARBORBUDDY_INTERVAL` | `12h` | Update interval; at least `1s`. Ignored when a schedule time is set |
 | `HARBORBUDDY_SCHEDULE_TIME` | empty | Daily run time in `HH:MM` |
 | `HARBORBUDDY_TIMEZONE` | `UTC` | IANA timezone; overrides `updates.timezone` and `TZ` |
 | `TZ` | empty | Timezone fallback when neither of the above is set |
 | `HARBORBUDDY_DRY_RUN` | `false` | Pull and report without replacing containers or deleting anything |
 | `HARBORBUDDY_UPDATES_ENABLED` | `true` | Enable update checks |
+| `HARBORBUDDY_ALLOW_IMAGES` | `*` | Comma-separated image patterns to update |
+| `HARBORBUDDY_DENY_IMAGES` | empty | Comma-separated image patterns never to update |
 | `HARBORBUDDY_SELF_UPDATE_ENABLED` | `true` | Let HarborBuddy update its own container |
 | `HARBORBUDDY_CONTAINER_NAME` | empty | Stable name that identifies the HarborBuddy container |
 | `HARBORBUDDY_CONTAINER_ID` | empty | Container ID, or a unique prefix of at least 12 characters |

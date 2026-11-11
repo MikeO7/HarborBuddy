@@ -2,12 +2,13 @@ package app
 
 import (
 	"context"
-	"github.com/MikeO7/HarborBuddy/internal/config"
-	"github.com/MikeO7/HarborBuddy/internal/logging"
-	"github.com/rs/zerolog"
 	"io"
 	"strings"
 	"testing"
+
+	"github.com/MikeO7/HarborBuddy/internal/config"
+	"github.com/MikeO7/HarborBuddy/internal/logging"
+	"github.com/rs/zerolog"
 )
 
 func TestPositionalArgumentsRejectedBeforeSideEffects(t *testing.T) {
