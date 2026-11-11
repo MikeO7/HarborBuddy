@@ -22,7 +22,7 @@ func testDockerClient(t *testing.T, transport http.RoundTripper) *DockerClient {
 		client.WithAPIVersion("1.41"),
 	)
 	if err != nil {
-		t.Fatalf("NewClientWithOpts() error = %v", err)
+		t.Fatalf("client.New() error = %v", err)
 	}
 	t.Cleanup(func() { _ = cli.Close() })
 	return &DockerClient{cli: cli}

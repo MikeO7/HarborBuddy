@@ -14,6 +14,10 @@ import (
 // the replacement touched the original container.
 const FailureStageCancelledBeforeStart = "cancelled_before_start"
 
+// FailureStageStartReplacement reports that the replacement was created but
+// failed to start or to become ready, so the target image itself is suspect.
+const FailureStageStartReplacement = "start_replacement"
+
 const (
 	backupNameMarker = "-harborbuddy-backup-"
 	// transactionSlack covers Docker API round trips beyond the configured

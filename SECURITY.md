@@ -2,12 +2,12 @@
 
 ## Supported versions
 
-HarborBuddy does not yet have a versioned stable release. Security fixes are currently made on `main` and published through the moving `edge` and `latest` image tags.
+HarborBuddy is early-stage software; 0.1.x is the current release line. Security fixes are made on `main`, published through the moving `edge` and `latest` image tags, and included in the next 0.1.x release.
 
 | Version | Supported |
 | --- | --- |
-| Current `main`, `edge`, and `latest` | Best effort |
-| Older commit images | No |
+| Latest 0.1.x release, current `main`, `edge`, and `latest` | Best effort |
+| Older releases and commit images | No |
 
 ## Reporting a vulnerability
 
@@ -54,7 +54,7 @@ Dry-run pulls eligible image references to compare image IDs. Pulling changes th
 
 ### Image and release verification
 
-Published images are built from a scratch runtime and contain the static HarborBuddy binary, CA certificates, and timezone data. Image publication includes SBOM and provenance attestations in the container registry. The build inputs and Go builder are digest-pinned, and Trivy blocks fixed HIGH and CRITICAL image vulnerabilities before publication. Until the first versioned release, both `latest` and `edge` move with `main`; pin an image digest where change control requires an immutable reference.
+Published images are built from a scratch runtime and contain the static HarborBuddy binary, CA certificates, and timezone data. Image publication includes SBOM and provenance attestations in the container registry. The build inputs and Go builder are digest-pinned, and Trivy blocks fixed HIGH and CRITICAL image vulnerabilities before publication. Both `latest` and `edge` move with `main`; pin an exact version tag or an image digest where change control requires an immutable reference.
 
 CI also runs pinned golangci-lint, govulncheck, Gitleaks, Actionlint, ShellCheck, Hadolint, and yamllint checks. Scanner success is not proof that no vulnerability or secret exists. The reviewed govulncheck exceptions are limited to unfixed Moby daemon and `docker cp` advisories whose affected APIs HarborBuddy does not provide or invoke; any new advisory remains blocking.
 
@@ -77,5 +77,5 @@ GitHub code-scanning presentation and native secret push protection depend on re
 Security advisories and fixed builds are published through:
 
 - [GitHub Security Advisories](https://github.com/MikeO7/HarborBuddy/security/advisories)
-- [GitHub Releases](https://github.com/MikeO7/HarborBuddy/releases) once versioned releases begin
+- [GitHub Releases](https://github.com/MikeO7/HarborBuddy/releases)
 - `ghcr.io/mikeo7/harborbuddy`

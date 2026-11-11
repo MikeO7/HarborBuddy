@@ -96,7 +96,7 @@ func (d *DockerClient) ensureContainerStopped(ctx context.Context, id string, ti
 	return nil
 }
 
-func (d *DockerClient) restoreOldContainer(parent context.Context, current ContainerDetails, renamed bool, disconnected []string, replacementID string, timeoutSeconds int) error {
+func (d *DockerClient) restoreOldContainer(parent context.Context, current ContainerDetails, disconnected []string, replacementID string, timeoutSeconds int) error {
 	// Always detached: rollback must not be cut short by shutdown or by the
 	// transaction deadline. Its own budget covers stopping the replacement.
 	rollbackCtx, cancel := context.WithTimeout(context.WithoutCancel(parent), rollbackTimeout(timeoutSeconds))
@@ -106,9 +106,7 @@ func (d *DockerClient) restoreOldContainer(parent context.Context, current Conta
 	if replacementID != "" {
 		rollbackErrors = appendError(rollbackErrors, d.removeReplacement(rollbackCtx, replacementID, timeoutSeconds))
 	}
-	if renamed {
-		rollbackErrors = appendError(rollbackErrors, d.restoreContainerName(rollbackCtx, current))
-	}
+	rollbackErrors = appendError(rollbackErrors, d.restoreContainerName(rollbackCtx, current))
 	rollbackErrors = append(rollbackErrors, d.reconnectNetworks(rollbackCtx, current, disconnected)...)
 	rollbackErrors = appendError(rollbackErrors, d.restoreRestartPolicy(rollbackCtx, current))
 	rollbackErrors = appendError(rollbackErrors, d.restartOldContainer(rollbackCtx, current.Summary.ID))

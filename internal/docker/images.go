@@ -1,7 +1,6 @@
 package docker
 
 import (
-	"bytes"
 	"context"
 	"encoding/json"
 	"errors"
@@ -20,8 +19,9 @@ func (d *DockerClient) PullImage(ctx context.Context, imageRef string) (ImageInf
 	if err != nil {
 		return ImageInfo{}, fmt.Errorf("pull image %s: %w", imageRef, err)
 	}
-	const maxPullResponse = 16 * 1024 * 1024
-	response, readErr := io.ReadAll(io.LimitReader(reader, maxPullResponse+1))
+	// The progress stream grows with pull duration and layer count, so it is
+	// validated as it arrives instead of being buffered against a size cap.
+	messages, readErr := validatePullResponse(reader)
 	closeErr := reader.Close()
 	if readErr != nil {
 		return ImageInfo{}, fmt.Errorf("read pull response for %s: %w", imageRef, readErr)
@@ -29,14 +29,8 @@ func (d *DockerClient) PullImage(ctx context.Context, imageRef string) (ImageInf
 	if closeErr != nil {
 		return ImageInfo{}, fmt.Errorf("close pull response for %s: %w", imageRef, closeErr)
 	}
-	if len(response) > maxPullResponse {
-		return ImageInfo{}, fmt.Errorf("pull response exceeds %d bytes", maxPullResponse)
-	}
-	if len(bytes.TrimSpace(response)) == 0 {
+	if messages == 0 {
 		return ImageInfo{}, fmt.Errorf("empty pull response for %s", imageRef)
-	}
-	if err := validatePullResponse(response); err != nil {
-		return ImageInfo{}, fmt.Errorf("read pull response for %s: %w", imageRef, err)
 	}
 	return d.inspectImage(ctx, imageRef)
 }
@@ -128,26 +122,28 @@ func cloneStringMap(source map[string]string) map[string]string {
 	return result
 }
 
-func validatePullResponse(response []byte) error {
-	decoder := json.NewDecoder(bytes.NewReader(response))
-	for {
+// validatePullResponse reads the pull progress stream to its end and returns
+// how many messages it held, failing on the first error message.
+func validatePullResponse(response io.Reader) (int, error) {
+	decoder := json.NewDecoder(response)
+	for messages := 0; ; messages++ {
 		var message *struct {
 			jsonstream.Message
 			LegacyError string `json:"error"`
 		}
 		if err := decoder.Decode(&message); errors.Is(err, io.EOF) {
-			return nil
+			return messages, nil
 		} else if err != nil {
-			return err
+			return messages, err
 		}
 		if message == nil || (message.Stream == "" && message.Status == "" && message.Progress == nil && message.ID == "" && message.Error == nil && message.Aux == nil && message.LegacyError == "") {
-			return errors.New("missing pull message")
+			return messages, errors.New("missing pull message")
 		}
 		if message.Error != nil {
-			return message.Error
+			return messages, message.Error
 		}
 		if message.LegacyError != "" {
-			return errors.New(message.LegacyError)
+			return messages, errors.New(message.LegacyError)
 		}
 	}
 }

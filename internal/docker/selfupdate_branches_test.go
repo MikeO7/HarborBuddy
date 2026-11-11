@@ -56,15 +56,6 @@ func TestStartSelfUpdateHelperReportsCreateAndReadinessFailures(t *testing.T) {
 	}
 
 	transport.register("GET", "/v1.41/containers/helper-id/logs", func(*http.Request) (*http.Response, error) {
-		return &http.Response{StatusCode: http.StatusOK, Body: &closeErrorReader{Reader: strings.NewReader(SelfUpdateHelperReadyMarker + "\n")}, Header: make(http.Header)}, nil
-	})
-	transport.register("GET", "/v1.41/containers/helper-id/json", func(*http.Request) (*http.Response, error) {
-		return jsonResponse(http.StatusOK, inspectedContainer("helper-id", "helper", "image", true))
-	})
-	transport.register("GET", "/v1.41/containers/helper-id/json", func(*http.Request) (*http.Response, error) {
-		return jsonResponse(http.StatusOK, inspectedContainer("helper-id", "helper", "image", true))
-	})
-	transport.register("GET", "/v1.41/containers/helper-id/logs", func(*http.Request) (*http.Response, error) {
 		return &http.Response{StatusCode: http.StatusOK, Body: &markerCloseErrorReader{closeErr: errors.New("logs close failed")}, Header: make(http.Header)}, nil
 	})
 	if err := client.waitSelfUpdateHelperReady(context.Background(), "helper-id"); err == nil || !strings.Contains(err.Error(), "close helper logs") {
@@ -103,12 +94,6 @@ func TestStartSelfUpdateHelperCleansUpWhenRestartSuppressionFails(t *testing.T) 
 		t.Fatalf("helper was not cleaned up after handoff failure: %v", transport.getCalls())
 	}
 }
-
-type closeErrorReader struct {
-	*strings.Reader
-}
-
-func (*closeErrorReader) Close() error { return errors.New("logs close failed") }
 
 type markerCloseErrorReader struct {
 	closeErr error

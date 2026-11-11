@@ -55,7 +55,7 @@ func activeSelfUpdateHelper(results []ContainerResult, selfID string) string {
 // loadHelperHistory lists kept helpers and, outside dry-run, removes finished
 // ones past the retention window. History is best-effort: when it cannot be
 // read, self-update proceeds without the failed-handoff guard.
-func loadHelperHistory(ctx context.Context, cfg config.Config, client docker.Client, selfID string, logger zerolog.Logger) []docker.SelfUpdateHelperRecord {
+func loadHelperHistory(ctx context.Context, cfg config.Config, client docker.Client, logger zerolog.Logger) []docker.SelfUpdateHelperRecord {
 	history, ok := client.(selfupdate.HelperHistory)
 	if !ok {
 		return nil

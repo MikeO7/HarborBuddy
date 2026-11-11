@@ -36,17 +36,9 @@ type resourceCleaner interface {
 	PruneBuildCache(context.Context, time.Time) (docker.CleanupPruneResult, error)
 }
 
-func RunCleanup(ctx context.Context, cfg config.Config, client docker.Client, logger zerolog.Logger) (Report, error) {
-	return RunCleanupWithOptions(ctx, cfg, client, logger, Options{})
-}
-
 // RunCleanupWithOptions runs cleanup with facts the same cycle's update phase reported.
 func RunCleanupWithOptions(ctx context.Context, cfg config.Config, client docker.Client, logger zerolog.Logger, options Options) (Report, error) {
 	return runCleanupOptionsAt(ctx, cfg, client, logger, time.Now(), options)
-}
-
-func runCleanupAt(ctx context.Context, cfg config.Config, client docker.Client, logger zerolog.Logger, now time.Time) (Report, error) {
-	return runCleanupOptionsAt(ctx, cfg, client, logger, now, Options{})
 }
 
 func runCleanupOptionsAt(ctx context.Context, cfg config.Config, client docker.Client, logger zerolog.Logger, now time.Time, options Options) (report Report, returnErr error) {

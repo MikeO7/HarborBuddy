@@ -9,11 +9,6 @@ import (
 	"github.com/moby/moby/client"
 )
 
-// backupContainerMarker appears in the name ReplaceContainer gives the original
-// container while its replacement starts. A container that still carries it is
-// the user's original after an interrupted or failed rollback.
-const backupContainerMarker = "-harborbuddy-backup-"
-
 // containerUsage records what every container, running or stopped, references.
 // Docker's own counters are not enough for cleanup: network inspection lists
 // only running containers, and image listings do not count stopped containers
@@ -104,8 +99,11 @@ func repoDigests(digests []string) []string {
 	return result
 }
 
+// isBackupContainerName reports whether name carries the marker ReplaceContainer
+// gives the original container while its replacement starts. A container that
+// still carries it is the user's original after an interrupted or failed rollback.
 func isBackupContainerName(name string) bool {
-	return strings.Contains(name, backupContainerMarker)
+	return strings.Contains(name, backupNameMarker)
 }
 
 func addNonEmpty(set map[string]struct{}, value string) {

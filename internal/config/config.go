@@ -106,10 +106,6 @@ func Default() Config {
 	}
 }
 
-func LoadFromFile(path string) (Config, error) {
-	return LoadFile(path, false)
-}
-
 func LoadFile(path string, required bool) (Config, error) {
 	cfg := Default()
 	data, err := os.ReadFile(path) //nolint:gosec // The configuration path is intentionally user-selectable.

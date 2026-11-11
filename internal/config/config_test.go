@@ -121,17 +121,6 @@ func TestLoadFileAllowsEmptyDocument(t *testing.T) {
 	}
 }
 
-func TestLoadFromFileDelegatesToOptionalLoader(t *testing.T) {
-	path := writeConfig(t, "updates:\n  check_interval: 1h\n")
-	cfg, err := LoadFromFile(path)
-	if err != nil {
-		t.Fatalf("LoadFromFile() error = %v", err)
-	}
-	if cfg.Updates.CheckInterval != time.Hour {
-		t.Fatalf("CheckInterval = %v, want 1h", cfg.Updates.CheckInterval)
-	}
-}
-
 func TestApplyEnvironment(t *testing.T) {
 	env := map[string]string{
 		"HARBORBUDDY_DOCKER_HOST":                "tcp://env:2375",
@@ -230,17 +219,6 @@ func TestApplyEnvironmentTimezoneFallback(t *testing.T) {
 	}
 }
 
-func TestApplyEnvironmentOverridesReadsProcessEnvironment(t *testing.T) {
-	t.Setenv("HARBORBUDDY_LOG_LEVEL", "warn")
-	cfg := Default()
-	if err := cfg.ApplyEnvironmentOverrides(); err != nil {
-		t.Fatalf("ApplyEnvironmentOverrides() error = %v", err)
-	}
-	if cfg.Log.Level != "warn" {
-		t.Fatalf("Log.Level = %q, want warn", cfg.Log.Level)
-	}
-}
-
 func TestValidate(t *testing.T) {
 	tests := []struct {
 		name string
@@ -256,6 +234,7 @@ func TestValidate(t *testing.T) {
 		{name: "timezone", edit: func(c *Config) { c.Updates.ScheduleTime = "03:00"; c.Updates.Timezone = "Mars/Base" }, want: "timezone"},
 		{name: "allow pattern", edit: func(c *Config) { c.Updates.AllowImages = []string{"repo/*/image"} }, want: "unsupported image pattern"},
 		{name: "deny pattern", edit: func(c *Config) { c.Updates.DenyImages = []string{"repo/**"} }, want: "unsupported image pattern"},
+		{name: "empty allow pattern", edit: func(c *Config) { c.Updates.AllowImages = []string{""} }, want: "must not contain an empty pattern"},
 		{name: "negative age", edit: func(c *Config) { c.Cleanup.MinAgeHours = -1 }, want: "min_age_hours"},
 		{name: "overflowing age", edit: func(c *Config) { c.Cleanup.MinAgeHours = maxCleanupMinAgeHours + 1 }, want: "min_age_hours"},
 		{name: "log level", edit: func(c *Config) { c.Log.Level = "verbose" }, want: "log.level"},

@@ -9,7 +9,7 @@ import (
 // failedTargetStage is the replacement stage at which a target image proved
 // unable to start or become ready. Retrying the same image would stop the
 // working container again every cycle for the same result.
-const failedTargetStage = "start_replacement"
+const failedTargetStage = docker.FailureStageStartReplacement
 
 // failedTargetRecord remembers, per container name, the target image whose
 // replacement failed and was rolled back. It is in-memory only: a restart of

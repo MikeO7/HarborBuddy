@@ -5,6 +5,7 @@ package imageref
 
 import (
 	"regexp"
+	"slices"
 
 	"github.com/distribution/reference"
 )
@@ -23,7 +24,7 @@ func Variants(ref string) []string {
 	}
 	named = reference.TagNameOnly(named)
 	for _, candidate := range []string{reference.FamiliarString(named), named.String()} {
-		if !contains(variants, candidate) {
+		if !slices.Contains(variants, candidate) {
 			variants = append(variants, candidate)
 		}
 	}
@@ -64,13 +65,4 @@ func MatchAny(ref, pattern string, match func(image, pattern string) bool) bool 
 // 64-character hex) rather than a pullable repository reference.
 func IsImageID(ref string) bool {
 	return imageIDPattern.MatchString(ref)
-}
-
-func contains(values []string, value string) bool {
-	for _, current := range values {
-		if current == value {
-			return true
-		}
-	}
-	return false
 }

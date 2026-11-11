@@ -4,6 +4,7 @@ import (
 	"context"
 	"maps"
 	"net/netip"
+	"path"
 	"strings"
 
 	containertypes "github.com/moby/moby/api/types/container"
@@ -82,12 +83,21 @@ func preserveInspectedMounts(host *containertypes.HostConfig, inspected []contai
 func configuredMountTargets(host *containertypes.HostConfig) map[string]struct{} {
 	targets := make(map[string]struct{}, len(host.Binds)+len(host.Mounts))
 	for _, bind := range host.Binds {
-		targets[bindTarget(bind)] = struct{}{}
+		targets[mountTargetKey(bindTarget(bind))] = struct{}{}
 	}
 	for _, current := range host.Mounts {
-		targets[current.Target] = struct{}{}
+		targets[mountTargetKey(current.Target)] = struct{}{}
 	}
 	return targets
+}
+
+// mountTargetKey normalizes a configured target the way Docker reports an
+// inspected mount destination, so "/data/" and "/data" are the same mount.
+func mountTargetKey(target string) string {
+	if target == "" {
+		return ""
+	}
+	return path.Clean(target)
 }
 
 func reusableMount(current containertypes.MountPoint) (mount.Mount, bool) {

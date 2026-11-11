@@ -243,3 +243,17 @@ func registerServerError(transport *mockTransport, method, path, message string)
 		return nil, errors.New(message)
 	})
 }
+
+func TestRetainRollbackImageKeepsImageAlreadyInFirstSlot(t *testing.T) {
+	transport := newMockTransport()
+	repository := rollbackImageRepository("registry.example/team/app:stable")
+	registerImageInspect(transport, repository+":1", "sha256:old")
+	client := testDockerClient(t, transport)
+
+	if err := client.retainRollbackImage(context.Background(), "registry.example/team/app:stable", "sha256:old", 1); err != nil {
+		t.Fatalf("retainRollbackImage() error = %v", err)
+	}
+	if calls := transport.getCalls(); len(calls) != 1 || !strings.HasPrefix(calls[0], "GET ") {
+		t.Fatalf("calls = %v, want one slot inspection and no removal or retag", calls)
+	}
+}

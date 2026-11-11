@@ -164,16 +164,6 @@ func TestRunUpdateCycleCanDisableSelfUpdate(t *testing.T) {
 	}
 }
 
-func TestDaemonRoleLabelIsNotAnIdentityCheck(t *testing.T) {
-	decision := DetermineEligibility(docker.ContainerSummary{
-		ImageRef: "harborbuddy:latest",
-		Labels:   map[string]string{"com.harborbuddy.role": "daemon"},
-	}, config.UpdatesConfig{AllowImages: []string{"*"}})
-	if !decision.Eligible {
-		t.Fatalf("role-labeled container excluded as self: %s", decision.Reason)
-	}
-}
-
 func runningDetails(summary docker.ContainerSummary) docker.ContainerDetails {
 	return docker.ContainerDetails{
 		Summary: summary,

@@ -115,8 +115,8 @@ func TestCleanupDryRunNeverRemoves(t *testing.T) {
 func TestCleanupListError(t *testing.T) {
 	client := &fakeClient{listErr: errors.New("daemon unavailable")}
 	cfg := config.Default()
-	if _, err := RunCleanup(context.Background(), cfg, client, zerolog.Nop()); err == nil {
-		t.Fatal("RunCleanup() error = nil, want error")
+	if _, err := RunCleanupWithOptions(context.Background(), cfg, client, zerolog.Nop(), Options{}); err == nil {
+		t.Fatal("RunCleanupWithOptions() error = nil, want error")
 	}
 	if !client.danglingReq {
 		t.Fatal("default cleanup did not request dangling images")
@@ -368,4 +368,8 @@ func TestFormatBytesAndShortIDBoundaries(t *testing.T) {
 			t.Errorf("shortID(%q) = %q, want %q", test.id, got, test.want)
 		}
 	}
+}
+
+func runCleanupAt(ctx context.Context, cfg config.Config, client docker.Client, logger zerolog.Logger, now time.Time) (Report, error) {
+	return runCleanupOptionsAt(ctx, cfg, client, logger, now, Options{})
 }

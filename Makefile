@@ -28,6 +28,7 @@ build: ## Build a reproducible local binary
 
 clean: ## Remove local build artifacts
 	rm -f $(BINARY_NAME) coverage.out coverage-packages.txt
+	rm -rf .e2e
 	go clean -testcache
 
 test: ## Run unit tests

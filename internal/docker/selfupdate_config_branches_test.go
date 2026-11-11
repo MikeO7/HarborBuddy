@@ -40,11 +40,11 @@ func TestSelfUpdateEnvironmentAndPathFilteringPrecedence(t *testing.T) {
 		"HARBORBUDDY_DOCKER_HOST=unix:///custom.sock", "DOCKER_CERT_PATH=/certs", "MALFORMED",
 	}
 	environment, host, certPath := helperDockerEnvironment(source, "")
-	if host != "unix:///custom.sock" || certPath != "/certs" || !containsString(environment, "DOCKER_HOST=tcp://last:2375") || !containsString(environment, "HARBORBUDDY_DOCKER_HOST=unix:///custom.sock") || containsString(environment, "SECRET=hidden") {
+	if host != "unix:///custom.sock" || certPath != "/certs" || !slices.Contains(environment, "DOCKER_HOST=tcp://last:2375") || !slices.Contains(environment, "HARBORBUDDY_DOCKER_HOST=unix:///custom.sock") || slices.Contains(environment, "SECRET=hidden") {
 		t.Fatalf("helper environment = %v host=%q cert=%q", environment, host, certPath)
 	}
 	environment, host, _ = helperDockerEnvironment([]string{"DOCKER_HOST=tcp://docker:2375"}, "tcp://configured:2376")
-	if host != "tcp://configured:2376" || !containsString(environment, "HARBORBUDDY_DOCKER_HOST=tcp://configured:2376") {
+	if host != "tcp://configured:2376" || !slices.Contains(environment, "HARBORBUDDY_DOCKER_HOST=tcp://configured:2376") {
 		t.Fatalf("configured host precedence = %v host=%q", environment, host)
 	}
 	if dockerSocketPath("tcp://docker:2375") != "" || dockerSocketPath("unix:///run/docker.sock") != "/run/docker.sock" {
@@ -64,20 +64,12 @@ func TestHelperMountAndPathFiltersCoverSyntaxEdges(t *testing.T) {
 		{value: "only-one", want: ""},
 		{value: "/source:/target", want: "/target"},
 		{value: "/source:/target:ro,z", want: "/target"},
-		{value: "/source:/target:invalid", want: "invalid"},
+		{value: "/source:/target:cached", want: "/target"},
+		{value: "/source:/target:ro,unknown", want: "/target"},
+		{value: "volume:/target", want: "/target"},
 	} {
 		if got := bindTarget(test.value); got != test.want {
 			t.Errorf("bindTarget(%q) = %q, want %q", test.value, got, test.want)
-		}
-	}
-	for _, test := range []struct {
-		value string
-		want  bool
-	}{
-		{value: "", want: false}, {value: "ro,z", want: true}, {value: "rw", want: true}, {value: "bad", want: false},
-	} {
-		if got := isBindMode(test.value); got != test.want {
-			t.Errorf("isBindMode(%q) = %v, want %v", test.value, got, test.want)
 		}
 	}
 	if pathRelevant("", []string{"/socket"}) || pathRelevant("/other", []string{""}) || pathRelevant("/other", []string{"/socket"}) {
@@ -85,9 +77,6 @@ func TestHelperMountAndPathFiltersCoverSyntaxEdges(t *testing.T) {
 	}
 	if !pathRelevant("/run", []string{"/run/docker.sock"}) || !pathRelevant("/run/docker.sock", []string{"/run"}) || !pathRelevant("/run/docker.sock", []string{"/run/docker.sock"}) {
 		t.Fatal("pathRelevant rejected an ancestor or exact path")
-	}
-	if containsString([]string{"one", "two"}, "three") || !containsString([]string{"one", "two"}, "two") {
-		t.Fatal("containsString boundary failed")
 	}
 	if !reflect.DeepEqual(relevantBinds([]string{"/a:/run/socket:ro", "/b:/other:ro"}, []string{"/run/socket"}), []string{"/a:/run/socket:ro"}) {
 		t.Fatal("relevantBinds filtering failed")

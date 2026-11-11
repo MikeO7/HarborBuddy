@@ -19,6 +19,7 @@ func TestResultMessageCoversEveryStatus(t *testing.T) {
 		{status: StatusFailed, want: "Container update failed"},
 		{status: StatusCancelled, want: "Container check cancelled"},
 		{status: StatusChangedExternally, want: "Container changed during the cycle; skipping"},
+		{status: StatusPreviouslyFailed, want: "Skipping target image that previously failed and rolled back"},
 		{status: Status("invalid"), want: "Container update result is invalid"},
 	}
 	for _, test := range tests {

@@ -34,20 +34,6 @@ func (m *mockTransport) RoundTrip(req *http.Request) (*http.Response, error) {
 		return handler(req)
 	}
 
-	// Try pattern matching if exact match fails
-	// This is useful if we use prefixes
-	m.mu.Lock()
-	for k, h := range m.handlers {
-		if strings.HasSuffix(k, "*") {
-			prefix := strings.TrimSuffix(k, "*")
-			if strings.HasPrefix(key, prefix) {
-				m.mu.Unlock()
-				return h(req)
-			}
-		}
-	}
-	m.mu.Unlock()
-
 	return &http.Response{
 		StatusCode: 404,
 		Body:       io.NopCloser(strings.NewReader(fmt.Sprintf(`{"message": "page not found: %s"}`, key))),

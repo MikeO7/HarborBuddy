@@ -247,7 +247,7 @@ volumes:
           <p>Never expose an unauthenticated Docker TCP endpoint. A remote daemon must be reachable from both HarborBuddy and its self-update helper.</p>
 
           <h2 id="logging">Logging</h2>
-          <p>Logs go to standard output as text with RFC 3339 timestamps, or as JSON with <code>HARBORBUDDY_LOG_JSON=true</code>. Colour is used only on a terminal and never when <code>NO_COLOR</code> is set. <code>HARBORBUDDY_LOG_FILE</code> adds a rotating file. Send <code>SIGUSR1</code> to toggle debug logging without a restart.</p>
+          <p>Logs go to standard output as text with RFC 3339 timestamps, or as JSON with <code>HARBORBUDDY_LOG_JSON=true</code>. Colour is used only on a terminal and never when <code>NO_COLOR</code> is set to a non-empty value. <code>HARBORBUDDY_LOG_FILE</code> adds a rotating file. Send <code>SIGUSR1</code> to toggle debug logging without a restart.</p>
 
           <h2 id="cli">Command-line flags</h2>
 <pre class="code-block"><code>--config PATH          configuration file
