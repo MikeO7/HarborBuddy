@@ -67,9 +67,9 @@ func PathFromEnv(lookupEnv func(string) (string, bool)) string {
 	return DefaultPath
 }
 
-// CycleStarted records the start of a cycle and returns a function that
+// trackCycle records the start of a cycle and returns a function that
 // records its end. It is safe to call on a nil monitor.
-func (m *Monitor) CycleStarted() func() {
+func (m *Monitor) trackCycle() func() {
 	if m == nil {
 		return func() {}
 	}
@@ -168,5 +168,5 @@ func WithMonitor(ctx context.Context, m *Monitor) context.Context {
 // returns the function that records its end.
 func TrackCycle(ctx context.Context) func() {
 	m, _ := ctx.Value(contextKey{}).(*Monitor)
-	return m.CycleStarted()
+	return m.trackCycle()
 }

@@ -37,7 +37,7 @@ func discoverCandidates(
 	results []ContainerResult,
 	selfID string,
 ) {
-	cache := NewSafePullCache()
+	cache := newSafePullCache()
 	semaphore := make(chan struct{}, maxConcurrentPulls)
 	var wait sync.WaitGroup
 
@@ -92,13 +92,13 @@ func unpullableCandidate(result *ContainerResult) bool {
 func discoverCandidate(
 	ctx context.Context,
 	client docker.Client,
-	cache *SafePullCache,
+	cache *safePullCache,
 	semaphore chan struct{},
 	wait *sync.WaitGroup,
 	result *ContainerResult,
 ) {
 	defer wait.Done()
-	image, err, _ := cache.GetOrPull(ctx, result.Container.ImageRef, func() (docker.ImageInfo, error) {
+	image, err := cache.GetOrPull(ctx, result.Container.ImageRef, func() (docker.ImageInfo, error) {
 		return pullImage(ctx, client, semaphore, result.Container.ImageRef)
 	})
 	if err != nil {

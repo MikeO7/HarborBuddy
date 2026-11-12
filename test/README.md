@@ -82,8 +82,8 @@ This is an end-to-end test for the image, Docker-compatible connection, discover
 ## Other checks
 
 ```bash
-make fmt-check source-limits
-make vet lint vuln
+make source-limits
+make lint vuln    # lint includes gofmt and go vet
 make test-cover test-race test-fuzz test-e2e build
 make lint-nongo
 ```

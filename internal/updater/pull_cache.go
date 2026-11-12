@@ -14,18 +14,18 @@ type pullCacheEntry struct {
 	ready chan struct{}
 }
 
-type SafePullCache struct {
+type safePullCache struct {
 	mu      sync.Mutex
 	entries map[string]*pullCacheEntry
 }
 
-func NewSafePullCache() *SafePullCache {
-	return &SafePullCache{entries: make(map[string]*pullCacheEntry)}
+func newSafePullCache() *safePullCache {
+	return &safePullCache{entries: make(map[string]*pullCacheEntry)}
 }
 
 // GetOrPull deduplicates pulls by normalized reference, so "nginx",
 // "nginx:latest", and "docker.io/library/nginx:latest" share one pull.
-func (c *SafePullCache) GetOrPull(ctx context.Context, imageRef string, pull func() (docker.ImageInfo, error)) (docker.ImageInfo, error, bool) {
+func (c *safePullCache) GetOrPull(ctx context.Context, imageRef string, pull func() (docker.ImageInfo, error)) (docker.ImageInfo, error) {
 	key := imageref.Normalize(imageRef)
 	c.mu.Lock()
 	entry, exists := c.entries[key]
@@ -36,14 +36,14 @@ func (c *SafePullCache) GetOrPull(ctx context.Context, imageRef string, pull fun
 
 		entry.info, entry.err = pull()
 		close(entry.ready)
-		return entry.info, entry.err, false
+		return entry.info, entry.err
 	}
 	c.mu.Unlock()
 
 	select {
 	case <-ctx.Done():
-		return docker.ImageInfo{}, ctx.Err(), true
+		return docker.ImageInfo{}, ctx.Err()
 	case <-entry.ready:
-		return entry.info, entry.err, true
+		return entry.info, entry.err
 	}
 }

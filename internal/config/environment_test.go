@@ -58,7 +58,7 @@ func TestLoadFileAcceptsTrailingEmptyDocuments(t *testing.T) {
 		if err != nil {
 			t.Fatalf("LoadFile(%q) error = %v", content, err)
 		}
-		if cfg.Log.Level != "debug" || cfg.Updates.Timezone != DefaultTimezone {
+		if cfg.Log.Level != "debug" || cfg.Updates.Timezone != defaultTimezone {
 			t.Fatalf("LoadFile(%q) = %+v", content, cfg)
 		}
 	}
@@ -240,5 +240,26 @@ func TestIntervalIsValidatedOnlyWhenTheIntervalSchedulerUsesIt(t *testing.T) {
 		if err := unused.Validate(); err != nil {
 			t.Fatalf("Validate() = %v, want an unused interval accepted", err)
 		}
+	}
+}
+
+func TestStartupWarningsUnusedInvalidTimezone(t *testing.T) {
+	cfg := Default()
+	cfg.Updates.Timezone = "Mars/Olympus"
+	warnings := StartupWarnings(cfg, nil)
+	if len(warnings) != 1 || warnings[0].Setting != "updates.timezone" || !strings.Contains(warnings[0].Message, `"Mars/Olympus" is not a valid IANA zone`) {
+		t.Fatalf("StartupWarnings() = %+v, want the unused-timezone warning", warnings)
+	}
+	// TZ serves other programs and accepts forms Go does not, so it is not reported.
+	if warnings := StartupWarnings(cfg, []string{"TZ=Mars/Olympus"}); len(warnings) != 0 {
+		t.Fatalf("a timezone taken from TZ was reported: %+v", warnings)
+	}
+	cfg.Updates.Timezone = "Europe/London"
+	if warnings := StartupWarnings(cfg, nil); len(warnings) != 0 {
+		t.Fatalf("a valid timezone was reported: %+v", warnings)
+	}
+	cfg.Updates.Timezone = ""
+	if warnings := StartupWarnings(cfg, nil); len(warnings) != 0 {
+		t.Fatalf("an empty timezone was reported: %+v", warnings)
 	}
 }

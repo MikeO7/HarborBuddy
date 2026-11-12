@@ -42,20 +42,6 @@ func (c *LevelController) ToggleDebug() zerolog.Level {
 	return c.current
 }
 
-// BaseLevel returns the configured level that ToggleDebug restores.
-func (c *LevelController) BaseLevel() zerolog.Level {
-	c.mu.Lock()
-	defer c.mu.Unlock()
-	return c.base
-}
-
-// CurrentLevel returns the currently active process logging level.
-func (c *LevelController) CurrentLevel() zerolog.Level {
-	c.mu.Lock()
-	defer c.mu.Unlock()
-	return c.current
-}
-
 // New constructs the application logger and returns a function that closes any
 // configured rotating file writer.
 func New(cfg config.LogConfig, stdout io.Writer) (zerolog.Logger, *LevelController, func() error, error) {

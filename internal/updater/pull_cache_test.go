@@ -11,7 +11,7 @@ import (
 )
 
 func TestSafePullCacheSharesResult(t *testing.T) {
-	cache := NewSafePullCache()
+	cache := newSafePullCache()
 	started := make(chan struct{})
 	release := make(chan struct{})
 	var calls atomic.Int32
@@ -28,16 +28,15 @@ func TestSafePullCacheSharesResult(t *testing.T) {
 	wait.Add(1)
 	go func() {
 		defer wait.Done()
-		first, firstErr, _ = cache.GetOrPull(context.Background(), "app:latest", pull)
+		first, firstErr = cache.GetOrPull(context.Background(), "app:latest", pull)
 	}()
 	<-started
 
 	secondDone := make(chan struct{})
 	var second docker.ImageInfo
 	var secondErr error
-	var shared bool
 	go func() {
-		second, secondErr, shared = cache.GetOrPull(context.Background(), "app:latest", pull)
+		second, secondErr = cache.GetOrPull(context.Background(), "app:latest", pull)
 		close(secondDone)
 	}()
 	close(release)
@@ -47,25 +46,25 @@ func TestSafePullCacheSharesResult(t *testing.T) {
 	if firstErr != nil || secondErr != nil || first.ID != "sha256:new" || second.ID != first.ID {
 		t.Fatalf("shared pull results first=%+v/%v second=%+v/%v", first, firstErr, second, secondErr)
 	}
-	if !shared || calls.Load() != 1 {
-		t.Fatalf("shared=%v calls=%d, want true/1", shared, calls.Load())
+	if calls.Load() != 1 {
+		t.Fatalf("pull calls = %d, want one shared pull", calls.Load())
 	}
 }
 
 func TestSafePullCacheSharesNormalizedReferences(t *testing.T) {
-	cache := NewSafePullCache()
+	cache := newSafePullCache()
 	var calls atomic.Int32
 	pull := func() (docker.ImageInfo, error) {
 		calls.Add(1)
 		return docker.ImageInfo{ID: "sha256:nginx"}, nil
 	}
 	for _, ref := range []string{"nginx", "nginx:latest", "docker.io/library/nginx:latest"} {
-		if info, err, _ := cache.GetOrPull(context.Background(), ref, pull); err != nil || info.ID != "sha256:nginx" {
+		if info, err := cache.GetOrPull(context.Background(), ref, pull); err != nil || info.ID != "sha256:nginx" {
 			t.Fatalf("GetOrPull(%q) = %+v, %v", ref, info, err)
 		}
 	}
-	if _, _, shared := cache.GetOrPull(context.Background(), "nginx:1.27", pull); shared {
-		t.Fatal("distinct tag shared a pull")
+	if _, err := cache.GetOrPull(context.Background(), "nginx:1.27", pull); err != nil {
+		t.Fatalf("GetOrPull(distinct tag) error = %v", err)
 	}
 	if calls.Load() != 2 {
 		t.Fatalf("pull calls = %d, want 2", calls.Load())
@@ -73,7 +72,7 @@ func TestSafePullCacheSharesNormalizedReferences(t *testing.T) {
 }
 
 func TestSafePullCacheWaiterCanCancel(t *testing.T) {
-	cache := NewSafePullCache()
+	cache := newSafePullCache()
 	started := make(chan struct{})
 	release := make(chan struct{})
 	pull := func() (docker.ImageInfo, error) {
@@ -84,25 +83,25 @@ func TestSafePullCacheWaiterCanCancel(t *testing.T) {
 
 	firstDone := make(chan struct{})
 	go func() {
-		_, _, _ = cache.GetOrPull(context.Background(), "app:latest", pull)
+		_, _ = cache.GetOrPull(context.Background(), "app:latest", pull)
 		close(firstDone)
 	}()
 	<-started
 
 	ctx, cancel := context.WithCancel(context.Background())
 	cancel()
-	_, err, shared := cache.GetOrPull(ctx, "app:latest", pull)
-	if !shared || !errors.Is(err, context.Canceled) {
-		t.Fatalf("cancelled waiter shared=%v error=%v", shared, err)
+	_, err := cache.GetOrPull(ctx, "app:latest", pull)
+	if !errors.Is(err, context.Canceled) {
+		t.Fatalf("cancelled waiter error = %v", err)
 	}
 
 	close(release)
 	<-firstDone
-	info, err, shared := cache.GetOrPull(context.Background(), "app:latest", func() (docker.ImageInfo, error) {
+	info, err := cache.GetOrPull(context.Background(), "app:latest", func() (docker.ImageInfo, error) {
 		t.Fatal("completed cache entry pulled again")
 		return docker.ImageInfo{}, nil
 	})
-	if err != nil || !shared || info.ID != "sha256:new" {
-		t.Fatalf("completed entry info=%+v err=%v shared=%v", info, err, shared)
+	if err != nil || info.ID != "sha256:new" {
+		t.Fatalf("completed entry info=%+v err=%v", info, err)
 	}
 }

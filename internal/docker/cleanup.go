@@ -69,7 +69,13 @@ func (d *DockerClient) listCleanupImages(ctx context.Context) ([]CleanupResource
 	if err != nil {
 		return nil, fmt.Errorf("list images for cleanup: %w", err)
 	}
-	images, err := d.markImagesInUse(ctx, imageSummaries(usage.Images.Items, false), usage.Images.Items)
+	// Disk usage omits intermediate images, so parents come from the full
+	// list, as they do for ListImages and ListDanglingImages.
+	all, err := d.cli.ImageList(ctx, client.ImageListOptions{All: true})
+	if err != nil {
+		return nil, fmt.Errorf("list images for cleanup: %w", err)
+	}
+	images, err := d.markImagesInUse(ctx, imageSummaries(usage.Images.Items, false), all.Items)
 	if err != nil {
 		return nil, fmt.Errorf("list images for cleanup: %w", err)
 	}

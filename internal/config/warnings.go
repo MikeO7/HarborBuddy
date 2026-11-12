@@ -2,13 +2,14 @@ package config
 
 import (
 	"fmt"
+	"slices"
 	"sort"
 	"strings"
 	"time"
 )
 
-// ShortIntervalWarning is the interval below which StartupWarnings reports a warning.
-const ShortIntervalWarning = time.Minute
+// shortIntervalWarning is the interval below which StartupWarnings reports a warning.
+const shortIntervalWarning = time.Minute
 
 const environmentPrefix = "HARBORBUDDY_"
 
@@ -53,11 +54,11 @@ var environmentSuggestions = map[string]string{
 // environ holds KEY=VALUE pairs, as from os.Environ.
 func StartupWarnings(cfg Config, environ []string) []Warning {
 	var warnings []Warning
-	if cfg.Updates.ScheduleTime == "" && !cfg.RunOnce && !cfg.CleanupOnly && cfg.Updates.CheckInterval < ShortIntervalWarning {
+	if cfg.Updates.ScheduleTime == "" && !cfg.RunOnce && !cfg.CleanupOnly && cfg.Updates.CheckInterval < shortIntervalWarning {
 		warnings = append(warnings, Warning{
 			Setting: "updates.check_interval",
 			Message: fmt.Sprintf("check interval %s is below %s; every cycle pulls each eligible image and may hit registry rate limits",
-				cfg.Updates.CheckInterval, ShortIntervalWarning),
+				cfg.Updates.CheckInterval, shortIntervalWarning),
 		})
 	}
 	if cfg.IntervalOverride && cfg.Updates.ScheduleTime != "" && !cfg.RunOnce && !cfg.CleanupOnly {
@@ -67,7 +68,27 @@ func StartupWarnings(cfg Config, environ []string) []Warning {
 				cfg.Updates.ScheduleTime),
 		})
 	}
+	if warning, ok := unusedTimezoneWarning(cfg, environ); ok {
+		warnings = append(warnings, warning)
+	}
 	return append(warnings, unknownEnvironment(environ)...)
+}
+
+// unusedTimezoneWarning reports a timezone that does not load when no daily
+// schedule uses it, where validation does not check it. A value taken from TZ
+// is left alone: TZ serves other programs and accepts forms Go does not.
+func unusedTimezoneWarning(cfg Config, environ []string) (Warning, bool) {
+	zone := cfg.Updates.Timezone
+	if cfg.Updates.ScheduleTime != "" || zone == "" || slices.Contains(environ, "TZ="+zone) {
+		return Warning{}, false
+	}
+	if _, err := time.LoadLocation(zone); err == nil {
+		return Warning{}, false
+	}
+	return Warning{
+		Setting: "updates.timezone",
+		Message: fmt.Sprintf("timezone %q is not a valid IANA zone; it is unused until schedule_time is set, and will then stop startup", zone),
+	}, true
 }
 
 func unknownEnvironment(environ []string) []Warning {

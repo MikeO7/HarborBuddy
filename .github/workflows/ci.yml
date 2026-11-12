@@ -44,11 +44,8 @@ jobs:
           go mod tidy
           git diff --exit-code -- go.mod go.sum
 
-      - name: Check formatting and source limits
-        run: make fmt-check source-limits
-
-      - name: Run go vet
-        run: make vet
+      - name: Check source limits
+        run: make source-limits
 
       - name: Run tests with coverage
         run: make test-cover

@@ -6,12 +6,15 @@ All notable changes to HarborBuddy are documented here. The format follows [Keep
 
 ### Added
 
+- A startup warning when `updates.timezone` or `HARBORBUDDY_TIMEZONE` is not a valid IANA zone and no schedule time uses it yet.
 - `HARBORBUDDY_ALLOW_IMAGES` and `HARBORBUDDY_DENY_IMAGES` set the update allow and deny lists without a config file.
 - A startup warning when `HARBORBUDDY_INTERVAL` or `--interval` is set but ignored because a schedule time takes precedence.
 - The effective-configuration log now includes the stop and startup timeouts, allow and deny lists, the cache-volume age, log rotation limits, and the one-shot modes.
 
 ### Changed
 
+- All-resource cleanup finds parent images from the full image list, so an image that only an intermediate layer builds on is no longer offered for removal and refused by Docker every cycle.
+- `make verify-local` and CI no longer run `go vet` and the gofmt check separately; `make lint` already runs both.
 - The `latest` image tag now moves only with stable releases. Commits on `main` publish `edge` and `sha-*` only; follow `edge` to keep tracking `main`.
 - Rollback images whose image reference no container uses any more are no longer protected from cleanup, so unused-image cleanup can remove them.
 - A helper container is recognised by `com.harborbuddy.self-update-helper=true` everywhere; cleanup previously accepted any value.

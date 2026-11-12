@@ -9,9 +9,9 @@ import (
 	containertypes "github.com/moby/moby/api/types/container"
 )
 
-// TargetRecoverer restores a daemon that handed off to a helper which then
+// targetRecoverer restores a daemon that handed off to a helper which then
 // failed: it reinstates the original restart policy and starts the daemon.
-type TargetRecoverer interface {
+type targetRecoverer interface {
 	RecoverSelfUpdateTarget(context.Context, string, containertypes.RestartPolicy) error
 }
 
@@ -50,7 +50,7 @@ func RecoveryOutcome(err error) string {
 }
 
 func recoverTarget(ctx context.Context, client docker.Client, request UpdaterRequest) error {
-	recoverer, ok := client.(TargetRecoverer)
+	recoverer, ok := client.(targetRecoverer)
 	if !ok {
 		return fmt.Errorf("docker client %T cannot restore the original HarborBuddy container", client)
 	}

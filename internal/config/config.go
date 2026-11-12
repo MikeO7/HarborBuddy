@@ -14,8 +14,8 @@ import (
 
 const DefaultPath = "/config/harborbuddy.yml"
 
-// DefaultTimezone is the schedule timezone when neither configuration nor TZ names one.
-const DefaultTimezone = "UTC"
+// defaultTimezone is the schedule timezone when neither configuration nor TZ names one.
+const defaultTimezone = "UTC"
 
 type Config struct {
 	Docker  DockerConfig  `yaml:"docker"`
@@ -90,7 +90,7 @@ func Default() Config {
 		Updates: UpdatesConfig{
 			Enabled:        true,
 			CheckInterval:  12 * time.Hour,
-			Timezone:       DefaultTimezone,
+			Timezone:       defaultTimezone,
 			SelfUpdate:     true,
 			AllowImages:    []string{"*"},
 			StopTimeout:    10 * time.Second,
@@ -131,7 +131,7 @@ func LoadFile(path string, required bool) (Config, error) {
 	}
 	cfg.Updates.timezoneConfigured = cfg.Updates.Timezone != ""
 	if !cfg.Updates.timezoneConfigured {
-		cfg.Updates.Timezone = DefaultTimezone
+		cfg.Updates.Timezone = defaultTimezone
 	}
 	return cfg, nil
 }

@@ -81,10 +81,18 @@ func TestCleanupAdapterListsAndRemovesEveryResourceKind(t *testing.T) {
 		}
 		return jsonResponse(http.StatusOK, buildtypes.CachePruneReport{CachesDeleted: []string{"cache-old"}, SpaceReclaimed: 30})
 	})
+	// Disk usage leaves out intermediate images; the full list shows that one
+	// still builds on the dangling image.
+	transport.register("GET", "/v1.41/images/json", func(r *http.Request) (*http.Response, error) {
+		if r.URL.Query().Get("all") != "1" {
+			t.Fatalf("parent image query = %q, want all images", r.URL.RawQuery)
+		}
+		return jsonResponse(http.StatusOK, []imagetypes.Summary{{ID: "sha256:intermediate", ParentID: "sha256:dangling"}})
+	})
 	client := testDockerClient(t, transport)
 
 	images, err := client.ListCleanupResources(context.Background(), CleanupImage)
-	if err != nil || len(images) != 3 || !images[0].Dangling || images[1].Size != 0 || !images[1].InUse || !images[2].Protected {
+	if err != nil || len(images) != 3 || !images[0].Dangling || !images[0].InUse || images[1].Size != 0 || !images[1].InUse || !images[2].Protected {
 		t.Fatalf("cleanup images = %+v, %v", images, err)
 	}
 	containers, err := client.ListCleanupResources(context.Background(), CleanupContainer)
@@ -153,6 +161,20 @@ func TestCleanupAdapterReportsDockerFailures(t *testing.T) {
 			}
 		})
 	}
+
+	t.Run("list parent images", func(t *testing.T) {
+		transport := newMockTransport()
+		transport.register("GET", "/v1.41/system/df", func(*http.Request) (*http.Response, error) {
+			return jsonResponse(http.StatusOK, map[string]any{"Images": []imagetypes.Summary{}})
+		})
+		transport.register("GET", "/v1.41/images/json", func(*http.Request) (*http.Response, error) {
+			return jsonResponse(http.StatusInternalServerError, map[string]string{"message": "failed"})
+		})
+		client := testDockerClient(t, transport)
+		if _, err := client.ListCleanupResources(context.Background(), CleanupImage); err == nil || !strings.Contains(err.Error(), "list images for cleanup") {
+			t.Fatalf("ListCleanupResources(images) error = %v", err)
+		}
+	})
 
 	t.Run("network inspect", func(t *testing.T) {
 		transport := newMockTransport()

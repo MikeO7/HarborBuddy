@@ -117,7 +117,7 @@ func TestBeatReportsPingAndWriteFailures(t *testing.T) {
 func TestTrackCycleWithoutMonitorIsNoop(t *testing.T) {
 	TrackCycle(context.Background())()
 	var monitor *Monitor
-	monitor.CycleStarted()()
+	monitor.trackCycle()()
 }
 
 func TestRunReportsOnlyStateChangesAndStops(t *testing.T) {
