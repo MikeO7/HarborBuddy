@@ -37,6 +37,7 @@ All notable changes to HarborBuddy are documented here. The format follows [Keep
 
 ### Fixed
 
+- A MAC address set with `--mac-address` or `mac_address` on a container without a static IP is now kept across updates. Only the address older engines derive from the dynamic IP (`02:42` plus the IPv4 bytes) is dropped; on engines that generate random addresses the container keeps its current one.
 - A failed image pull no longer blocks unused-network cleanup for the cycle; only a replacement that actually started does.
 - A Docker API error while waiting for a self-update helper no longer makes the daemon exit as if a handoff were in progress; the cycle fails and the next one retries.
 - A transient inspect error during the readiness wait no longer rolls back an otherwise healthy replacement; inspection is retried until the startup timeout.
