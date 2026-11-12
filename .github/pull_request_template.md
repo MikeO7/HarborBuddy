@@ -19,8 +19,8 @@
 
 <!-- List exact commands and results. Do not check a box for a skipped command. -->
 
-- [ ] `make fmt-check source-limits`
-- [ ] `make vet lint vuln`
+- [ ] `make source-limits`
+- [ ] `make lint vuln` (lint includes gofmt and go vet)
 - [ ] `make test-cover test-race test-fuzz build`
 - [ ] `make test-e2e`
 - [ ] `make lint-nongo`

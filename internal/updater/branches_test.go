@@ -102,7 +102,7 @@ func TestDiscoveryClassifiesCurrentPullFailureCancellationAndOrdering(t *testing
 
 	client = &cycleFakeClient{images: map[string]docker.ImageInfo{"current:latest": {ID: "same"}}}
 	current := ContainerResult{Container: docker.ContainerSummary{ID: "current", ImageRef: "current:latest", ImageID: "same"}}
-	cache := NewSafePullCache()
+	cache := newSafePullCache()
 	var waitGroup sync.WaitGroup
 	waitGroup.Add(1)
 	discoverCandidate(context.Background(), client, cache, make(chan struct{}, 1), &waitGroup, &current)

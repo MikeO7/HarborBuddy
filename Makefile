@@ -58,7 +58,7 @@ test-integration: ## Run the Docker/Podman integration suite
 test-e2e: ## Run production-binary journeys against an isolated Docker protocol fixture
 	npm run test:e2e
 
-verify-local: fmt-check source-limits vet lint vuln test-cover test-race test-fuzz test-e2e build lint-nongo test-integration ## Run the comprehensive local verification suite
+verify-local: source-limits lint vuln test-cover test-race test-fuzz test-e2e build lint-nongo test-integration ## Run the comprehensive local verification suite
 
 fmt: ## Format all repository Go source
 	@gofmt -w $$(find . -type f -name '*.go' -not -path './.git/*' -not -path './.claude/*' -not -path './vendor/*')
@@ -74,7 +74,7 @@ source-limits: ## Enforce source file length limits
 vet: ## Run go vet
 	go vet ./...
 
-lint: ## Run the pinned Go linter suite
+lint: ## Run the pinned Go linter suite, including gofmt and go vet
 	go run github.com/golangci/golangci-lint/v2/cmd/golangci-lint@$(GOLANGCI_LINT_VERSION) run
 
 vuln: ## Check reachable Go vulnerabilities

@@ -111,7 +111,7 @@ func TestRetainRollbackImagePreservesOverflowUsedByStoppedContainer(t *testing.T
 	client := testDockerClient(t, transport)
 
 	err := client.retainRollbackImage(context.Background(), "registry.example/team/app:stable", "sha256:old", 1)
-	if err == nil || !errors.Is(err, ErrRollbackImageInUse) {
+	if err == nil || !errors.Is(err, errRollbackImageInUse) {
 		t.Fatalf("retainRollbackImage() error = %v, want in-use warning", err)
 	}
 	if slices.Contains(transport.getCalls(), "DELETE /v1.41/images/"+slot) {

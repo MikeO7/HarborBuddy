@@ -12,29 +12,29 @@ const (
 	DaemonRole      = "daemon"
 )
 
-type UpdateDecision struct {
+type updateDecision struct {
 	Eligible bool
 	Reason   string
 }
 
-func DetermineEligibility(container docker.ContainerSummary, cfg config.UpdatesConfig) UpdateDecision {
+func DetermineEligibility(container docker.ContainerSummary, cfg config.UpdatesConfig) updateDecision {
 	if container.Labels[AutoUpdateLabel] == "false" {
-		return UpdateDecision{Reason: "label com.harborbuddy.autoupdate=false"}
+		return updateDecision{Reason: "label com.harborbuddy.autoupdate=false"}
 	}
 	for _, pattern := range cfg.DenyImages {
 		if matchesPattern(container.ImageRef, pattern) {
-			return UpdateDecision{Reason: "matches deny pattern: " + pattern}
+			return updateDecision{Reason: "matches deny pattern: " + pattern}
 		}
 	}
 	if len(cfg.AllowImages) > 0 {
 		for _, pattern := range cfg.AllowImages {
 			if matchesPattern(container.ImageRef, pattern) {
-				return UpdateDecision{Eligible: true, Reason: "eligible for updates"}
+				return updateDecision{Eligible: true, Reason: "eligible for updates"}
 			}
 		}
-		return UpdateDecision{Reason: "does not match any allow pattern"}
+		return updateDecision{Reason: "does not match any allow pattern"}
 	}
-	return UpdateDecision{Eligible: true, Reason: "eligible for updates"}
+	return updateDecision{Eligible: true, Reason: "eligible for updates"}
 }
 
 // matchesPattern accepts a pattern that matches the raw reference, its familiar

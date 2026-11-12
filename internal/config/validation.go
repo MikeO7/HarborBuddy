@@ -9,8 +9,8 @@ import (
 
 const maxCleanupMinAgeHours = int((1<<63 - 1) / int64(time.Hour))
 
-// MinCheckInterval is the shortest accepted interval; shorter values would spin the scheduler.
-const MinCheckInterval = time.Second
+// minCheckInterval is the shortest accepted interval; shorter values would spin the scheduler.
+const minCheckInterval = time.Second
 
 func (c Config) Validate() error {
 	if err := validateInterval(c); err != nil {
@@ -31,10 +31,10 @@ func (c Config) Validate() error {
 // validateInterval checks the interval only when the interval scheduler will
 // use it: a daily schedule and the one-shot modes never read it.
 func validateInterval(c Config) error {
-	if c.Updates.ScheduleTime != "" || c.RunOnce || c.CleanupOnly || c.Updates.CheckInterval >= MinCheckInterval {
+	if c.Updates.ScheduleTime != "" || c.RunOnce || c.CleanupOnly || c.Updates.CheckInterval >= minCheckInterval {
 		return nil
 	}
-	return fmt.Errorf("updates.check_interval must be at least %s when schedule_time is not set", MinCheckInterval)
+	return fmt.Errorf("updates.check_interval must be at least %s when schedule_time is not set", minCheckInterval)
 }
 
 func validateUpdates(cfg UpdatesConfig) error {
