@@ -69,7 +69,7 @@ func TestHelperCompletionLogsWarningsAndRollbackOutcomes(t *testing.T) {
 	var output bytes.Buffer
 	deps := testDependencies(nil)
 	deps.NewLogger = func(config.LogConfig, io.Writer) (zerolog.Logger, *logging.LevelController, func() error, error) {
-		return zerolog.New(&output), &logging.LevelController{}, func() error { return nil }, nil
+		return zerolog.New(zerolog.SyncWriter(&output)), &logging.LevelController{}, func() error { return nil }, nil
 	}
 	deps.RunHelper = func(context.Context, docker.Client, selfupdate.UpdaterRequest) (docker.ReplaceResult, error) {
 		return docker.ReplaceResult{NewContainerID: "new-container", BackupCleanupErr: errors.New("backup retained")}, nil
@@ -103,7 +103,7 @@ func TestHelperFailureLogReportsDaemonRecovery(t *testing.T) {
 		var output bytes.Buffer
 		deps := testDependencies(nil)
 		deps.NewLogger = func(config.LogConfig, io.Writer) (zerolog.Logger, *logging.LevelController, func() error, error) {
-			return zerolog.New(&output), &logging.LevelController{}, func() error { return nil }, nil
+			return zerolog.New(zerolog.SyncWriter(&output)), &logging.LevelController{}, func() error { return nil }, nil
 		}
 		deps.RunHelper = func(context.Context, docker.Client, selfupdate.UpdaterRequest) (docker.ReplaceResult, error) {
 			return docker.ReplaceResult{}, test.err

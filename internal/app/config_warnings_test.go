@@ -17,7 +17,7 @@ func TestRunDaemonLogsConfigurationWarnings(t *testing.T) {
 	var output bytes.Buffer
 	deps := testDependencies(nil)
 	deps.NewLogger = func(config.LogConfig, io.Writer) (zerolog.Logger, *logging.LevelController, func() error, error) {
-		return zerolog.New(&output), &logging.LevelController{}, func() error { return nil }, nil
+		return zerolog.New(zerolog.SyncWriter(&output)), &logging.LevelController{}, func() error { return nil }, nil
 	}
 	deps.Environ = func() []string { return []string{"HARBORBUDDY_SELF_UPDATE=false", "HARBORBUDDY_LOG_LEVEL=info"} }
 	cfg := config.Default()
