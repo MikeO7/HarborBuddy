@@ -117,3 +117,28 @@ func TestConfiguredMountTargetsMatchInspectedDestinations(t *testing.T) {
 		t.Fatal("a bind without a target was not kept as an empty key")
 	}
 }
+
+func TestSanitizedEndpointKeepsOnlyMacAddressesTheEngineDidNotDerive(t *testing.T) {
+	derived := network.HardwareAddr{0x02, 0x42, 0xac, 0x11, 0x00, 0x02}
+	custom := network.HardwareAddr{0x02, 0x42, 0xac, 0x11, 0x00, 0x09}
+	address := netip.MustParseAddr("172.17.0.2")
+	for _, test := range []struct {
+		name    string
+		mac     network.HardwareAddr
+		address netip.Addr
+		keep    bool
+	}{
+		{name: "derived from the address", mac: derived, address: address},
+		{name: "derived from a mapped address", mac: derived, address: netip.AddrFrom16(address.As16())},
+		{name: "configured or random", mac: custom, address: address, keep: true},
+		{name: "IPv6 only", mac: derived, address: netip.MustParseAddr("fd00::2"), keep: true},
+		{name: "no address", mac: derived, keep: true},
+		{name: "not a 48-bit address", mac: network.HardwareAddr{0x02, 0x42}, address: address, keep: true},
+		{name: "none", address: address},
+	} {
+		cloned := sanitizedEndpoint(&network.EndpointSettings{MacAddress: test.mac, IPAddress: test.address})
+		if kept := len(cloned.MacAddress) != 0; kept != (test.keep && len(test.mac) != 0) {
+			t.Fatalf("%s: MAC address kept = %v, want %v", test.name, kept, test.keep)
+		}
+	}
+}

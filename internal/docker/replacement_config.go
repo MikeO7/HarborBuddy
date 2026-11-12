@@ -136,11 +136,23 @@ func sanitizedEndpoint(settings *network.EndpointSettings) *network.EndpointSett
 	cloned.GlobalIPv6Address = netip.Addr{}
 	cloned.GlobalIPv6PrefixLen = 0
 	cloned.DNSNames = nil
-	// Inspection reports the generated MAC address the same way as a
-	// configured one. It is kept only alongside a static address, where the
-	// endpoint is pinned anyway; otherwise the engine generates a new one.
-	if cloned.IPAMConfig == nil {
+	// Inspection reports a generated MAC address the same way as a configured
+	// one. The form older engines derive from the dynamic IPv4 address is
+	// certainly generated and would collide once that address is reused, so it
+	// is dropped; any other address is kept so a configured one survives.
+	if cloned.IPAMConfig == nil && macDerivedFromAddress(settings.MacAddress, settings.IPAddress) {
 		cloned.MacAddress = nil
 	}
 	return cloned
+}
+
+// macDerivedFromAddress reports whether mac is 02:42 followed by the bytes of
+// the endpoint's IPv4 address, which is how engines before Docker 28 generate
+// bridge MAC addresses.
+func macDerivedFromAddress(mac network.HardwareAddr, address netip.Addr) bool {
+	if len(mac) != 6 || !address.Unmap().Is4() {
+		return false
+	}
+	ip := address.Unmap().As4()
+	return mac[0] == 0x02 && mac[1] == 0x42 && [4]byte(mac[2:]) == ip
 }
