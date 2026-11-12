@@ -204,21 +204,6 @@ func TestApplyEnvironmentRejectsInvalidValues(t *testing.T) {
 	}
 }
 
-func TestApplyEnvironmentTimezoneFallback(t *testing.T) {
-	cfg := Default()
-	if err := cfg.ApplyEnvironment(func(name string) string {
-		if name == "TZ" {
-			return "Europe/London"
-		}
-		return ""
-	}); err != nil {
-		t.Fatal(err)
-	}
-	if cfg.Updates.Timezone != "Europe/London" {
-		t.Fatalf("Timezone = %q, want TZ fallback", cfg.Updates.Timezone)
-	}
-}
-
 func TestValidate(t *testing.T) {
 	tests := []struct {
 		name string

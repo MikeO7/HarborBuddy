@@ -14,7 +14,7 @@ func (d *DockerClient) stoppedContainerProtection(ctx context.Context, container
 	if isBackupContainerName(name) {
 		return true, "container is a HarborBuddy update backup"
 	}
-	if container.Labels[SelfUpdateHelperLabel] != "" {
+	if container.Labels[SelfUpdateHelperLabel] == "true" {
 		return true, "container is a HarborBuddy self-update record"
 	}
 	details, err := d.InspectContainer(ctx, container.ID)

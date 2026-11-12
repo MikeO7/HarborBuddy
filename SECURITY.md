@@ -2,11 +2,11 @@
 
 ## Supported versions
 
-HarborBuddy is early-stage software; 0.1.x is the current release line. Security fixes are made on `main`, published through the moving `edge` and `latest` image tags, and included in the next 0.1.x release.
+HarborBuddy is early-stage software; 0.1.x is the current release line. Security fixes are made on `main`, published at once through the moving `edge` image tag, and included in the next 0.1.x release, which `latest` and `0.1` follow.
 
 | Version | Supported |
 | --- | --- |
-| Latest 0.1.x release, current `main`, `edge`, and `latest` | Best effort |
+| Latest 0.1.x release (`latest`, `0.1`), current `main` (`edge`) | Best effort |
 | Older releases and commit images | No |
 
 ## Reporting a vulnerability
@@ -54,7 +54,7 @@ Dry-run pulls eligible image references to compare image IDs. Pulling changes th
 
 ### Image and release verification
 
-Published images are built from a scratch runtime and contain the static HarborBuddy binary, CA certificates, and timezone data. Image publication includes SBOM and provenance attestations in the container registry. The build inputs and Go builder are digest-pinned, and Trivy blocks fixed HIGH and CRITICAL image vulnerabilities before publication. Both `latest` and `edge` move with `main`; pin an exact version tag or an image digest where change control requires an immutable reference.
+Published images are built from a scratch runtime and contain the static HarborBuddy binary, CA certificates, and timezone data. Image publication includes SBOM and provenance attestations in the container registry. The build inputs and Go builder are digest-pinned, and Trivy blocks fixed HIGH and CRITICAL image vulnerabilities before publication. `latest` moves with each stable release and `edge` with `main`; pin an exact version tag or an image digest where change control requires an immutable reference.
 
 CI also runs pinned golangci-lint, govulncheck, Gitleaks, Actionlint, ShellCheck, Hadolint, and yamllint checks. Scanner success is not proof that no vulnerability or secret exists. The reviewed govulncheck exceptions are limited to unfixed Moby daemon and `docker cp` advisories whose affected APIs HarborBuddy does not provide or invoke; any new advisory remains blocking.
 

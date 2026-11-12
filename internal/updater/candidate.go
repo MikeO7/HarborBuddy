@@ -4,7 +4,6 @@ import (
 	"context"
 	"errors"
 	"fmt"
-	"time"
 
 	"github.com/MikeO7/HarborBuddy/internal/config"
 	"github.com/MikeO7/HarborBuddy/internal/docker"
@@ -153,7 +152,6 @@ func processOrdinaryCandidate(
 	replaced, err := client.ReplaceContainer(ctx, details, candidateTarget(result), docker.ReplaceOptions{
 		StopTimeout:            cfg.Updates.StopTimeout,
 		StartupTimeout:         cfg.Updates.StartupTimeout,
-		StabilizationTime:      2 * time.Second,
 		RollbackImageRetention: cfg.Updates.RollbackImageRetention,
 	})
 	result.FailureStage = replaced.FailureStage

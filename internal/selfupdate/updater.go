@@ -96,8 +96,8 @@ func Trigger(ctx context.Context, client HelperStarter, current docker.Container
 
 // RunUpdater is the entry point for helper mode. It waits for the original
 // HarborBuddy process to exit, re-inspects the target, and delegates replacement
-// to the same transactional path used for ordinary containers. Every failure is
-// followed by a bounded recovery that restores the daemon's original restart
+// to the same transactional path used for ordinary containers. Every failure
+// after the request is validated is followed by a bounded recovery that restores the daemon's original restart
 // policy and starts it again, because the daemon disabled that policy before it
 // exited and would otherwise stay stopped.
 func RunUpdater(ctx context.Context, client docker.Client, request UpdaterRequest) (docker.ReplaceResult, error) {

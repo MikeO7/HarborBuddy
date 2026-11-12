@@ -580,7 +580,7 @@ Then update it yourself with `docker compose pull harborbuddy && docker compose 
 
 ## Which tag to follow
 
-The `0.1` tag follows 0.1.x patch releases, so self-update never jumps to a new minor version. Pin `0.1.0` or a digest to stop self-update entirely, or follow `latest` or `edge` to track the main branch.
+The `0.1` tag follows 0.1.x patch releases, so self-update never jumps to a new minor version. Pin `0.1.0` or a digest to stop self-update entirely, follow `latest` for every stable release, or follow `edge` to track the main branch.
 
 ---
 

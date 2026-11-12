@@ -69,6 +69,9 @@ func runHelper(ctx context.Context, stdout io.Writer, deps Dependencies, values 
 	if values.helperRetries < 0 {
 		return errors.New("updater mode restart retries cannot be negative")
 	}
+	if values.helperRollbackImageRetention < 0 {
+		return errors.New("updater mode rollback image retention cannot be negative")
+	}
 
 	helperCfg := config.Default()
 	if err := helperCfg.ApplyEnvironment(func(name string) string {
@@ -83,8 +86,7 @@ func runHelper(ctx context.Context, stdout io.Writer, deps Dependencies, values 
 	}
 	defer mergeCloseError(&runErr, "helper logging", closeLogger)
 
-	host, _ := deps.LookupEnv("HARBORBUDDY_DOCKER_HOST")
-	client, err := deps.NewDockerClient(ctx, host)
+	client, err := deps.NewDockerClient(ctx, helperCfg.Docker.Host)
 	if err != nil {
 		return fmt.Errorf("connect helper to Docker: %w", err)
 	}

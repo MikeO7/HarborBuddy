@@ -187,6 +187,7 @@ func classify(resource docker.CleanupResource, cfg config.CleanupConfig, now tim
 		referenceTime = resource.LastUsedAt
 	}
 	result.ReferenceAt = referenceTime
+	kept := keepReason(resource, cfg)
 	if !referenceTime.IsZero() {
 		result.AgeHours = int64(now.Sub(referenceTime).Hours())
 	}
@@ -197,8 +198,8 @@ func classify(resource docker.CleanupResource, cfg config.CleanupConfig, now tim
 		result.Reason = "resource is protected"
 	case resource.InUse:
 		result.Reason = "resource is in use"
-	case keepReason(resource, cfg) != "":
-		result.Reason = keepReason(resource, cfg)
+	case kept != "":
+		result.Reason = kept
 	case referenceTime.IsZero():
 		result.Reason = "resource age is unavailable"
 	case now.Sub(referenceTime) < minAgeDuration(cfg.MinAgeFor(string(resource.Kind), resource.Name, resource.Dangling)):

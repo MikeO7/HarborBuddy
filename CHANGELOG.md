@@ -12,6 +12,10 @@ All notable changes to HarborBuddy are documented here. The format follows [Keep
 
 ### Changed
 
+- The `latest` image tag now moves only with stable releases. Commits on `main` publish `edge` and `sha-*` only; follow `edge` to keep tracking `main`.
+- Rollback images whose image reference no container uses any more are no longer protected from cleanup, so unused-image cleanup can remove them.
+- A helper container is recognised by `com.harborbuddy.self-update-helper=true` everywhere; cleanup previously accepted any value.
+- The update summary reports `failed` instead of `partial_failure` when every container failed.
 - `--once` and `--cleanup-only` exit non-zero when a container update or cleanup removal failed. A daemon cycle with such failures is logged as `partial_failure` at warning level instead of `completed`.
 - The update interval is no longer validated for `--once` and `--cleanup-only`, which never use it.
 - Integer and duration environment variables ignore surrounding whitespace, as booleans already did.
