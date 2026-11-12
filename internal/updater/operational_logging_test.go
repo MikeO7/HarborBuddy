@@ -55,8 +55,11 @@ func TestUpdateSummaryOutcomesAndEmptyTransaction(t *testing.T) {
 	if updateOutcome(Report{Results: []ContainerResult{{Status: StatusSelfUpdateStarted}}}) != "self_update_handoff" {
 		t.Fatal("self-update report outcome was not preserved")
 	}
-	if transactionID(ContainerResult{}) != "" {
-		t.Fatal("empty target produced a transaction ID")
+	if got := updateOutcome(Report{Results: []ContainerResult{{Status: StatusFailed}, {Status: StatusFailed}}}); got != "failed" {
+		t.Fatalf("all-failed report outcome = %q, want failed", got)
+	}
+	if got := updateOutcome(Report{Results: []ContainerResult{{Status: StatusFailed}, {Status: StatusUpdated}}}); got != "partial_failure" {
+		t.Fatalf("mixed report outcome = %q, want partial_failure", got)
 	}
 	if warningReport.WarningCount() != 1 || (Report{}).WarningCount() != 0 {
 		t.Fatal("warning summary count is incorrect")

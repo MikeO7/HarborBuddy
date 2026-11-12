@@ -14,7 +14,7 @@ HarborBuddy watches the running containers on a standalone Docker Engine. It pul
 This is useful when you want automatic Docker container updates but still want filters, dry runs, health checks, and a way back when a new image does not start cleanly. It fills the role of [Watchtower](https://github.com/containrrr/watchtower), which was archived in December 2025, and adds a readiness check and automatic rollback; see the [Watchtower comparison and migration guide](https://mikeo7.github.io/HarborBuddy/compare/watchtower/).
 
 > [!IMPORTANT]
-> HarborBuddy is early-stage software; v0.1.0 is its first versioned release. The examples use the `0.1` tag, which follows 0.1.x patch releases, so self-update never jumps to a new minor version. Pin an exact version (`0.1.0`) or an image digest when repeatable deployments matter. The `latest` and `edge` tags still move with `main`.
+> HarborBuddy is early-stage software; v0.1.0 is its first versioned release. The examples use the `0.1` tag, which follows 0.1.x patch releases, so self-update never jumps to a new minor version. Pin an exact version (`0.1.0`) or an image digest when repeatable deployments matter. `latest` is the newest stable release, so it can cross minor versions; `edge` moves with every commit on `main`.
 
 > [!WARNING]
 > HarborBuddy needs read/write access to the Docker API. Access to the Docker socket is effectively host-administrator access. HarborBuddy is also noncommercial source-available software under the [PolyForm Noncommercial License 1.0.0](LICENSE), not an open-source license.
@@ -217,7 +217,7 @@ YAML parsing is strict. Unknown fields and a second non-empty YAML document caus
 
 When `log.file` is set, `log.max_backups` must be at least `1`. The rotation library treats `0` as "keep every rotated file", so HarborBuddy rejects it rather than letting old logs grow without limit.
 
-Set `updates.rollback_image_retention` to `N` to keep `N` prior images that completed a successful update, independently for each full registry/repository/tag reference. The default `0` keeps none. Lowering the setting removes the tags above the new limit the next time a container on that image reference is updated. HarborBuddy uses deterministic local `localhost/harborbuddy-rollback/<sha256>:<slot>` tags, rotates them only after the replacement is ready, and treats retention errors as warnings. It never deliberately removes an overflow image referenced by any running or stopped container. Container-referenced images can therefore remain on disk beyond the configured slots.
+Set `updates.rollback_image_retention` to `N` to keep `N` prior images that completed a successful update, independently for each full registry/repository/tag reference. The default `0` keeps none. Lowering the setting removes the tags above the new limit the next time a container on that image reference is updated. Cleanup never removes a rollback image while a container still uses its image reference; once none does, the image is treated like any other unused image. HarborBuddy uses deterministic local `localhost/harborbuddy-rollback/<sha256>:<slot>` tags, rotates them only after the replacement is ready, and treats retention errors as warnings. It never deliberately removes an overflow image referenced by any running or stopped container. Container-referenced images can therefore remain on disk beyond the configured slots.
 
 ### Environment variables
 

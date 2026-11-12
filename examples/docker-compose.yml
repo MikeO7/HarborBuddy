@@ -1,6 +1,6 @@
 services:
   harborbuddy:
-    # 0.1 follows 0.1.x patch releases; edge and latest both follow main.
+    # 0.1 follows 0.1.x patch releases; latest follows every stable release; edge follows main.
     image: ghcr.io/mikeo7/harborbuddy:0.1
     container_name: harborbuddy
     restart: unless-stopped

@@ -1,13 +1,17 @@
+import { createHash } from "node:crypto";
 import { expect } from "e2e";
 import { oldID, test } from "./fixture";
 const ancient = 1577836800, created = "2020-01-01T00:00:00Z";
+// A rollback image is kept while a container still uses the image reference its repository is derived from.
+const rollbackTag = (ref: string) => `localhost/harborbuddy-rollback/${createHash("sha256").update(ref).digest("hex")}:1`;
 function seed(docker: any) {
   docker.images = [
     { Id: "sha256:old-dangling", RepoTags: [], Created: ancient, Size: 100, Containers: 0 },
     { Id: "sha256:young", RepoTags: [], Created: Math.floor(Date.now()/1000), Size: 100, Containers: 0 },
     { Id: "sha256:tagged", RepoTags: ["example/old:tag"], Created: ancient, Size: 100, Containers: 0 },
     { Id: "sha256:used", RepoTags: ["example/used:tag"], Created: ancient, Size: 100, Containers: 1 },
-    { Id: "sha256:rollback", RepoTags: ["localhost/harborbuddy-rollback/app:old"], Created: ancient, Size: 100, Containers: 0 },
+    { Id: "sha256:rollback", RepoTags: [rollbackTag("example/app:latest")], Created: ancient, Size: 100, Containers: 0 },
+    { Id: "sha256:rollback-orphan", RepoTags: [rollbackTag("example/removed:latest")], Created: ancient, Size: 100, Containers: 0 },
   ];
   docker.networks = [{ Id: "net-free", Name: "isolated", Scope: "local", Created: created }, { Id: "net-default", Name: "bridge", Scope: "local", Created: created }];
   docker.volumes = [{ Name: "vol-free", CreatedAt: created, UsageData: { RefCount: 0, Size: 100 } }, { Name: "vol-used", CreatedAt: created, UsageData: { RefCount: 1, Size: 100 } }, { Name: "vol-unknown", CreatedAt: created }];
@@ -36,6 +40,7 @@ for (const all of [false, true]) {
           expect(removed).toContain("DELETE /images/sha256:tagged");
           expect(removed).not.toContain("DELETE /images/sha256:used");
           expect(removed).not.toContain("DELETE /images/sha256:rollback");
+          expect(removed).toContain("DELETE /images/sha256:rollback-orphan");
           expect(removed).toContain("DELETE /containers/stopped");
           expect(removed).not.toContain("DELETE /containers/stopped-service");
           expect(removed).toContain("DELETE /networks/net-free");

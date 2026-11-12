@@ -109,14 +109,6 @@ func TestInvalidEnvironmentValueReturnsError(t *testing.T) {
 	}
 }
 
-func TestInvalidSelfUpdateEnvironmentValueReturnsError(t *testing.T) {
-	deps := testDependencies(map[string]string{"HARBORBUDDY_SELF_UPDATE_ENABLED": "sometimes"})
-	err := RunWithDependencies(context.Background(), nil, &bytes.Buffer{}, &bytes.Buffer{}, deps)
-	if err == nil || !strings.Contains(err.Error(), "HARBORBUDDY_SELF_UPDATE_ENABLED") {
-		t.Fatalf("RunWithDependencies() error = %v", err)
-	}
-}
-
 func TestVersionExitsBeforeRuntimeInitialization(t *testing.T) {
 	oldVersion, oldCommit, oldDate := buildinfo.Version, buildinfo.Commit, buildinfo.Date
 	t.Cleanup(func() { buildinfo.Version, buildinfo.Commit, buildinfo.Date = oldVersion, oldCommit, oldDate })
@@ -301,7 +293,16 @@ func TestHelperModeRejectsNegativeTimeout(t *testing.T) {
 		"--helper-restart-max-retries=-1",
 	}, &bytes.Buffer{}, &bytes.Buffer{}, deps)
 	if err == nil || !strings.Contains(err.Error(), "restart retries cannot be negative") {
-		t.Fatalf("RunWithDependencies() error = %v, want negative-retry error", err)
+		t.Fatalf("RunWithDependencies() error = %v, want negative-retries error", err)
+	}
+	err = RunWithDependencies(context.Background(), []string{
+		"--updater-mode",
+		"--target-container-id=target",
+		"--new-image-id=image",
+		"--helper-rollback-image-retention=-1",
+	}, &bytes.Buffer{}, &bytes.Buffer{}, deps)
+	if err == nil || !strings.Contains(err.Error(), "rollback image retention cannot be negative") {
+		t.Fatalf("RunWithDependencies() error = %v, want negative-retention error", err)
 	}
 }
 

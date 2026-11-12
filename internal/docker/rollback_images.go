@@ -43,7 +43,7 @@ func (d *DockerClient) retainRollbackImage(ctx context.Context, imageRef, imageI
 		if checkErr != nil {
 			warnings = append(warnings, checkErr)
 		} else if inUse {
-			warnings = append(warnings, fmt.Errorf("%w: preserve %s", ErrRollbackImageInUse, overflow))
+			warnings = append(warnings, fmt.Errorf("%w: not removing %s; its rollback tag moves to a newer image", ErrRollbackImageInUse, overflow))
 		} else if _, removeErr := d.cli.ImageRemove(ctx, rollbackSlot(repository, retention), client.ImageRemoveOptions{Force: false, PruneChildren: true}); removeErr != nil {
 			warnings = append(warnings, fmt.Errorf("clean rollback slot %d: %w", retention, removeErr))
 		}

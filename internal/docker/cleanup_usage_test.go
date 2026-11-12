@@ -229,3 +229,36 @@ func TestCleanupUsageHelpers(t *testing.T) {
 		t.Fatal("containerUsage reported usage incorrectly")
 	}
 }
+
+func TestRollbackImagesAreReleasedOnlyWhenNoContainerUsesTheirReference(t *testing.T) {
+	live := rollbackImageRepository("registry.example/app:stable") + ":1"
+	gone := rollbackImageRepository("registry.example/removed:stable") + ":1"
+	images := func() []ImageInfo {
+		return []ImageInfo{
+			{ID: "sha256:live", RepoTags: []string{live}, Protected: true},
+			{ID: "sha256:gone", RepoTags: []string{gone, "registry.example/removed:previous"}, Protected: true},
+			{ID: "sha256:both", RepoTags: []string{gone, live}, Protected: true},
+		}
+	}
+	protected := func(containers []containertypes.Summary) []bool {
+		transport := newMockTransport()
+		transport.register("GET", "/v1.41/containers/json", func(*http.Request) (*http.Response, error) {
+			return jsonResponse(http.StatusOK, containers)
+		})
+		marked, err := testDockerClient(t, transport).markImagesInUse(context.Background(), images(), nil)
+		if err != nil {
+			t.Fatalf("markImagesInUse() error = %v", err)
+		}
+		return []bool{marked[0].Protected, marked[1].Protected, marked[2].Protected}
+	}
+
+	resolved := []containertypes.Summary{{ID: "app", Image: "registry.example/app:stable", ImageID: "sha256:current"}}
+	if got := protected(resolved); !slices.Equal(got, []bool{true, false, true}) {
+		t.Fatalf("protected = %v, want only the image of a removed reference released", got)
+	}
+	// A container listed by image ID hides its reference, so nothing is released.
+	unresolved := append(resolved, containertypes.Summary{ID: "moved", Image: "sha256:other", ImageID: "sha256:other"})
+	if got := protected(unresolved); !slices.Equal(got, []bool{true, true, true}) {
+		t.Fatalf("protected = %v, want every rollback image kept while a reference is unknown", got)
+	}
+}

@@ -16,6 +16,31 @@ import (
 type containerUsage struct {
 	images   map[string]struct{}
 	networks map[string]struct{} // network IDs and names
+	// rollbackRepositories holds the rollback repository of every container's
+	// image reference. unresolvedReference records a container listed by image
+	// ID, whose reference is unknown without inspecting it.
+	rollbackRepositories map[string]struct{}
+	unresolvedReference  bool
+}
+
+// rollbackImageOrphaned reports whether every rollback tag on an image belongs
+// to an image reference that no container uses any more. Such an image can
+// never be a rollback target again, so cleanup may treat it like any other
+// unused image. When any container's reference is unknown, nothing is orphaned.
+func (u containerUsage) rollbackImageOrphaned(tags []string) bool {
+	if u.unresolvedReference {
+		return false
+	}
+	for _, tag := range tags {
+		if !strings.HasPrefix(tag, rollbackImageRepositoryPrefix) {
+			continue
+		}
+		repository, _, _ := strings.Cut(tag, ":")
+		if _, live := u.rollbackRepositories[repository]; live {
+			return false
+		}
+	}
+	return true
 }
 
 func (d *DockerClient) listContainerUsage(ctx context.Context) (containerUsage, error) {
@@ -23,9 +48,14 @@ func (d *DockerClient) listContainerUsage(ctx context.Context) (containerUsage, 
 	if err != nil {
 		return containerUsage{}, fmt.Errorf("list all containers for cleanup usage: %w", err)
 	}
-	usage := containerUsage{images: make(map[string]struct{}), networks: make(map[string]struct{})}
+	usage := containerUsage{images: make(map[string]struct{}), networks: make(map[string]struct{}), rollbackRepositories: make(map[string]struct{})}
 	for _, container := range listed.Items {
 		addNonEmpty(usage.images, container.ImageID)
+		if container.Image == container.ImageID || strings.HasPrefix(container.Image, "sha256:") {
+			usage.unresolvedReference = true
+		} else {
+			usage.rollbackRepositories[rollbackImageRepository(container.Image)] = struct{}{}
+		}
 		addNonEmpty(usage.networks, container.HostConfig.NetworkMode)
 		if container.NetworkSettings == nil {
 			continue
@@ -84,6 +114,9 @@ func (d *DockerClient) markImagesInUse(ctx context.Context, images []ImageInfo, 
 	for index := range images {
 		_, hasChildren := parents[images[index].ID]
 		images[index].InUse = images[index].InUse || hasChildren || usage.usesImage(images[index].ID)
+		if images[index].Protected && usage.rollbackImageOrphaned(images[index].RepoTags) {
+			images[index].Protected = false
+		}
 	}
 	return images, nil
 }

@@ -151,6 +151,8 @@ func resultEvent(logger zerolog.Logger, result ContainerResult) *zerolog.Event {
 
 func updateOutcome(report Report) string {
 	switch {
+	case len(report.Results) > 0 && report.Count(StatusFailed) == len(report.Results):
+		return "failed"
 	case report.Count(StatusFailed) > 0:
 		return "partial_failure"
 	case report.Count(StatusCancelled) > 0:
@@ -163,9 +165,6 @@ func updateOutcome(report Report) string {
 }
 
 func transactionID(result ContainerResult) string {
-	if result.TargetImageID == "" {
-		return ""
-	}
 	return operational.ShortID(result.Container.ID) + "-" + operational.ShortID(result.TargetImageID)
 }
 
